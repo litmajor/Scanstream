@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MarketFrame {
+  id                    String   @id @default(uuid())
+  timestamp             DateTime @default(now())
+  symbol                String
+  price                 Json     // { open, high, low, close }
+  volume                Float
+  indicators            Json     // RSI, MACD, etc.
+  orderFlow             Json     // bid/ask volumes, net flow
+  marketMicrostructure  Json     // spread, depth, etc.
+}
+
+model Signal {
+  id                  String   @id @default(uuid())
+  timestamp           DateTime @default(now())
+  symbol              String
+  type                String   // 'BUY' | 'SELL' | 'HOLD'
+  strength            Float
+  confidence          Float
+  price               Float
+  reasoning           Json     // string[]
+  riskReward          Float
+  stopLoss            Float
+  takeProfit          Float
+  momentumLabel       String?
+  regimeState         String?
+  legacyLabel         String?
+  signalStrengthScore Float?
+}
+
+model Trade {
+  id         String   @id @default(uuid())
+  symbol     String
+  side       String   // 'BUY' | 'SELL'
+  entryTime  DateTime
+  exitTime   DateTime?
+  entryPrice Float
+  exitPrice  Float?
+  quantity   Float
+  pnl        Float?
+  commission Float    @default(0)
+  status     String   @default("OPEN") // 'OPEN' | 'CLOSED' | 'CANCELLED'
+}
+
+
+model Strategy {
+  id          String           @id @default(uuid())
+  name        String
+  description String
+  riskParams  Json
+  performance Json
+  isActive    Boolean          @default(true)
+  backtests   BacktestResult[]
+}
+
+
+model BacktestResult {
+  id             String   @id @default(uuid())
+  strategyId     String
+  strategy       Strategy @relation(fields: [strategyId], references: [id])
+  startDate      DateTime
+  endDate        DateTime
+  initialCapital Float
+  finalCapital   Float
+  performance    Json
+  equityCurve    Json
+  monthlyReturns Json
+  createdAt      DateTime @default(now())
+  metrics        Json
+  trades         Json
+}
+
+model MarketSentiment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  data      Json
+}
+
+model PortfolioSummary {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  data      Json
+}

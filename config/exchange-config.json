@@ -1,0 +1,32 @@
+{
+  "binance": {
+    "sandbox": true,
+    "enableRateLimit": true
+  },
+  "coinbase": {
+    "enableRateLimit": true
+  },
+  "kraken": {
+    "enableRateLimit": true
+  },
+  "kucoinfutures": {
+    "main": true,
+    "enableRateLimit": true
+  },
+  "okx": {
+    "enableRateLimit": true,
+    "sandbox": true
+  },
+  "bybit": {
+    "enableRateLimit": true,
+    "sandbox": true
+  },
+  "oanda": {
+    "enabled": true,
+    "enableRateLimit": true
+  },
+  "fxcm": {
+    "enabled": true,
+    "enableRateLimit": true
+  }
+}

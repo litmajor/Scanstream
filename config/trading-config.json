@@ -1,0 +1,69 @@
+{
+  "timeframes": {
+    "scalping": "1m",
+    "short": "5m",
+    "medium": "1h",
+    "daily": "1d",
+    "weekly": "1w"
+  },
+  "backtest_periods": {
+    "scalping": 100,
+    "short": 50,
+    "medium": 24,
+    "daily": 7,
+    "weekly": 4
+  },
+  "momentum_periods": {
+    "crypto": {
+      "scalping": { "short": 10, "long": 60 },
+      "short": { "short": 5, "long": 20 },
+      "medium": { "short": 4, "long": 12 },
+      "daily": { "short": 7, "long": 30 },
+      "weekly": { "short": 4, "long": 12 }
+    }
+  },
+  "signal_thresholds": {
+    "crypto": {
+      "scalping": { "momentum_short": 0.01, "rsi_min": 55, "rsi_max": 70, "macd_min": 0 },
+      "short": { "momentum_short": 0.03, "rsi_min": 52, "rsi_max": 68, "macd_min": 0 },
+      "medium": { "momentum_short": 0.05, "rsi_min": 50, "rsi_max": 65, "macd_min": 0 }
+    }
+  },
+  "trade_durations": {
+    "scalping": 1800,
+    "short": 14400,
+    "medium": 86400
+  },
+  "rsi_period": 14,
+  "macd_params": { "fast": 12, "slow": 26, "signal": 9 },
+  "volume_trend_thresholds": { "up": 0.05, "down": -0.05 },
+  "retry_attempts": 3,
+  "retry_delay": 2,
+  "rate_limit_delay": 0.01,
+  "max_concurrent_requests": 50,
+  "circuit_breaker_threshold": 10,
+  "circuit_breaker_pause": 60,
+  "websocket_update_interval": 1,
+  "volume_profile_bins": 50,
+  "fixed_range_bars": 20
+  ,
+  "riskRewardRatio": 2,
+  "volatilityMultiplier": 0.5,
+  "monteCarloIterations": 1000,
+  "rollingWindowSize": 30,
+  "commissionRate": 0.1,
+  "slippageRate": 0.05,
+  "maxPositionsPerSymbol": 1,
+  "riskFreeRate": 0.02,
+  "initialCapital": 100000,
+  "positionSize": 0.1,
+  "optimizer": {
+    "iterations": 15,
+    "initPoints": 5
+  },
+  "scannerAgent": {
+    "lookbackWindow": 50,
+    "rsiThreshold": 30,
+    "volumeMultiplier": 2.5
+  }
+}

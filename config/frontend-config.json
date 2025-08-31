@@ -1,0 +1,105 @@
+{
+  "signalStrength": {
+    "baseScore": 50,
+    "momentumShortFactor": 1000,
+    "momentumLongFactor": 500,
+    "momentumShortMax": 15,
+    "momentumLongMax": 15,
+    "rsiMidLow": 40,
+    "rsiMidHigh": 60,
+    "rsiExtremeLow": 30,
+    "rsiExtremeHigh": 70,
+    "rsiMidBonus": 5,
+    "rsiExtremePenalty": 10,
+    "macdFactor": 50,
+    "macdMax": 10,
+    "volumeHigh": 1.2,
+    "volumeLow": 0.8,
+    "volumeHighBonus": 5,
+    "volumeLowPenalty": 3
+  },
+  "risk": {
+    "momentumExtremeHigh": 85,
+    "momentumExtremeLow": 15,
+    "momentumHigh": 75,
+    "momentumLow": 25,
+    "volatilitySpike": 12,
+    "volatilityLow": 6,
+    "volumeSurgeMultiplier": 1.2,
+    "volumeConfirmationMultiplier": 2,
+    "volumeConfirmationMidMultiplier": 1.5,
+    "stealthAccumulationMultiplier": 1.2,
+    "breakoutMembraneWeights": {
+      "extremeConditions": 0.9,
+      "momentumExtreme": 0.8,
+      "volumeConfirmation": 0.7,
+      "volatilitySpike": 0.5
+    },
+    "baseTiming": {
+      "strong": 0.5,
+      "medium": 2,
+      "weak": 5,
+      "veryWeak": 12,
+      "default": 30
+    },
+    "urgencyFactorWeights": {
+      "breakoutMembrane": 0.6,
+      "volumeSurge": 0.4
+    },
+    "timingMin": 0.5
+  },
+  "analytics": {
+    "volumePatternThreshold": 1000,
+    "fractalDepthMinLength": 10,
+    "quantumCoherenceVolatilityLow": 5,
+    "volatilityPenaltyMax": 0.4,
+    "volatilityPenaltyDivisor": 25,
+    "confidenceMax": 0.99
+  },
+  "ui": {
+    "defaultRollingWindow": 30,
+    "defaultTimeframe": "1m",
+    "defaultPrice": 43287.50,
+    "defaultPriceChange": 984.23,
+    "defaultPriceChangePercent": 2.33,
+    "toastLimit": 1,
+    "toastRemoveDelay": 1000000,
+    "availableExchanges": [
+      "kucoinfutures",
+      "okx",
+      "bybit",
+      "binance",
+      "coinbase",
+      "kraken"
+    ]
+  },
+  "operational": {
+    "retryAttempts": 3,
+    "retryDelay": 2,
+    "rateLimitDelay": 0.01,
+    "circuitBreakerThreshold": 10,
+    "circuitBreakerPause": 60,
+    "websocketUpdateInterval": 1
+  },
+  "uiCutoffs": {
+    "godmodeFactor": 0.9,
+    "realityBend": 0.8,
+    "quantumAdvantage": 0.7,
+    "profitMagnetism": 0.8,
+    "certaintyCoefficient": 0.8,
+    "riskShadow": 0.7,
+    "whalePresence": 0.7,
+    "institutionalFlow": 0.7,
+    "breakoutMembrane": 0.8,
+    "momentumStrong": 75,
+    "momentumMedium": 50,
+    "momentumWeak": 25,
+    "accumulationPressure": 0.4,
+    "institutionalFlowField": 0.6,
+    "whalePresenceField": 0.5,
+    "realityBendField": 0.7,
+    "godmodeFactorField": 0.8,
+    "momentumVectorStrength": 0.5,
+    "momentumVectorTiming": 3
+  }
+}
