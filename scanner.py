@@ -266,6 +266,126 @@ class OptimizableAgent(ABC):
 
 class TechnicalIndicators:
     @staticmethod
+    def detect_market_regime(df: pd.DataFrame) -> Dict[str, any]:
+        """
+        Detect current market regime: Bull, Bear, Sideways/Ranging
+        
+        Returns dict with:
+            - regime: 'bull' | 'bear' | 'ranging'
+            - confidence: 0-100 (how confident in the classification)
+            - trend_strength: 0-100 (strength of trend if trending)
+            - volatility: 'low' | 'medium' | 'high'
+            - suggested_opportunity_threshold: adjusted threshold based on regime
+        """
+        # Calculate multiple timeframe EMAs
+        ema_20 = df['close'].ewm(span=20, adjust=False).mean()
+        ema_50 = df['close'].ewm(span=50, adjust=False).mean()
+        ema_200 = df['close'].ewm(span=200, adjust=False).mean() if len(df) >= 200 else ema_50
+        
+        current_price = df['close'].iloc[-1]
+        
+        # Trend direction indicators
+        above_ema20 = current_price > ema_20.iloc[-1]
+        above_ema50 = current_price > ema_50.iloc[-1]
+        above_ema200 = current_price > ema_200.iloc[-1]
+        ema20_above_50 = ema_20.iloc[-1] > ema_50.iloc[-1]
+        ema50_above_200 = ema_50.iloc[-1] > ema_200.iloc[-1]
+        
+        # ADX for trend strength (if available)
+        if 'adx' in df and pd.notna(df['adx'].iloc[-1]):
+            adx = df['adx'].iloc[-1]
+        else:
+            # Fallback: calculate simple ADX-like metric
+            high_low = df['high'] - df['low']
+            adx = high_low.tail(14).mean() / df['close'].iloc[-1] * 100
+        
+        # Volatility (ATR-based)
+        if 'atr' in df and pd.notna(df['atr'].iloc[-1]):
+            atr = df['atr'].iloc[-1]
+            atr_pct = (atr / current_price) * 100
+        else:
+            high_low = df['high'] - df['low']
+            atr = high_low.tail(14).mean()
+            atr_pct = (atr / current_price) * 100
+        
+        # Price trend over different periods
+        returns_20 = (df['close'].iloc[-1] / df['close'].iloc[-20] - 1) * 100 if len(df) >= 20 else 0
+        returns_50 = (df['close'].iloc[-1] / df['close'].iloc[-50] - 1) * 100 if len(df) >= 50 else 0
+        
+        # Determine regime
+        bull_signals = sum([above_ema20, above_ema50, above_ema200, ema20_above_50, ema50_above_200])
+        bear_signals = sum([not above_ema20, not above_ema50, not above_ema200, not ema20_above_50, not ema50_above_200])
+        
+        # Ranging detection: price oscillating around EMAs with low ADX
+        price_volatility = df['close'].tail(20).std() / df['close'].tail(20).mean() * 100
+        
+        # Classification logic
+        if adx < 20 and price_volatility < 3:
+            # Low trend strength + low volatility = ranging
+            regime = 'ranging'
+            confidence = min(100, (20 - adx) * 5 + (3 - price_volatility) * 10)
+            trend_strength = adx
+        elif bull_signals >= 4:
+            regime = 'bull'
+            confidence = min(100, bull_signals * 20 + (returns_20 if returns_20 > 0 else 0))
+            trend_strength = adx
+        elif bear_signals >= 4:
+            regime = 'bear'
+            confidence = min(100, bear_signals * 20 + (abs(returns_20) if returns_20 < 0 else 0))
+            trend_strength = adx
+        elif bull_signals > bear_signals:
+            regime = 'bull'
+            confidence = min(80, bull_signals * 15)
+            trend_strength = adx
+        elif bear_signals > bull_signals:
+            regime = 'bear'
+            confidence = min(80, bear_signals * 15)
+            trend_strength = adx
+        else:
+            regime = 'ranging'
+            confidence = 50
+            trend_strength = adx
+        
+        # Volatility classification
+        if atr_pct < 1.5:
+            volatility = 'low'
+        elif atr_pct < 3.5:
+            volatility = 'medium'
+        else:
+            volatility = 'high'
+        
+        # Adjust opportunity thresholds based on regime
+        # In bull markets: slightly lower threshold (easier to find good longs)
+        # In bear markets: higher threshold (harder to find good longs)
+        # In ranging: much higher threshold (wait for breakouts)
+        if regime == 'bull':
+            opportunity_threshold = 60  # Lower bar in bull market
+        elif regime == 'bear':
+            opportunity_threshold = 75  # Higher bar in bear market
+        else:  # ranging
+            opportunity_threshold = 80  # Very high bar in ranging market
+        
+        return {
+            'regime': regime,
+            'confidence': round(confidence, 1),
+            'trend_strength': round(trend_strength, 1),
+            'volatility': volatility,
+            'atr_pct': round(atr_pct, 2),
+            'suggested_opportunity_threshold': opportunity_threshold,
+            'ema_alignment': {
+                'price_above_20': above_ema20,
+                'price_above_50': above_ema50,
+                'price_above_200': above_ema200,
+                'ema20_above_50': ema20_above_50,
+                'ema50_above_200': ema50_above_200
+            },
+            'returns': {
+                '20d': round(returns_20, 2),
+                '50d': round(returns_50, 2)
+            }
+        }
+
+    @staticmethod
     def fib_levels(df: pd.DataFrame,
                    lookback: int = 55,
                    mode: str = "swing") -> dict:
@@ -457,6 +577,118 @@ class TechnicalIndicators:
         return TechnicalIndicators.calculate_volume_profile(df_range, bins)
 
     @staticmethod
+    def calculate_opportunity_score(
+        momentum_short: float,
+        momentum_long: float,
+        rsi: float,
+        macd: float,
+        bb_position: Optional[float],
+        trend_score: float,
+        volume_ratio: float,
+        stoch_k: Optional[float] = None,
+        rsi_bearish_div: bool = False
+    ) -> float:
+        """
+        Calculate opportunity score that identifies the BEST entry points, not just momentum.
+        Penalizes overbought/oversold conditions and rewards pullbacks in trends.
+        
+        Returns a score from 0-100 where higher means better opportunity.
+        """
+        # 1. RSI Opportunity Score (favor 30-50 for longs, 50-70 for shorts)
+        # Penalize extreme overbought (>70) and oversold (<30)
+        if rsi < 30:
+            rsi_opp = 0.3  # Oversold - risky catching falling knife
+        elif 30 <= rsi < 45:
+            rsi_opp = 1.0  # Sweet spot - pullback in uptrend
+        elif 45 <= rsi < 55:
+            rsi_opp = 0.8  # Neutral - okay
+        elif 55 <= rsi < 70:
+            rsi_opp = 0.5  # Getting extended
+        else:  # rsi >= 70
+            rsi_opp = 0.2  # Overbought - poor entry point
+        
+        # 2. Bollinger Band Position Score (favor lower BB positions for longs)
+        if bb_position is not None:
+            if bb_position < 0.3:
+                bb_opp = 1.0  # Near lower band - good entry for reversal
+            elif 0.3 <= bb_position < 0.5:
+                bb_opp = 0.9  # Below midline - good
+            elif 0.5 <= bb_position < 0.7:
+                bb_opp = 0.6  # Above midline - okay
+            else:  # bb_position >= 0.7
+                bb_opp = 0.2  # Near upper band - overbought
+        else:
+            bb_opp = 0.5  # No BB data
+        
+        # 3. Stochastic Opportunity (favor oversold stoch with bullish trend)
+        if stoch_k is not None:
+            if stoch_k < 20:
+                stoch_opp = 1.0 if momentum_long > 0 else 0.3  # Oversold in uptrend = buy
+            elif 20 <= stoch_k < 40:
+                stoch_opp = 0.9
+            elif 40 <= stoch_k < 60:
+                stoch_opp = 0.7
+            elif 60 <= stoch_k < 80:
+                stoch_opp = 0.4
+            else:  # stoch_k >= 80
+                stoch_opp = 0.1  # Overbought
+        else:
+            stoch_opp = 0.5
+        
+        # 4. Momentum Context (positive long-term, moderate short-term = pullback)
+        if momentum_long > 0.001:  # Uptrend
+            if -0.005 < momentum_short < 0.002:  # Slight pullback or consolidation
+                momentum_opp = 1.0  # Perfect - pullback in uptrend
+            elif momentum_short > 0.005:  # Strong short-term momentum
+                momentum_opp = 0.4  # Already running hot
+            else:
+                momentum_opp = 0.6
+        elif momentum_long < -0.001:  # Downtrend
+            if -0.002 < momentum_short < 0.005:  # Slight bounce
+                momentum_opp = 1.0  # Good short opportunity
+            else:
+                momentum_opp = 0.5
+        else:  # Flat
+            momentum_opp = 0.5
+        
+        # 5. Divergence Penalty (bearish divergence = bad for longs)
+        divergence_penalty = 0.5 if rsi_bearish_div else 1.0
+        
+        # 6. Volume Context (high volume on pullbacks = accumulation)
+        if volume_ratio > 1.5:
+            vol_opp = 1.0 if rsi < 55 else 0.3  # High vol + not overbought = good
+        elif volume_ratio > 1.2:
+            vol_opp = 0.8
+        elif volume_ratio > 0.8:
+            vol_opp = 0.6
+        else:
+            vol_opp = 0.4  # Low volume = lack of conviction
+        
+        # 7. Trend Quality (strong trend = better context for pullbacks)
+        trend_opp = min(max(trend_score / 10, 0), 1)
+        
+        # 8. MACD Opportunity (slight negative MACD in uptrend = pullback)
+        if momentum_long > 0 and -0.5 < macd < 0:
+            macd_opp = 1.0  # Pullback in uptrend
+        elif macd > 0:
+            macd_opp = 0.7 if macd < 2 else 0.3  # Moderate positive vs. overextended
+        else:
+            macd_opp = 0.5
+        
+        # Weighted combination emphasizing key opportunity factors
+        opportunity = (
+            rsi_opp * 0.25 +           # RSI is critical for overbought/oversold
+            bb_opp * 0.20 +             # BB position shows value
+            stoch_opp * 0.15 +          # Stochastic confirms
+            momentum_opp * 0.15 +       # Pullback detection
+            vol_opp * 0.10 +            # Volume confirmation
+            trend_opp * 0.10 +          # Trend quality
+            macd_opp * 0.05             # MACD context
+        ) * divergence_penalty
+        
+        return round(opportunity * 100, 2)
+
+    @staticmethod
     def calculate_composite_score(
         momentum_short: float,
         momentum_long: float,
@@ -521,6 +753,220 @@ class TechnicalIndicators:
             poc_dist_score * weights['poc_distance']
         )
         return round(score * 100, 2)
+
+    @staticmethod
+    def calculate_stop_loss_take_profit(
+        current_price: float,
+        df: pd.DataFrame,
+        signal: str,
+        atr: Optional[float] = None,
+        bb_lower: Optional[float] = None,
+        bb_upper: Optional[float] = None,
+        support_level: Optional[float] = None,
+        resistance_level: Optional[float] = None,
+        risk_reward_ratio: float = 2.5
+    ) -> Dict[str, float]:
+        """
+        Calculate optimal stop-loss and take-profit levels based on multiple methods.
+        
+        Returns a dict with entry, stop_loss, take_profit, risk_amount, reward_amount, and risk_reward_ratio
+        """
+        # Calculate ATR if not provided
+        if atr is None and 'atr' in df:
+            atr = df['atr'].iloc[-1]
+        elif atr is None:
+            # Fallback: calculate simple ATR from last 14 periods
+            high_low = df['high'] - df['low']
+            atr = high_low.tail(14).mean() if len(df) >= 14 else high_low.mean()
+        
+        # Calculate recent swing high/low (last 20 periods)
+        recent_data = df.tail(20) if len(df) >= 20 else df
+        swing_low = recent_data['low'].min()
+        swing_high = recent_data['high'].max()
+        
+        # Determine support and resistance if not provided
+        if support_level is None:
+            # Use swing low or Bollinger lower band as support
+            support_level = bb_lower if bb_lower is not None else swing_low
+        
+        if resistance_level is None:
+            # Use swing high or Bollinger upper band as resistance
+            resistance_level = bb_upper if bb_upper is not None else swing_high
+        
+        # Calculate stop-loss and take-profit based on signal direction
+        if signal in ['Strong Buy', 'Buy', 'Weak Buy']:
+            # LONG POSITION
+            # Stop Loss Methods:
+            # 1. ATR-based: 1.5-2x ATR below entry
+            # 2. Support-based: Just below recent support
+            # 3. Percentage-based: 2-3% below entry
+            
+            atr_stop = current_price - (atr * 1.5)
+            support_stop = support_level * 0.995  # 0.5% below support
+            percentage_stop = current_price * 0.97  # 3% stop
+            
+            # Use the tightest reasonable stop (but not too tight)
+            stop_loss_candidates = [atr_stop, support_stop, percentage_stop]
+            # Filter out stops that are too close (< 0.5%) or too far (> 8%)
+            valid_stops = [
+                s for s in stop_loss_candidates 
+                if 0.005 < (current_price - s) / current_price < 0.08
+            ]
+            stop_loss = max(valid_stops) if valid_stops else atr_stop
+            
+            # Take Profit: Based on risk/reward ratio and resistance
+            risk_amount = current_price - stop_loss
+            reward_by_rr = current_price + (risk_amount * risk_reward_ratio)
+            
+            # Consider resistance as a take-profit zone
+            resistance_tp = resistance_level * 0.995  # Slightly before resistance
+            
+            # Use closer of RR-based or resistance-based TP
+            if resistance_tp > current_price and resistance_tp < reward_by_rr:
+                take_profit = resistance_tp
+                actual_rr = (take_profit - current_price) / risk_amount
+            else:
+                take_profit = reward_by_rr
+                actual_rr = risk_reward_ratio
+        
+        elif signal in ['Strong Sell', 'Sell', 'Weak Sell']:
+            # SHORT POSITION
+            atr_stop = current_price + (atr * 1.5)
+            resistance_stop = resistance_level * 1.005  # 0.5% above resistance
+            percentage_stop = current_price * 1.03  # 3% stop
+            
+            stop_loss_candidates = [atr_stop, resistance_stop, percentage_stop]
+            valid_stops = [
+                s for s in stop_loss_candidates 
+                if 0.005 < (s - current_price) / current_price < 0.08
+            ]
+            stop_loss = min(valid_stops) if valid_stops else atr_stop
+            
+            risk_amount = stop_loss - current_price
+            reward_by_rr = current_price - (risk_amount * risk_reward_ratio)
+            
+            support_tp = support_level * 1.005  # Slightly above support
+            
+            if support_tp < current_price and support_tp > reward_by_rr:
+                take_profit = support_tp
+                actual_rr = (current_price - take_profit) / risk_amount
+            else:
+                take_profit = reward_by_rr
+                actual_rr = risk_reward_ratio
+        
+        else:
+            # NEUTRAL - provide conservative levels
+            stop_loss = current_price * 0.97
+            take_profit = current_price * 1.03
+            risk_amount = current_price - stop_loss
+            actual_rr = (take_profit - current_price) / risk_amount if risk_amount > 0 else 0
+        
+        return {
+            'entry_price': round(current_price, 8),
+            'stop_loss': round(stop_loss, 8),
+            'take_profit': round(take_profit, 8),
+            'risk_amount': round(abs(current_price - stop_loss), 8),
+            'reward_amount': round(abs(take_profit - current_price), 8),
+            'risk_reward_ratio': round(actual_rr, 2),
+            'stop_loss_pct': round(((stop_loss - current_price) / current_price) * 100, 2),
+            'take_profit_pct': round(((take_profit - current_price) / current_price) * 100, 2),
+            'support_level': round(support_level, 8) if support_level else None,
+            'resistance_level': round(resistance_level, 8) if resistance_level else None
+        }
+
+    @staticmethod
+    def calculate_position_size(
+        account_balance: float,
+        risk_per_trade_pct: float,
+        entry_price: float,
+        stop_loss: float,
+        leverage: float = 1.0,
+        fee_rate: float = 0.001
+    ) -> Dict[str, float]:
+        """
+        Calculate optimal position size based on account size and risk management.
+        
+        Args:
+            account_balance: Total account balance in USD
+            risk_per_trade_pct: Percentage of account to risk (e.g., 2 for 2%)
+            entry_price: Planned entry price
+            stop_loss: Stop-loss price
+            leverage: Leverage to use (default 1 = no leverage)
+            fee_rate: Trading fee rate (default 0.1%)
+        
+        Returns:
+            Dict with position_size, units, risk_amount, position_value, and more
+        """
+        # Calculate risk amount in USD
+        risk_amount_usd = account_balance * (risk_per_trade_pct / 100)
+        
+        # Calculate stop distance as percentage
+        stop_distance_pct = abs((entry_price - stop_loss) / entry_price)
+        
+        # Calculate position size without leverage
+        # Risk Amount = Position Size × Stop Distance %
+        # Position Size = Risk Amount / Stop Distance %
+        base_position_size = risk_amount_usd / stop_distance_pct
+        
+        # Apply leverage
+        position_value = base_position_size * leverage
+        
+        # Calculate number of units/coins
+        units = position_value / entry_price
+        
+        # Calculate fees (entry + exit)
+        entry_fee = position_value * fee_rate
+        exit_fee = position_value * fee_rate
+        total_fees = entry_fee + exit_fee
+        
+        # Adjust for fees
+        adjusted_risk = risk_amount_usd - total_fees
+        adjusted_position_value = max(0, position_value - total_fees)
+        
+        # Calculate margin required (for leveraged positions)
+        margin_required = position_value / leverage
+        
+        # Calculate liquidation price (approximate, for leveraged positions)
+        if leverage > 1:
+            # Simplified liquidation calc: Entry - (Margin / Position Size)
+            liquidation_buffer = margin_required * 0.9  # 90% of margin before liquidation
+            liquidation_price = entry_price - (liquidation_buffer / units) if stop_loss < entry_price else entry_price + (liquidation_buffer / units)
+        else:
+            liquidation_price = 0  # No liquidation without leverage
+        
+        # Risk/Reward metrics
+        stop_distance_usd = abs(entry_price - stop_loss) * units
+        
+        # Warnings
+        warnings = []
+        if margin_required > account_balance:
+            warnings.append("Insufficient balance for this position")
+        if margin_required > account_balance * 0.5:
+            warnings.append("Position uses >50% of account (high risk)")
+        if leverage > 3:
+            warnings.append(f"High leverage ({leverage}x) - increased liquidation risk")
+        if risk_per_trade_pct > 3:
+            warnings.append(f"Risking {risk_per_trade_pct}% per trade (recommended: 1-2%)")
+        if liquidation_price != 0 and ((stop_loss < entry_price and liquidation_price > stop_loss) or (stop_loss > entry_price and liquidation_price < stop_loss)):
+            warnings.append("Liquidation price is beyond stop-loss - very risky!")
+        
+        return {
+            'position_value': round(position_value, 2),
+            'units': round(units, 8),
+            'margin_required': round(margin_required, 2),
+            'risk_amount_usd': round(risk_amount_usd, 2),
+            'adjusted_risk_usd': round(adjusted_risk, 2),
+            'total_fees': round(total_fees, 2),
+            'stop_distance_pct': round(stop_distance_pct * 100, 2),
+            'stop_distance_usd': round(stop_distance_usd, 2),
+            'leverage': leverage,
+            'liquidation_price': round(liquidation_price, 8) if liquidation_price > 0 else None,
+            'account_balance': account_balance,
+            'risk_per_trade_pct': risk_per_trade_pct,
+            'margin_usage_pct': round((margin_required / account_balance) * 100, 2),
+            'warnings': warnings,
+            'safe_to_trade': len([w for w in warnings if 'Insufficient' in w or 'Liquidation' in w]) == 0
+        }
 
     @staticmethod
     def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -1124,11 +1570,8 @@ class MomentumScanner(OptimizableAgent):
             f"quote_currency={quote_currency}, min_volume_usd={min_volume_usd}, top_n={top_n}"
         )
         
-        try:
-            asyncio.create_task(self._initialize_exchange())
-        except Exception as e:
-            logger.error(f"Failed to initialize exchange: {e}")
-            raise
+        # Don't initialize exchange in __init__ - it will be done when markets are loaded
+        # The exchange should already have markets loaded by the caller
 
     async def _initialize_exchange(self):
         """Initialize the exchange connection and verify connectivity"""
@@ -1400,6 +1843,14 @@ class MomentumScanner(OptimizableAgent):
                     volume_composite_score = self.indicators.calculate_volume_composite_score(
                         volume_ratio, volume_hist, poc_distance
                     )
+                    # Calculate opportunity score - identifies best entry points vs just momentum
+                    bb_position = self._get_bollinger_position(df_ind) if 'bb_upper' in df_ind else None
+                    stoch_k = df_ind['stoch_k'].iloc[-1] if 'stoch_k' in df_ind else None
+                    opportunity_score = self.indicators.calculate_opportunity_score(
+                        momentum_short, momentum_long, rsi, macd,
+                        bb_position, trend_score, volume_ratio,
+                        stoch_k, rsi_bearish_div
+                    )
                     signal = self.classifier.classify_momentum_signal(
                         momentum_short, momentum_long, rsi, macd, thresholds,
                         additional_indicators={
@@ -1436,6 +1887,7 @@ class MomentumScanner(OptimizableAgent):
                         'confidence_score': confidence_score,
                         'composite_score': composite_score,
                         'volume_composite_score': volume_composite_score,
+                        'opportunity_score': opportunity_score,
                         'timeframe': timeframe,
                         'timestamp': datetime.now(timezone.utc),
                         'bb_position': self._get_bollinger_position(df_ind) if 'bb_upper' in df_ind else None,
@@ -1465,6 +1917,27 @@ class MomentumScanner(OptimizableAgent):
                                                  vwap=df_ind["vwap"].iloc[-1] if "vwap" in df_ind else 0.0
                                              ),
                     })
+                    
+                    # --- Calculate Stop-Loss and Take-Profit ---
+                    sl_tp = TechnicalIndicators.calculate_stop_loss_take_profit(
+                        current_price=row['price'],
+                        df=df_ind,
+                        signal=signal,
+                        atr=df_ind['atr'].iloc[-1] if 'atr' in df_ind else None,
+                        bb_lower=df_ind['bb_lower'].iloc[-1] if 'bb_lower' in df_ind else None,
+                        bb_upper=df_ind['bb_upper'].iloc[-1] if 'bb_upper' in df_ind else None,
+                        risk_reward_ratio=2.5
+                    )
+                    row.update(sl_tp)
+                    
+                    # --- Detect Market Regime ---
+                    market_regime = TechnicalIndicators.detect_market_regime(df_ind)
+                    row['market_regime'] = market_regime['regime']
+                    row['regime_confidence'] = market_regime['confidence']
+                    row['regime_trend_strength'] = market_regime['trend_strength']
+                    row['regime_volatility'] = market_regime['volatility']
+                    row['regime_suggested_threshold'] = market_regime['suggested_opportunity_threshold']
+                    
                     return row, df_ind
                 # Run indicator analysis in thread pool for speed
                 loop = asyncio.get_running_loop()
@@ -1496,10 +1969,12 @@ class MomentumScanner(OptimizableAgent):
             logger.warning("No valid results from market scan")
             return pd.DataFrame()
         df_results = pd.DataFrame(completed_results)
+        # Updated scoring: heavily weight opportunity_score to find best entries, not just momentum
         df_results['combined_score'] = (
-            df_results['composite_score'] * 0.5 +
-            df_results['volume_composite_score'] * 0.3 +
-            df_results['signal_strength'] * 0.2
+            df_results['opportunity_score'] * 0.50 +      # 50% - Best entry points (NEW!)
+            df_results['composite_score'] * 0.25 +        # 25% - Technical strength (reduced)
+            df_results['volume_composite_score'] * 0.15 + # 15% - Volume context
+            df_results['signal_strength'] * 0.10          # 10% - Signal conviction
         )
         df_results = df_results.sort_values('combined_score', ascending=False)
         self.scan_results = df_results.head(self.top_n)

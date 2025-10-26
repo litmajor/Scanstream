@@ -21,7 +21,7 @@ export class DbStorage implements IStorage {
   async createMarketFrame(frame: InsertMarketFrame): Promise<MarketFrame> {
     // Ensure all JSON fields are valid objects for Prisma
     const safeFrame = {
-      id: frame.id ?? uuidv4(), // ensure id is always present and unique if missing
+      id: uuidv4(), // generate new unique id
       ...frame,
       price: frame.price ?? {},
       indicators: frame.indicators ?? {},
@@ -213,7 +213,18 @@ export class DbStorage implements IStorage {
     const summary = await this.prisma.portfolioSummary.findFirst({
       orderBy: { createdAt: 'desc' },
     });
-    if (!summary) throw new Error('No portfolio summary data found');
+    
+    // Return default empty portfolio if no data exists
+    if (!summary) {
+      return {
+        totalValue: 0,
+        availableCash: 0,
+        invested: 0,
+        dayChange: 0,
+        dayChangePercent: 0,
+      };
+    }
+    
     // If summary fields are nested in summary.data, extract them
     const data = (summary as any).data || summary;
     return {

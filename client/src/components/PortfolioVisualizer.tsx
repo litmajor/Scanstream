@@ -122,15 +122,15 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
     trend?: number | null;
   };
   const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon: Icon, color = 'blue', trend = null }) => (
-    <div className="bg-white rounded-lg shadow-md p-6 border-l-4" style={{ borderLeftColor: color === 'green' ? '#10b981' : color === 'red' ? '#ef4444' : '#3b82f6' }}>
+    <div className="portfolio-card border-l-4" style={{ borderLeftColor: color === 'green' ? '#10b981' : color === 'red' ? '#ef4444' : '#3b82f6' }}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-          {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+          <p className="metric-label">{title}</p>
+          <p className="metric-value text-2xl">{value}</p>
+          {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>}
         </div>
-        <div className={`p-3 rounded-full ${color === 'green' ? 'bg-green-100' : color === 'red' ? 'bg-red-100' : 'bg-blue-100'}`}>
-          <Icon className={`w-6 h-6 ${color === 'green' ? 'text-green-600' : color === 'red' ? 'text-red-600' : 'text-blue-600'}`} />
+        <div className={`p-3 rounded-full ${color === 'green' ? 'bg-green-100 dark:bg-green-900' : color === 'red' ? 'bg-red-100 dark:bg-red-900' : 'bg-blue-100 dark:bg-blue-900'}`}>
+          <Icon className={`w-6 h-6 ${color === 'green' ? 'text-green-600 dark:text-green-400' : color === 'red' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`} />
         </div>
       </div>
       {trend && (
@@ -140,7 +140,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
           ) : (
             <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
           )}
-          <span className={`text-sm font-medium ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`text-sm font-medium ${trend > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             {Math.abs(trend)}% vs last period
           </span>
         </div>
@@ -154,8 +154,8 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
       onClick={() => setActiveTab(id)}
       className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
         isActive
-          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+          ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700'
+          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
       }`}
     >
       {label}
@@ -163,16 +163,15 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Portfolio Performance Dashboard</h1>
-          <p className="text-gray-600">Comprehensive analysis of trading performance and risk metrics</p>
-        </div>
+    <div className="w-full">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Portfolio Performance Dashboard</h1>
+        <p className="text-gray-600 dark:text-gray-400">Comprehensive analysis of trading performance and risk metrics</p>
+      </div>
 
         {/* Tab Navigation */}
-        <div className="mb-6 flex flex-wrap gap-2 bg-white p-4 rounded-lg shadow-sm">
+        <div className="mb-6 flex flex-wrap gap-2 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
           <TabButton id="overview" label="Overview" isActive={activeTab === 'overview'} />
           <TabButton id="performance" label="Performance" isActive={activeTab === 'performance'} />
           <TabButton id="risk" label="Risk Analysis" isActive={activeTab === 'risk'} />
@@ -221,8 +220,8 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
             </div>
 
             {/* Equity Curve Chart */}
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold mb-4">Equity Curve & Drawdown</h3>
+            <div className="chart-container">
+              <h3 className="chart-title">Equity Curve & Drawdown</h3>
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={equityChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -240,7 +239,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
                     yAxisId="left"
                     type="monotone" 
                     dataKey="value" 
-                    stroke="#3b82f6" 
+                    stroke="var(--accent-color, #3b82f6)" 
                     strokeWidth={3}
                     name="Portfolio Value"
                     dot={false}
@@ -260,53 +259,53 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
 
             {/* Performance Summary */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h3 className="text-lg font-semibold mb-4">Performance Metrics</h3>
+              <div className="chart-container">
+                <h3 className="chart-title">Performance Metrics</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Annualized Return</span>
+                    <span className="text-gray-600 dark:text-gray-400">Annualized Return</span>
                     <span className="font-semibold">{formatPercent(data.metrics.annualizedReturn)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Sharpe Ratio</span>
+                    <span className="text-gray-600 dark:text-gray-400">Sharpe Ratio</span>
                     <span className="font-semibold">{data.metrics.sharpeRatio.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Profit Factor</span>
+                    <span className="text-gray-600 dark:text-gray-400">Profit Factor</span>
                     <span className="font-semibold">{data.metrics.profitFactor.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Volatility</span>
+                    <span className="text-gray-600 dark:text-gray-400">Volatility</span>
                     <span className="font-semibold">{formatPercent(data.metrics.volatility)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Calmar Ratio</span>
+                    <span className="text-gray-600 dark:text-gray-400">Calmar Ratio</span>
                     <span className="font-semibold">{data.metrics.calmarRatio.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <h3 className="text-lg font-semibold mb-4">Trade Statistics</h3>
+              <div className="chart-container">
+                <h3 className="chart-title">Trade Statistics</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Average Win</span>
-                    <span className="font-semibold text-green-600">{formatCurrency(data.metrics.avgWin)}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Average Win</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(data.metrics.avgWin)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Average Loss</span>
-                    <span className="font-semibold text-red-600">{formatCurrency(data.metrics.avgLoss)}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Average Loss</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(data.metrics.avgLoss)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Largest Win</span>
-                    <span className="font-semibold text-green-600">{formatCurrency(data.metrics.largestWin)}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Largest Win</span>
+                    <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(data.metrics.largestWin)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Largest Loss</span>
-                    <span className="font-semibold text-red-600">{formatCurrency(data.metrics.largestLoss)}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Largest Loss</span>
+                    <span className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(data.metrics.largestLoss)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Avg Trade Duration</span>
+                    <span className="text-gray-600 dark:text-gray-400">Avg Trade Duration</span>
                     <span className="font-semibold">{data.metrics.avgTradeDuration.toFixed(1)}h</span>
                   </div>
                 </div>
@@ -607,7 +606,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
                   <XAxis dataKey="percentile" />
                   <YAxis />
                   <Tooltip formatter={(value: number | string) => [formatCurrency(Number(value)), 'Portfolio Value']} />
-                  <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="#93c5fd" />
+                  <Area type="monotone" dataKey="value" stroke="var(--accent-color, #3b82f6)" fill="var(--accent-color, #3b82f6)" fillOpacity={0.3} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -670,7 +669,6 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

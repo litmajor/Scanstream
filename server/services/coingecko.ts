@@ -1,0 +1,411 @@
+/**
+ * CoinGecko API Integration Service
+ * Provides market data, sentiment, and trending coins
+ * 
+ * Rate Limits (Free Tier):
+ * - 10-30 requests/minute per IP
+ * - Use caching to minimize API calls
+ * 
+ * Attribution Required:
+ * - Must display "Data provided by CoinGecko" in UI
+ */
+
+import axios, { AxiosInstance, AxiosError } from 'axios';
+
+const API_BASE = 'https://api.coingecko.com/api/v3';
+const CACHE_DURATION_MS = 300000; // 5 minutes cache to respect rate limits (increased from 1 min)
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+class CoinGeckoService {
+  private client: AxiosInstance;
+  private cache: Map<string, CacheEntry<any>>;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_BASE,
+      timeout: 10000,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    this.cache = new Map();
+    
+    console.log('✅ CoinGecko service initialized');
+  }
+
+  /**
+   * Retry with exponential backoff for rate limit errors
+   */
+  private async retryWithBackoff<T>(
+    fetcher: () => Promise<T>,
+    maxRetries = 3,
+    initialDelay = 1000
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fetcher();
+      } catch (error) {
+        lastError = error;
+        
+        // Check if it's a rate limit error (429)
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          const retryAfter = error.response.headers['retry-after'];
+          const delay = retryAfter 
+            ? parseInt(retryAfter) * 1000 
+            : initialDelay * Math.pow(2, attempt);
+          
+          console.warn(`[CoinGecko] Rate limited (429). Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+          
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
+        // For other errors, throw immediately
+        throw error;
+      }
+    }
+    
+    throw lastError;
+  }
+
+  /**
+   * Get cached data or fetch fresh data
+   */
+  private async getCached<T>(
+    key: string, 
+    fetcher: () => Promise<T>, 
+    ttl: number = CACHE_DURATION_MS
+  ): Promise<T> {
+    const cached = this.cache.get(key);
+    const now = Date.now();
+
+    if (cached && (now - cached.timestamp) < ttl) {
+      console.log(`[CoinGecko] Cache hit: ${key}`);
+      return cached.data as T;
+    }
+
+    console.log(`[CoinGecko] Cache miss, fetching: ${key}`);
+    
+    try {
+      const data = await this.retryWithBackoff(() => fetcher());
+      this.cache.set(key, { data, timestamp: now });
+      return data;
+    } catch (error) {
+      // If we have stale cache data and the API is rate limiting, return stale data
+      if (cached && axios.isAxiosError(error) && error.response?.status === 429) {
+        console.warn(`[CoinGecko] Rate limited, returning stale cache for: ${key}`);
+        return cached.data as T;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get market data for top coins by market cap
+   */
+  async getMarketData(vsCurrency = 'usd', page = 1, perPage = 100) {
+    return this.getCached(
+      `markets_${vsCurrency}_${page}_${perPage}`,
+      async () => {
+        const response = await this.client.get('/coins/markets', {
+          params: {
+            vs_currency: vsCurrency,
+            order: 'market_cap_desc',
+            per_page: perPage,
+            page,
+            sparkline: false,
+            price_change_percentage: '24h,7d'
+          }
+        });
+        return response.data;
+      }
+    );
+  }
+
+  /**
+   * Get trending coins (social sentiment)
+   */
+  async getTrendingCoins() {
+    return this.getCached(
+      'trending',
+      async () => {
+        const response = await this.client.get('/search/trending');
+        return response.data.coins;
+      },
+      600000 // 10 minutes cache (trending changes slowly)
+    );
+  }
+
+  /**
+   * Get global market overview
+   */
+  async getGlobalMarket() {
+    return this.getCached(
+      'global',
+      async () => {
+        const response = await this.client.get('/global');
+        return response.data.data;
+      },
+      600000 // 10 minutes cache (global market data changes slowly)
+    );
+  }
+
+  /**
+   * Get OHLC data for a specific coin
+   */
+  async getOHLC(coinId: string, vsCurrency = 'usd', days = 1) {
+    return this.getCached(
+      `ohlc_${coinId}_${vsCurrency}_${days}`,
+      async () => {
+        const response = await this.client.get(`/coins/${coinId}/ohlc`, {
+          params: {
+            vs_currency: vsCurrency,
+            days
+          }
+        });
+        return response.data;
+      }
+    );
+  }
+
+  /**
+   * Get detailed coin information
+   */
+  async getCoinDetails(coinId: string) {
+    return this.getCached(
+      `coin_${coinId}`,
+      async () => {
+        const response = await this.client.get(`/coins/${coinId}`, {
+          params: {
+            localization: false,
+            tickers: false,
+            community_data: true,
+            developer_data: true,
+            sparkline: false
+          }
+        });
+        return response.data;
+      },
+      600000 // 10 minutes cache (coin details change slowly)
+    );
+  }
+
+  /**
+   * Search for coins by query
+   */
+  async searchCoins(query: string) {
+    return this.getCached(
+      `search_${query}`,
+      async () => {
+        const response = await this.client.get('/search', {
+          params: { query }
+        });
+        return response.data;
+      }
+    );
+  }
+
+  /**
+   * Map exchange symbol to CoinGecko ID
+   * e.g., "BTC/USDT" -> "bitcoin"
+   */
+  async symbolToCoinId(symbol: string): Promise<string | null> {
+    try {
+      // Remove trading pairs and normalize
+      const baseSymbol = symbol.split('/')[0].toLowerCase();
+      
+      // Common mappings
+      const knownMappings: Record<string, string> = {
+        'btc': 'bitcoin',
+        'eth': 'ethereum',
+        'bnb': 'binancecoin',
+        'xrp': 'ripple',
+        'ada': 'cardano',
+        'doge': 'dogecoin',
+        'sol': 'solana',
+        'dot': 'polkadot',
+        'matic': 'matic-network',
+        'link': 'chainlink',
+        'avax': 'avalanche-2',
+        'uni': 'uniswap',
+        'atom': 'cosmos',
+        'xlm': 'stellar',
+        'ltc': 'litecoin',
+        'etc': 'ethereum-classic',
+        'bch': 'bitcoin-cash',
+        'algo': 'algorand',
+        'vet': 'vechain',
+        'icp': 'internet-computer',
+        'fil': 'filecoin',
+        'trx': 'tron',
+        'eos': 'eos',
+        'aave': 'aave',
+        'mkr': 'maker',
+        'theta': 'theta-token',
+        'xtz': 'tezos',
+        'ftm': 'fantom',
+        'axs': 'axie-infinity',
+        'sand': 'the-sandbox',
+        'mana': 'decentraland',
+        'gala': 'gala',
+        'chz': 'chiliz',
+        'enj': 'enjincoin',
+        'near': 'near',
+        'flow': 'flow',
+        'apt': 'aptos',
+        'arb': 'arbitrum',
+        'op': 'optimism',
+        'sui': 'sui'
+      };
+
+      if (knownMappings[baseSymbol]) {
+        return knownMappings[baseSymbol];
+      }
+
+      // Fallback: search CoinGecko
+      const searchResults = await this.searchCoins(baseSymbol);
+      if (searchResults.coins && searchResults.coins.length > 0) {
+        return searchResults.coins[0].id;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`[CoinGecko] Failed to map symbol ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get sentiment score for a coin (0-100)
+   * Based on trending status, social activity, and price action
+   */
+  async getSentimentScore(symbol: string): Promise<number> {
+    try {
+      const coinId = await this.symbolToCoinId(symbol);
+      if (!coinId) return 50; // Neutral if not found
+
+      // Get trending coins
+      const trending = await this.getTrendingCoins();
+      const isTrending = trending.some((t: any) => t.item.id === coinId);
+
+      // Get coin details for sentiment data
+      const details = await this.getCoinDetails(coinId);
+      
+      let score = 50; // Start neutral
+
+      // Trending boost (+20)
+      if (isTrending) {
+        score += 20;
+      }
+
+      // Price change sentiment
+      const priceChange24h = details.market_data?.price_change_percentage_24h || 0;
+      if (priceChange24h > 10) score += 15;
+      else if (priceChange24h > 5) score += 10;
+      else if (priceChange24h > 0) score += 5;
+      else if (priceChange24h < -10) score -= 15;
+      else if (priceChange24h < -5) score -= 10;
+      else if (priceChange24h < 0) score -= 5;
+
+      // Social/community data
+      if (details.community_data) {
+        const twitterFollowers = details.community_data.twitter_followers || 0;
+        const redditSubscribers = details.community_data.reddit_subscribers || 0;
+        
+        // Large community = positive sentiment
+        if (twitterFollowers > 1000000 || redditSubscribers > 100000) {
+          score += 10;
+        } else if (twitterFollowers > 500000 || redditSubscribers > 50000) {
+          score += 5;
+        }
+      }
+
+      // Developer activity
+      if (details.developer_data) {
+        const commits = details.developer_data.commit_count_4_weeks || 0;
+        if (commits > 100) score += 5;
+      }
+
+      // Clamp between 0-100
+      return Math.max(0, Math.min(100, score));
+    } catch (error) {
+      console.error(`[CoinGecko] Failed to get sentiment for ${symbol}:`, error);
+      return 50; // Neutral on error
+    }
+  }
+
+  /**
+   * Get market regime based on global market data
+   */
+  async getMarketRegime(): Promise<{
+    regime: 'bull' | 'bear' | 'neutral' | 'volatile';
+    confidence: number;
+    btcDominance: number;
+    totalMarketCap: number;
+    totalVolume: number;
+  }> {
+    try {
+      const global = await this.getGlobalMarket();
+      
+      const btcDominance = global.market_cap_percentage?.btc || 0;
+      const totalMarketCap = global.total_market_cap?.usd || 0;
+      const totalVolume = global.total_volume?.usd || 0;
+      const volumeToMcap = totalVolume / totalMarketCap;
+
+      // Determine regime
+      let regime: 'bull' | 'bear' | 'neutral' | 'volatile' = 'neutral';
+      let confidence = 50;
+
+      // High volume relative to market cap = volatile
+      if (volumeToMcap > 0.06) {
+        regime = 'volatile';
+        confidence = 70;
+      }
+      // BTC dominance trending
+      else if (btcDominance > 55) {
+        regime = 'bear'; // Money flowing to BTC (risk-off)
+        confidence = 65;
+      } else if (btcDominance < 45) {
+        regime = 'bull'; // Money flowing to alts (risk-on)
+        confidence = 65;
+      }
+
+      return {
+        regime,
+        confidence,
+        btcDominance,
+        totalMarketCap,
+        totalVolume
+      };
+    } catch (error) {
+      console.error('[CoinGecko] Failed to get market regime:', error);
+      return {
+        regime: 'neutral',
+        confidence: 0,
+        btcDominance: 0,
+        totalMarketCap: 0,
+        totalVolume: 0
+      };
+    }
+  }
+
+  /**
+   * Clear cache (useful for testing or manual refresh)
+   */
+  clearCache() {
+    this.cache.clear();
+    console.log('[CoinGecko] Cache cleared');
+  }
+}
+
+// Export singleton instance
+export const coinGeckoService = new CoinGeckoService();
+

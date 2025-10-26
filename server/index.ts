@@ -1,8 +1,18 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import flowFieldRouter from "./routes/flow-field";
+import flowFieldBacktestRouter from "./routes/flow-field-backtest";
+import fastScannerRouter from "./routes/fast-scanner";
+import coinGeckoRouter from "./routes/coingecko";
+import enhancedAnalyticsRouter from "./routes/enhanced-analytics";
+import mlPredictionsRouter from "./routes/ml-predictions";
+import { fastScanner } from "./services/fast-scanner";
 
 const app = express();
+
+// Trust proxy MUST be set before any rate limiting middleware
+app.set('trust proxy', true);
 
 // Global debug logging for all route registrations (with types)
 const origAppUse = app.use;
@@ -23,6 +33,23 @@ app.use = function (path: any, ...args: any[]): any {
 });
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Register Flow Field analytics routes
+app.use('/api/analytics', flowFieldRouter);
+app.use('/api/analytics', flowFieldBacktestRouter);
+
+// Register Enhanced Analytics (with CoinGecko sentiment)
+app.use('/api/analytics', enhancedAnalyticsRouter);
+
+// Register Fast Scanner routes
+app.use('/api/scanner', fastScannerRouter);
+
+// Register CoinGecko sentiment & market data routes
+app.use('/api/coingecko', coinGeckoRouter);
+
+// Register ML Predictions routes
+app.use('/api/ml', mlPredictionsRouter);
+log('ML Predictions API registered at /api/ml/predictions');
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -76,12 +103,20 @@ app.use((req, res, next) => {
   });
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 4000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 4000;
-  const host = process.env.HOST || '0.0.0.0';
-  server.listen({ port, host }, () =>
-    console.log(`Server on http://0.0.0.0:${port}`)
-  );
+  // Default to 3000 for local development, can be overridden via environment
+  // This serves both the API and the client.
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  const host = '0.0.0.0';
+  
+  server.listen(port, host, () => {
+    console.log(`\n╔════════════════════════════════════════════════════════╗`);
+    console.log(`║  🚀 Scanstream Backend Server                          ║`);
+    console.log(`╠════════════════════════════════════════════════════════╣`);
+    console.log(`║  Backend API:    http://0.0.0.0:${port.toString().padEnd(4)}                   ║`);
+    console.log(`║  Scanner API:    http://localhost:5001                 ║`);
+    console.log(`║  Frontend Dev:   http://localhost:5173                 ║`);
+    console.log(`║  Database:       postgresql://localhost:5432/scandb    ║`);
+    console.log(`║  WebSocket:      http://0.0.0.0:${port.toString().padEnd(4)}/ws               ║`);
+    console.log(`╚════════════════════════════════════════════════════════╝\n`);
+  });
 })();

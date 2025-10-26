@@ -1,5 +1,11 @@
 // Normalize a symbol for the given exchange, so only valid symbols are used
 function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
+  // Check if exchange and symbols are available
+  if (!exchange || !exchange.symbols || !Array.isArray(exchange.symbols)) {
+    console.warn('[normalizeSymbol] Exchange symbols not loaded, returning symbol as-is:', symbol);
+    return symbol;
+  }
+
   // If symbol is already valid, return it
   if (exchange.symbols.includes(symbol)) {
     return symbol;
@@ -17,7 +23,8 @@ function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
     return spot;
   }
 
-  throw new Error(`No valid market symbol found for ${symbol}`);
+  console.warn(`[normalizeSymbol] No valid market symbol found for ${symbol}, returning as-is`);
+  return symbol; // Return as-is instead of throwing
 }
 // Helper to guarantee a string (never null/undefined)
 function safeString(val: any): string {
@@ -784,6 +791,87 @@ class ExchangeDataFeed {
 
   private constructor() {}
 
+  /**
+   * Load markets with caching to disk for faster restarts
+   */
+  private async loadMarketsWithCache(exchange: ccxt.Exchange, exchangeName: string): Promise<void> {
+    const cacheDir = path.join(__dirname, '..', 'data');
+    const cacheFile = path.join(cacheDir, `markets-${exchangeName}.json`);
+    
+    // Ensure cache directory exists
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+    
+    try {
+      // Try to load from cache first
+      if (fs.existsSync(cacheFile)) {
+        const cacheAge = Date.now() - fs.statSync(cacheFile).mtime.getTime();
+        const maxCacheAge = 24 * 60 * 60 * 1000; // 24 hours
+        
+        if (cacheAge < maxCacheAge) {
+          console.log(`[CACHE] Loading markets for ${exchangeName} from cache (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+          const cachedMarkets = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+          exchange.markets = cachedMarkets;
+          return;
+        } else {
+          console.log(`[CACHE] Cache for ${exchangeName} is stale (${Math.round(cacheAge / 1000 / 60)} minutes old), refreshing...`);
+        }
+      }
+      
+      // Load fresh markets from exchange
+      console.log(`[API] Loading fresh markets for ${exchangeName}...`);
+      await exchange.loadMarkets();
+      
+      // Cache the markets
+      fs.writeFileSync(cacheFile, JSON.stringify(exchange.markets, null, 2));
+      console.log(`[CACHE] Markets for ${exchangeName} cached successfully`);
+      
+    } catch (error) {
+      console.error(`[ERROR] Failed to load markets for ${exchangeName}:`, error);
+      
+      // Fallback to cache if available (even if stale)
+      if (fs.existsSync(cacheFile)) {
+        console.log(`[FALLBACK] Using stale cache for ${exchangeName}`);
+        const cachedMarkets = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+        exchange.markets = cachedMarkets;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Rate-limited fetch wrapper to prevent throttler overflow
+   */
+  private async rateLimitedFetch<T>(
+    exchange: ccxt.Exchange, 
+    fetchFunction: () => Promise<T>, 
+    maxRetries: number = 3
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await fetchFunction();
+      } catch (error: any) {
+        // Check if it's a throttler queue overflow error
+        if (error.message && error.message.includes('throttle queue is over maxCapacity')) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+          console.warn(`[RATE_LIMIT] Throttler queue overflow, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+          
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
+        // If it's not a rate limit error or we've exhausted retries, throw
+        throw error;
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
+  }
+
   static async create(): Promise<ExchangeDataFeed> {
     const instance = new ExchangeDataFeed();
     await instance.initializeExchanges();
@@ -797,46 +885,94 @@ class ExchangeDataFeed {
     try {
       const config = (await import('../config/exchange-config.json', { assert: { type: 'json' } })).default;
       // --- Crypto Exchanges ---
-      this.exchanges.set('binance', new ccxt.binance({
-        apiKey: process.env.BINANCE_API_KEY,
-        secret: process.env.BINANCE_SECRET,
-        sandbox: config.binance.sandbox,
-        enableRateLimit: config.binance.enableRateLimit
-      }));
-      this.exchanges.set('coinbase', new ccxt.coinbase({
-        apiKey: process.env.COINBASE_API_KEY,
-        secret: process.env.COINBASE_SECRET,
-        enableRateLimit: config.coinbase.enableRateLimit
-      }));
-      this.exchanges.set('kraken', new ccxt.kraken({
-        apiKey: process.env.KRAKEN_API_KEY,
-        secret: process.env.KRAKEN_SECRET,
-        enableRateLimit: config.kraken.enableRateLimit
-      }));
+      // Initialize all exchanges with proper rate limiting and throttler verification
+      const cryptoExchanges = [
+        { name: 'binance', instance: new ccxt.binance({
+          apiKey: process.env.BINANCE_API_KEY,
+          secret: process.env.BINANCE_SECRET,
+          sandbox: config.binance.sandbox,
+          enableRateLimit: true
+        })},
+        { name: 'coinbase', instance: new ccxt.coinbase({
+          apiKey: process.env.COINBASE_API_KEY,
+          secret: process.env.COINBASE_SECRET,
+          enableRateLimit: true
+        })},
+        { name: 'kraken', instance: new ccxt.kraken({
+          apiKey: process.env.KRAKEN_API_KEY,
+          secret: process.env.KRAKEN_SECRET,
+          enableRateLimit: true
+        })}
+      ];
+      
+      // Initialize crypto exchanges with throttler verification
+      for (const { name, instance } of cryptoExchanges) {
+        console.log(`[INIT] Initializing ${name}...`);
+        await this.loadMarketsWithCache(instance, name);
+        
+        // Verify throttler is working
+        if (typeof instance.throttle !== 'function') {
+          console.warn(`[WARN] Throttler not properly initialized for ${name}`);
+          instance.enableRateLimit = true;
+        }
+        
+        this.exchanges.set(name, instance);
+        console.log(`[INIT] ${name} initialized successfully`);
+      }
       // Do NOT set sandbox for kucoinfutures (not supported)
       const kucoinFutures = new ccxt.kucoinfutures({
         apiKey: process.env.KUCOIN_API_KEY,
         secret: process.env.KUCOIN_SECRET,
         password: process.env.KUCOIN_PASSPHRASE,
-        enableRateLimit: true,
-        timeout: 20000
+        enableRateLimit: true, // Required for this.throttle to be initialized
+        timeout: 20000,
+        rateLimit: 200 // 200ms between requests to prevent throttler overflow
       });
-      await kucoinFutures.loadMarkets();
+      
+      // Ensure throttler is properly initialized before loadMarkets
+      console.log('[INIT] Initializing kucoinfutures...');
+      await this.loadMarketsWithCache(kucoinFutures, 'kucoinfutures');
+      
+      // Verify throttler is working
+      if (typeof kucoinFutures.throttle !== 'function') {
+        console.warn('[WARN] Throttler not properly initialized for kucoinfutures');
+        kucoinFutures.enableRateLimit = true;
+      }
+      
       console.log('Available symbols for kucoinfutures:', Object.keys(kucoinFutures.markets));
       this.exchanges.set('kucoinfutures', kucoinFutures);
-      this.exchanges.set('okx', new ccxt.okx({
-        apiKey: process.env.OKX_API_KEY,
-        secret: process.env.OKX_SECRET,
-        password: process.env.OKX_PASSPHRASE,
-        enableRateLimit: config.okx.enableRateLimit,
-        sandbox: config.okx.sandbox
-      }));
-      this.exchanges.set('bybit', new ccxt.bybit({
-        apiKey: process.env.BYBIT_API_KEY,
-        secret: process.env.BYBIT_SECRET,
-        enableRateLimit: config.bybit.enableRateLimit,
-        sandbox: config.bybit.sandbox
-      }));
+      
+      // Initialize other exchanges with proper rate limiting
+      const otherExchanges = [
+        { name: 'okx', instance: new ccxt.okx({
+          apiKey: process.env.OKX_API_KEY,
+          secret: process.env.OKX_SECRET,
+          password: process.env.OKX_PASSPHRASE,
+          enableRateLimit: true,
+          sandbox: config.okx.sandbox
+        })},
+        { name: 'bybit', instance: new ccxt.bybit({
+          apiKey: process.env.BYBIT_API_KEY,
+          secret: process.env.BYBIT_SECRET,
+          enableRateLimit: true,
+          sandbox: config.bybit.sandbox
+        })}
+      ];
+      
+      // Initialize each exchange with proper throttler verification
+      for (const { name, instance } of otherExchanges) {
+        console.log(`[INIT] Initializing ${name}...`);
+        await this.loadMarketsWithCache(instance, name);
+        
+        // Verify throttler is working
+        if (typeof instance.throttle !== 'function') {
+          console.warn(`[WARN] Throttler not properly initialized for ${name}`);
+          instance.enableRateLimit = true;
+        }
+        
+        this.exchanges.set(name, instance);
+        console.log(`[INIT] ${name} initialized successfully`);
+      }
 
 
       // --- Forex Exchanges ---
@@ -881,7 +1017,7 @@ class ExchangeDataFeed {
     try {
       // Use kucoinfutures as main if present in config
       const config = (await import('../config/exchange-config.json', { assert: { type: 'json' } })).default;
-      let mainExchange = 'binance';
+      let mainExchange = 'kucoinfutures';
       if (exchangeName && this.exchanges.has(exchangeName)) {
         mainExchange = exchangeName;
       } else if (config.kucoinfutures?.main) {
@@ -897,8 +1033,14 @@ class ExchangeDataFeed {
       if (!exchange) throw new Error('Exchange not available');
       // For yfinance, don't normalize symbol, just pass as is
       const normalizedSymbol = mainExchange === 'yfinance-forex' ? symbol : normalizeSymbol(symbol, exchange);
-      const ohlcv = await exchange.fetchOHLCV(normalizedSymbol, timeframe, undefined, limit);
-      const ticker = await exchange.fetchTicker(normalizedSymbol);
+      
+      // Use rate-limited fetch to prevent throttler overflow
+      const ohlcv = await this.rateLimitedFetch(exchange, () => 
+        exchange.fetchOHLCV(normalizedSymbol, timeframe, undefined, limit)
+      );
+      const ticker = await this.rateLimitedFetch(exchange, () => 
+        exchange.fetchTicker(normalizedSymbol)
+      );
       return ohlcv.map((candle, index) => {
         const [timestamp, open, high, low, close, volume] = candle;
         const prices = ohlcv.slice(0, index + 1).map(c => Number(c[4]) || 0);

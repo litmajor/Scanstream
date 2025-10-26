@@ -1,0 +1,13 @@
+ccxtpro>=1.0.1
+pandas>=2.0.0
+numpy>=1.23.0
+aiohttp>=3.8.0
+async-timeout>=4.0.0
+tqdm>=4.65.0
+plotly>=5.15.0
+ta>=0.10.0
+matplotlib>=3.7.0
+ccxt>=2.9.0
+flask>=2.3.0
+flask-cors>=4.0.0
+aiofiles>=23.0.0

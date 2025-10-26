@@ -31,10 +31,17 @@ export default defineConfig({
     },
     host: true,
     port: 5173,
+    allowedHosts: true,
     proxy: {
+      '/api': {
+        target: process.env.VITE_BACKEND_URL || 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
       '/ws': {
-        target: 'ws://localhost:8765', // Changed to match ws port
+        target: process.env.VITE_WS_URL || 'http://localhost:3000',
         ws: true,
+        changeOrigin: true,
       },
     },
   },

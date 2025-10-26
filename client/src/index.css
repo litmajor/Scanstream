@@ -1,1 +1,471 @@
 @import "tailwindcss";
+
+/* Base theming */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Smooth theme transitions */
+* {
+  transition: background-color 0.2s ease, 
+              color 0.2s ease, 
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+/* Disable transitions for animations and transforms to avoid conflicts */
+*:is([class*="animate-"], [class*="transition-"]) {
+  transition: none;
+}
+
+/* Light mode - CSS Variables */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --bg-quaternary: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #475569; /* Improved from #64748b for better contrast */
+  --border-color: #e2e8f0;
+  --accent-color: #3b82f6;
+  --hover-bg: #f1f5f9;
+}
+
+/* Dark mode - CSS Variables */
+.dark {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-quaternary: #475569;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: #475569;
+  --accent-color: #60a5fa;
+  --hover-bg: #374151;
+}
+
+/* Theme toggle button styling */
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.dark .theme-toggle {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: white;
+}
+
+.theme-toggle:hover {
+  background-color: #f3f4f6;
+}
+
+.dark .theme-toggle:hover {
+  background-color: #4b5563;
+}
+
+/* Enhanced dark mode support - targeted approach */
+.dark .bg-gray-50 {
+  background-color: var(--bg-primary);
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--bg-secondary);
+}
+
+.dark .bg-gray-200 {
+  background-color: var(--bg-tertiary);
+}
+
+.dark .bg-gray-300 {
+  background-color: var(--bg-quaternary);
+}
+
+.dark .bg-gray-800 {
+  background-color: var(--bg-secondary);
+}
+
+.dark .bg-gray-900 {
+  background-color: var(--bg-primary);
+}
+
+.dark .bg-white {
+  background-color: var(--bg-secondary);
+}
+
+.dark .text-gray-900 {
+  color: var(--text-primary);
+}
+
+.dark .text-gray-800 {
+  color: var(--text-primary);
+}
+
+.dark .text-gray-700 {
+  color: var(--text-secondary);
+}
+
+.dark .text-gray-600 {
+  color: var(--text-secondary);
+}
+
+.dark .text-gray-500 {
+  color: var(--text-muted);
+}
+
+.dark .text-gray-400 {
+  color: var(--text-muted);
+}
+
+.dark .text-gray-300 {
+  color: var(--text-muted);
+}
+
+.dark .border-gray-200 {
+  border-color: var(--border-color);
+}
+
+.dark .border-gray-300 {
+  border-color: var(--border-color);
+}
+
+.dark .border-gray-600 {
+  border-color: var(--border-color);
+}
+
+.dark .border-gray-700 {
+  border-color: var(--border-color);
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--hover-bg);
+}
+
+.dark .hover\:bg-gray-200:hover {
+  background-color: var(--hover-bg);
+}
+
+.dark .hover\:bg-gray-700:hover {
+  background-color: var(--hover-bg);
+}
+
+.dark .hover\:text-gray-900:hover {
+  color: var(--text-primary);
+}
+
+.dark .hover\:text-gray-700:hover {
+  color: var(--text-secondary);
+}
+
+.dark .hover\:text-gray-300:hover {
+  color: var(--text-primary);
+}
+
+.dark .hover\:text-white:hover {
+  color: var(--text-primary);
+}
+
+/* Form elements dark mode */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="range"],
+.dark select,
+.dark textarea {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+}
+
+/* Card and container dark mode */
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.dark .shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Status colors - Let Tailwind handle these naturally */
+.dark .text-green-500,
+.dark .text-green-600 {
+  color: #10b981;
+}
+
+.dark .text-red-500,
+.dark .text-red-600 {
+  color: #ef4444;
+}
+
+.dark .text-yellow-500,
+.dark .text-yellow-600 {
+  color: #f59e0b;
+}
+
+.dark .text-blue-500,
+.dark .text-blue-600 {
+  color: #3b82f6;
+}
+
+.dark .text-purple-500,
+.dark .text-purple-600 {
+  color: #8b5cf6;
+}
+
+.dark .bg-green-100 {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.dark .bg-yellow-100 {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(139, 92, 246, 0.1);
+}
+
+.dark .bg-green-900 {
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
+.dark .bg-red-900 {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.dark .bg-yellow-900 {
+  background-color: rgba(245, 158, 11, 0.2);
+}
+
+.dark .bg-blue-900 {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.dark .bg-purple-900 {
+  background-color: rgba(139, 92, 246, 0.2);
+}
+
+/* Trading terminal specific dark mode classes */
+.dark .bg-dark-400 {
+  background-color: var(--bg-primary);
+}
+
+.dark .bg-dark-300 {
+  background-color: var(--bg-secondary);
+}
+
+.dark .bg-dark-200 {
+  background-color: var(--bg-tertiary);
+}
+
+.dark .bg-dark-100 {
+  background-color: var(--bg-quaternary);
+}
+
+.dark .text-white {
+  color: var(--text-primary);
+}
+
+.dark .hover\:bg-dark-200:hover {
+  background-color: var(--hover-bg);
+}
+
+.dark .hover\:bg-dark-100:hover {
+  background-color: var(--bg-tertiary);
+}
+
+/* Header styling */
+.dark header {
+  background-color: var(--bg-secondary);
+  border-bottom-color: var(--border-color);
+}
+
+/* Sidebar styling */
+.dark .sidebar {
+  background-color: var(--bg-secondary);
+  border-right-color: var(--border-color);
+}
+
+/* Main content area */
+.dark main {
+  background-color: var(--bg-primary);
+}
+
+/* Footer styling */
+.dark footer {
+  background-color: var(--bg-secondary);
+  border-top-color: var(--border-color);
+}
+
+/* Portfolio dashboard improvements */
+.portfolio-card {
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.portfolio-metric:last-child {
+  border-bottom: none;
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.metric-change {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.metric-change.positive {
+  color: #10b981;
+}
+
+.metric-change.negative {
+  color: #ef4444;
+}
+
+/* Chart container improvements */
+.chart-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.chart-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.chart-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+.chart-metric {
+  background: var(--bg-tertiary);
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.chart-metric-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chart-metric-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.chart-metric-value.price {
+  color: #10b981;
+}
+
+.chart-metric-value.rsi {
+  color: #3b82f6;
+}
+
+.chart-metric-value.volume {
+  color: #8b5cf6;
+}
+
+.chart-metric-value.ema {
+  color: #f59e0b;
+}
+
+/* Ensure all interactive elements are clickable */
+button, a, [role="button"] {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button:disabled, a:disabled, [role="button"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Focus states for accessibility */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Trading signal colors */
+.text-bullish {
+  color: #10b981;
+}
+
+.text-bearish {
+  color: #ef4444;
+}
+
+.bg-bullish {
+  background-color: #10b981;
+}
+
+.bg-bearish {
+  background-color: #ef4444;
+}
