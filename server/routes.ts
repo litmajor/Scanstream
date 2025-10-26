@@ -22,41 +22,41 @@ try {
   if (bayesianModule) {
     ({ MirrorOptimizer, ScannerAgent, MLAgent } = bayesianModule);
   }
-  
+
   const analyticsModule = await import('./analytics-utils').catch(() => null);
   if (analyticsModule) {
-    ({ 
+    ({
       calculate_volume_profile, calculate_anchored_volume_profile, calculate_fixed_range_volume_profile,
       calculate_composite_score, calculate_volume_composite_score, calculate_confidence_score,
-      calculate_value_area, calculate_poc 
+      calculate_value_area, calculate_poc
     } = analyticsModule);
   }
-  
+
   const backtestModule = await import('./backtest-runner').catch(() => null);
   if (backtestModule) {
     ({ runBacktest } = backtestModule);
   }
-  
+
   const tradingModule = await import('./trading-engine').catch(() => null);
   if (tradingModule) {
     ({ ExchangeDataFeed, SignalEngine, defaultTradingConfig } = tradingModule);
   }
-  
+
   const mlModule = await import('./ml-engine').catch(() => null);
   if (mlModule) {
     ({ MLSignalEnhancer } = mlModule);
   }
-  
+
   const multiTimeframeModule = await import('./multi-timeframe').catch(() => null);
   if (multiTimeframeModule) {
     ({ EnhancedMultiTimeframeAnalyzer } = multiTimeframeModule);
   }
-  
+
   const chartModule = await import('./chart-api').catch(() => null);
   if (chartModule) {
     ({ registerChartApi } = chartModule);
   }
-  
+
   const advancedIndicatorModule = await import('./advanced-indicator-api').catch(() => null);
   if (advancedIndicatorModule) {
     ({ registerAdvancedIndicatorApi } = advancedIndicatorModule);
@@ -81,7 +81,7 @@ try {
   export async function registerRoutes(app: Express): Promise<Server> {
     // Trust proxy for proper IP detection behind reverse proxy (MUST be set before rate limiting)
     app.set('trust proxy', true);
-    
+
     // Security & CORS middleware
     app.use(cors());
     app.use(helmet());
@@ -270,7 +270,7 @@ try {
       volume: z.number()
     }))
   });
-  
+
   app.post('/api/analytics/poc', (req: Request, res: Response) => {
     try {
       const result = pocSchema.safeParse(req.body);
@@ -409,7 +409,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       console.warn('Advanced Indicator API could not be registered:', error);
     }
   }
-  
+
   // Register CoinGecko chart API
   if (coinGeckoChartRouter) {
     try {
@@ -426,13 +426,13 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     let mlEnhancer: any = null;
     let multiTimeframeAnalyzer: any = null;
     let optimizer: any = null;
-    
+
     try {
       if (ExchangeDataFeed) {
         console.log('[INIT] Creating ExchangeDataFeed...');
         exchangeDataFeed = await ExchangeDataFeed.create();
         console.log('[INIT] ExchangeDataFeed created successfully');
-        
+
         // Log available exchanges
         if (exchangeDataFeed && exchangeDataFeed.exchanges) {
           const exchangeIds = Array.from(exchangeDataFeed.exchanges.keys());
@@ -442,7 +442,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       } else {
         console.warn('[INIT] ExchangeDataFeed class not available');
       }
-      
+
       if (SignalEngine && defaultTradingConfig) {
         signalEngine = new SignalEngine(defaultTradingConfig);
       }
@@ -480,7 +480,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       ) {
         return res.status(400).json({ error: "All fields (momentumShort, momentumLong, rsi, macd) are required and must be numbers." });
       }
-      
+
       try {
         const { calculateSignalStrength } = await import('./lib/signal-strength');
         const score = calculateSignalStrength(momentumShort, momentumLong, rsi, macd, volumeRatio ?? 1.0);
@@ -551,7 +551,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Scanner API error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to communicate with scanner service. Ensure scanner_api.py is running on port 5001.'
       });
@@ -563,7 +563,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
       const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
       const url = `${scannerApiUrl}/api/scanner/signals${queryParams ? `?${queryParams}` : ''}`;
-      
+
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -574,7 +574,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Scanner API error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to communicate with scanner service. Ensure scanner_api.py is running on port 5001.'
       });
@@ -594,7 +594,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Scanner API error:', error);
-      res.status(503).json({ 
+      res.status(503).json({
         status: 'unavailable',
         error: error.message,
         message: 'Scanner service is not responding. Ensure scanner_api.py is running on port 5001.'
@@ -614,7 +614,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.get('/api/exchange/status', async (req: Request, res: Response) => {
     try {
       if (!exchangeDataFeed) {
-        return res.status(503).json({ 
+        return res.status(503).json({
           error: 'Exchange data feed not initialized',
           exchanges: []
         });
@@ -634,8 +634,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       });
 
       const overallHealth = status.every(ex => ex.hasThrottler && ex.markets > 0);
-      
-      res.json({ 
+
+      res.json({
         exchanges: status,
         overallHealth,
         timestamp: new Date().toISOString(),
@@ -701,7 +701,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Continuous scanner start error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to start continuous scanner'
       });
@@ -726,7 +726,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Continuous scanner stop error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to stop continuous scanner'
       });
@@ -746,7 +746,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Continuous scanner status error:', error);
-      res.status(503).json({ 
+      res.status(503).json({
         running: false,
         error: error.message,
         message: 'Continuous scanner not available'
@@ -759,7 +759,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
       const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
       const url = `${scannerApiUrl}/api/scanner/continuous/signals${queryParams ? `?${queryParams}` : ''}`;
-      
+
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -770,7 +770,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Continuous signals error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         signals: [],
         message: 'Failed to get continuous signals'
@@ -791,7 +791,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Market state error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to get market state'
       });
@@ -804,7 +804,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const symbol = req.params.symbol;
       const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
       const url = `${scannerApiUrl}/api/scanner/training-data/${symbol}${queryParams ? `?${queryParams}` : ''}`;
-      
+
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -815,7 +815,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.json(data);
     } catch (error: any) {
       console.error('Training data error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message,
         message: 'Failed to get training data'
       });
@@ -861,7 +861,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   // --- Strategy Management API ---
   console.log('Registering Strategy Management API');
-  
+
   // Strategy metadata
   const STRATEGIES = [
     {
@@ -1012,11 +1012,11 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const strategy = STRATEGIES.find((s: any) => s.id === id);
-      
+
       if (!strategy) {
         return res.status(404).json({ success: false, error: 'Strategy not found' });
       }
-      
+
       res.json({ success: true, strategy });
     } catch (error) {
       console.error('Error fetching strategy:', error);
@@ -1028,7 +1028,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.post('/api/strategies/consensus', async (req: Request, res: Response) => {
     try {
       const { symbol, timeframes, equity } = req.body;
-      
+
       // Mock consensus response (will connect to Python later)
       const consensus = {
         direction: 'LONG',
@@ -1048,7 +1048,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
         edgeScore: 82.3,
         timestamp: new Date().toISOString()
       };
-      
+
       res.json({
         success: true,
         consensus
@@ -1070,7 +1070,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   try {
     const fastScannerModule = await import('./services/fast-scanner');
     fastScanner = fastScannerModule.fastScanner;
-    
+
     // Connect Fast Scanner events to broadcast to all WebSocket clients
     if (fastScanner) {
       fastScanner.on('quickScanComplete', (data: any) => {
@@ -1119,7 +1119,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
           }
         });
       });
-      
+
       console.log('[WebSocket] Fast Scanner events connected');
     }
   } catch (err) {
@@ -1157,12 +1157,12 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       try {
         const strMsg = typeof msg === 'string' ? msg : msg.toString();
         const data = JSON.parse(strMsg);
-        
+
         if (data.type === 'set_exchange' && typeof data.exchange === 'string') {
           clientExchange = data.exchange;
           ws.send(JSON.stringify({ type: 'exchange_set', exchange: clientExchange }));
         }
-        
+
         // Handle Fast Scanner requests
         if (data.type === 'requestQuickScan' && fastScanner) {
           console.log('[WebSocket] Quick scan requested by client');
@@ -1214,7 +1214,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
             fetching = false;
             return;
           }
-          
+
           // Use correct symbols for kucoinfutures, fallback to spot symbols for others
           let symbols: string[];
           if (clientExchange === 'kucoinfutures') {
@@ -1222,9 +1222,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
           } else {
             symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
           }
-          
+
           console.log(`[WebSocket] Fetching market data for ${clientExchange}: ${symbols[0]}`);
-          
+
           // Check if exchange is available
           if (!exchangeDataFeed.exchanges.has(clientExchange)) {
             console.error(`[WebSocket] Exchange ${clientExchange} not found in ExchangeDataFeed`);
@@ -1232,7 +1232,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
             fetching = false;
             return;
           }
-          
+
           // Process symbols sequentially to avoid throttler queue overflow
           const results = [];
           for (const symbol of symbols) {
@@ -1244,7 +1244,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
                 results.push(null);
                 continue;
               }
-              
+
               const marketFrame = frames[0];
               await storage.createMarketFrame(marketFrame);
               ws.send(JSON.stringify({
@@ -1266,10 +1266,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
               }
 
               results.push(marketFrame);
-              
+
               // Add delay between requests to prevent throttler overflow
               await new Promise(resolve => setTimeout(resolve, 300));
-              
+
             } catch (symbolError) {
               console.error(`Error processing symbol ${symbol}:`, symbolError);
               results.push(null);
@@ -1318,4 +1318,3 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   return httpServer;
   }
-

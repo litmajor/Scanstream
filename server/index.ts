@@ -102,10 +102,8 @@ app.use((req, res, next) => {
     console.error(err); // Don't rethrow, just log
   });
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Default to 5000 for Replit environment, can be overridden via environment
-  // This serves both the API and the client.
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  // Backend server on port 5000
+  const port = parseInt(process.env.PORT || '5000');
   const host = '0.0.0.0';
   
   server.listen(port, host, () => {
