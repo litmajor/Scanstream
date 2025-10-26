@@ -184,15 +184,12 @@ class FastScannerService extends EventEmitter {
         return results;
       }
 
-      console.warn('[FastScanner] No signals in API response, using fallback for all symbols');
-      return symbols.map(symbol => this.generateFallbackSignal(symbol, scanId));
+      console.error('[FastScanner] No signals in API response');
+      throw new Error('Scanner API returned no signals');
 
     } catch (error: any) {
       console.error('[FastScanner] Scanner API call failed:', error.message);
-      console.log('[FastScanner] Using fallback data for all symbols');
-      
-      // Fallback to mock data for all symbols
-      return symbols.map(symbol => this.generateFallbackSignal(symbol, scanId));
+      throw new Error(`Scanner API unavailable: ${error.message}`);
     }
   }
 
@@ -200,41 +197,8 @@ class FastScannerService extends EventEmitter {
    * Generate fallback signal data when API is unavailable
    */
   private generateFallbackSignal(symbol: string, scanId: string): QuickSignal {
-    // Use deterministic values based on symbol for consistency
-    const symbolHash = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const price = 40000 + (symbolHash % 10000);
-    const change24h = ((symbolHash % 200) - 100) / 10;
-    const rsi = 30 + (symbolHash % 40);
-    
-    let signal: 'BUY' | 'SELL' | 'HOLD';
-    let strength: number;
-
-    if (rsi < 35 && change24h > 0) {
-      signal = 'BUY';
-      strength = 70 + (symbolHash % 25);
-    } else if (rsi > 65 && change24h < 0) {
-      signal = 'SELL';
-      strength = 70 + (symbolHash % 25);
-    } else {
-      signal = 'HOLD';
-      strength = 40 + (symbolHash % 30);
-    }
-
-    return {
-      symbol,
-      exchange: 'kucoinfutures',
-      price,
-      change24h,
-      volume: 1000000 + (symbolHash % 5000000), // Add mock volume
-      signal,
-      strength,
-      rsi,
-      macd: change24h > 0 ? 'bullish' : 'bearish',
-      timestamp: new Date(),
-      scanId,
-      status: 'quick_scan',
-      timeframe: '1h' // Add timeframe
-    };
+    // Return empty/error state instead of mock data
+    throw new Error(`Scanner API unavailable for ${symbol}. No fallback data.`);
   }
 
   /**
@@ -350,46 +314,13 @@ class FastScannerService extends EventEmitter {
         console.warn(`[FastScanner] API deep analysis failed for ${symbol}, using fallback:`, apiError.message);
       }
 
-      // Fallback to mock deep analysis if API fails
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const deepData: DeepAnalysis = {
-        scanId,
-        symbol,
-        opportunity_score: 60 + Math.random() * 35,
-        market_regime: {
-          regime: Math.random() > 0.5 ? 'bull' : 'bear',
-          confidence: 0.7 + Math.random() * 0.25,
-          volatility: 'medium'
-        },
-        sl_tp: {
-          stopLoss: signal ? signal.price * 0.98 : 0,
-          takeProfit: signal ? signal.price * 1.05 : 0,
-          riskReward: 2.5
-        },
-        timestamp: new Date()
-      };
-
-      this.deepAnalysis.set(symbol, deepData);
-
-      // Update signal status
+      // No fallback - if API fails, mark as incomplete
+      console.error(`[FastScanner] Deep analysis unavailable for ${symbol}`);
+      
       if (signal) {
-        signal.status = 'complete';
-        // Enhance with deep analysis
-        (signal as any).opportunity_score = deepData.opportunity_score;
-        (signal as any).market_regime = deepData.market_regime;
-        (signal as any).sl_tp = deepData.sl_tp;
+        signal.status = 'quick_scan'; // Revert to quick scan status
         this.scanResults.set(symbol, signal);
       }
-
-      // Emit individual update
-      this.emit('symbolAnalyzed', {
-        scanId,
-        symbol,
-        signal,
-        deepData,
-        timestamp: new Date()
-      });
 
     } catch (error) {
       console.error(`[FastScanner] Deep analysis failed for ${symbol}:`, error);

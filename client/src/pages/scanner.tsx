@@ -7,73 +7,6 @@ import { QuickScanButton } from '../components/QuickScanButton';
 import { ScanProgress } from '../components/ScanProgress';
 import { SymbolDetailModal } from '../components/SymbolDetailModal';
 
-// Mock scanner data - replace with real data from API
-const mockScannerData = {
-  signals: [
-    {
-      id: '1',
-      symbol: 'BTC/USDT',
-      exchange: 'kucoinfutures',
-      timeframe: '1h',
-      signal: 'BUY',
-      strength: 85,
-      price: 45000,
-      change: 2.5,
-      volume: 1250000,
-      timestamp: new Date(),
-      indicators: {
-        rsi: 35,
-        macd: 'bullish',
-        ema: 'above',
-        volume: 'high'
-      }
-    },
-    {
-      id: '2',
-      symbol: 'ETH/USDT',
-      exchange: 'kucoinfutures',
-      timeframe: '4h',
-      signal: 'SELL',
-      strength: 72,
-      price: 3200,
-      change: -1.8,
-      volume: 890000,
-      timestamp: new Date(),
-      indicators: {
-        rsi: 68,
-        macd: 'bearish',
-        ema: 'below',
-        volume: 'medium'
-      }
-    },
-    {
-      id: '3',
-      symbol: 'SOL/USDT',
-      exchange: 'kucoinfutures',
-      timeframe: '1d',
-      signal: 'BUY',
-      strength: 91,
-      price: 95,
-      change: 5.2,
-      volume: 2100000,
-      timestamp: new Date(),
-      indicators: {
-        rsi: 28,
-        macd: 'bullish',
-        ema: 'above',
-        volume: 'very_high'
-      }
-    }
-  ],
-  filters: {
-    exchanges: ['kucoinfutures', 'binance', 'coinbase', 'kraken'],
-    timeframes: ['1m', '5m', '15m', '1h', '4h', '1d'],
-    signals: ['BUY', 'SELL', 'HOLD'],
-    minStrength: 0,
-    maxStrength: 100
-  }
-};
-
 export default function ScannerPage() {
   const [, setLocation] = useLocation();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -368,7 +301,13 @@ export default function ScannerPage() {
         // Return empty data structure instead of mock data
         return {
           signals: [],
-          filters: mockScannerData.filters,
+          filters: {
+            exchanges: ['kucoinfutures', 'binance', 'coinbase', 'kraken'],
+            timeframes: ['1m', '5m', '15m', '1h', '4h', '1d'],
+            signals: ['BUY', 'SELL', 'HOLD'],
+            minStrength: 0,
+            maxStrength: 100
+          },
           metadata: { count: 0, message: 'Click Scan to load signals' }
         };
       }

@@ -2,62 +2,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, RefreshCw, Search, TrendingUp, TrendingDown, Star, Download, BarChart3, Bell, BellOff, Zap, Activity, Target, Filter, ChevronDown, ChevronUp, Grid3x3, List, Sparkles } from 'lucide-react';
 
 // Mock data for demonstration
-const mockSignals = [
-  {
-    id: '1',
-    symbol: 'BTC/USDT',
-    exchange: 'binance',
-    timeframe: '1h',
-    signal: 'BUY',
-    strength: 92,
-    price: 45230.50,
-    change: 3.24,
-    volume: 1250000000,
-    indicators: { rsi: 32, macd: 'bullish', ema: 'above', volume: 'very_high' },
-    advanced: { opportunity_score: 87, bb_position: 0.25 },
-    market_regime: { regime: 'bull', confidence: 78, volatility: 'high' },
-    risk_reward: {
-      entry_price: 45230.50,
-      stop_loss: 44100,
-      take_profit: 48500,
-      stop_loss_pct: 2.5,
-      take_profit_pct: 7.2,
-      risk_reward_ratio: 2.88
-    }
-  },
-  {
-    id: '2',
-    symbol: 'ETH/USDT',
-    exchange: 'kucoinfutures',
-    timeframe: '4h',
-    signal: 'SELL',
-    strength: 76,
-    price: 3185.20,
-    change: -1.82,
-    volume: 890000000,
-    indicators: { rsi: 71, macd: 'bearish', ema: 'below', volume: 'high' },
-    advanced: { opportunity_score: 68, bb_position: 0.82 },
-    market_regime: { regime: 'bear', confidence: 65, volatility: 'medium' },
-    risk_reward: {
-      entry_price: 3185.20,
-      stop_loss: 3280,
-      take_profit: 2990,
-      stop_loss_pct: 2.98,
-      take_profit_pct: 6.13,
-      risk_reward_ratio: 2.06
-    }
-  },
-  {
-    id: '3',
-    symbol: 'SOL/USDT',
-    exchange: 'binance',
-    timeframe: '1d',
-    signal: 'BUY',
-    strength: 95,
-    price: 98.45,
-    change: 6.78,
-    volume: 2100000000,
-    indicators: { rsi: 28, macd: 'bullish', ema: 'above', volume: 'very_high' },
+// UI Iteration page - uses real scanner data via API
+// No mock data needed
     advanced: { opportunity_score: 94, bb_position: 0.15 },
     market_regime: { regime: 'bull', confidence: 89, volatility: 'high' },
     risk_reward: {

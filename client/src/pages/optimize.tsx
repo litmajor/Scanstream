@@ -80,11 +80,6 @@ const mockOptimizationData = {
       improvement: -2.1,
       impact: 'low'
     }
-  ],
-  agents: [
-    { id: 'scanner', name: 'Scanner Agent', status: 'active', performance: 0.87 },
-    { id: 'ml', name: 'ML Agent', status: 'active', performance: 0.92 },
-    { id: 'risk', name: 'Risk Agent', status: 'active', performance: 0.78 }
   ]
 };
 
