@@ -3,13 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import flowFieldRouter from "./routes/flow-field";
 import flowFieldBacktestRouter from "./routes/flow-field-backtest";
-import fastScannerRouter from "./routes/fast-scanner";
+// Removed fastScannerRouter import
 import coinGeckoRouter from "./routes/coingecko";
 import enhancedAnalyticsRouter from "./routes/enhanced-analytics";
 import mlPredictionsRouter from './routes/ml-predictions';
 import mlTrainingRouter from './routes/ml-training';
 import analyticsRouter from './routes/analytics';
-import { fastScanner } from "./services/fast-scanner";
+// Removed fastScanner service import
+
 
 const app = express();
 
@@ -43,8 +44,8 @@ app.use('/api/analytics', flowFieldBacktestRouter);
 // Register Enhanced Analytics (with CoinGecko sentiment)
 app.use('/api/analytics', enhancedAnalyticsRouter);
 
-// Register Fast Scanner routes
-app.use('/api/scanner', fastScannerRouter);
+// Removed Fast Scanner routes registration
+// app.use('/api/scanner', fastScannerRouter);
 
 // Register CoinGecko sentiment & market data routes
 app.use('/api/coingecko', coinGeckoRouter);

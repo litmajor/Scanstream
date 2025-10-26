@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { ArrowLeft, RefreshCw, Settings, Filter, Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Star, Download, BarChart3, Bell, BellOff, Calculator, Activity, Target, ChevronDown, ChevronUp, Grid3x3, List, Zap } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '../lib/useWebSocket';
-import { QuickScanButton } from '../components/QuickScanButton';
+// Removed: import { QuickScanButton } from '../components/QuickScanButton';
 import { ScanProgress } from '../components/ScanProgress';
 import { SymbolDetailModal } from '../components/SymbolDetailModal';
 
@@ -31,11 +31,11 @@ export default function ScannerPage() {
   const [showPositionCalculator, setShowPositionCalculator] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
-  
+
   // WebSocket for real-time scanner updates
   const [realTimeSignals, setRealTimeSignals] = useState<any[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
-  
+
   // Load cached FastScanner results on mount
   useEffect(() => {
     const loadCachedResults = async () => {
@@ -43,11 +43,11 @@ export default function ScannerPage() {
         console.log('[Scanner] Fetching cached results from /api/scanner/results');
         const response = await fetch('/api/scanner/results');
         console.log('[Scanner] Response status:', response.status, response.ok);
-        
+
         if (response.ok) {
           const data = await response.json();
           console.log('[Scanner] Received cached data:', data);
-          
+
           if (data.success && data.signals && data.signals.length > 0) {
             console.log('[Scanner] ✅ Loaded', data.signals.length, 'cached FastScanner signals');
             setRealTimeSignals(data.signals);
@@ -62,12 +62,12 @@ export default function ScannerPage() {
         console.error('[Scanner] ❌ Error loading cached results:', error);
       }
     };
-    
+
     loadCachedResults();
   }, []);
   const [scanProgress, setScanProgress] = useState<{ total: number; remaining: number } | null>(null);
   const [selectedSymbolDetail, setSelectedSymbolDetail] = useState<any | null>(null);
-  
+
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
   const { isConnected, lastMessage, send } = useWebSocket(wsUrl);
 
@@ -219,7 +219,7 @@ export default function ScannerPage() {
   // Calculate position size for a signal
   const calculatePosition = async (signal: any) => {
     if (!signal.risk_reward) return null;
-    
+
     try {
       const response = await fetch('/api/position/calculate', {
         method: 'POST',
@@ -256,48 +256,83 @@ export default function ScannerPage() {
           signal: selectedFilters.signal,
           minStrength: selectedFilters.minStrength.toString()
         });
-        
+
         // Add timeout to prevent hanging
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
+
         const response = await fetch(`/api/scanner/signals?${params}`, {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
-        
+
         if (!response.ok) {
           throw new Error(`API returned ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
         console.log('[Scanner] Received data:', data);
-        
+
         // If empty signals, try CoinGecko as fallback
         if (!data.signals || data.signals.length === 0) {
           console.log('[Scanner] No scanner signals, trying CoinGecko fallback...');
           try {
-            const coinGeckoResponse = await fetch('/api/coingecko/signals?limit=50');
+            // This endpoint should now return all available CoinGecko data
+            const coinGeckoResponse = await fetch('/api/coingecko/all');
             if (coinGeckoResponse.ok) {
               const coinGeckoData = await coinGeckoResponse.json();
-              if (coinGeckoData.success && coinGeckoData.signals && coinGeckoData.signals.length > 0) {
-                console.log('[Scanner] ✅ Loaded', coinGeckoData.signals.length, 'signals from CoinGecko');
-                return coinGeckoData;
+              if (coinGeckoData.success && coinGeckoData.data && coinGeckoData.data.length > 0) {
+                console.log('[Scanner] ✅ Loaded', coinGeckoData.data.length, 'assets from CoinGecko');
+                // Map CoinGecko data to a structure similar to scanner signals for display
+                const mappedSignals = coinGeckoData.data.map((asset: any) => ({
+                  symbol: asset.symbol.toUpperCase(),
+                  name: asset.name,
+                  price: asset.current_price,
+                  change24h: asset.price_change_percentage_24h,
+                  volume24h: asset.total_volume,
+                  marketCap: asset.market_cap,
+                  exchange: 'CoinGecko', // Indicate source
+                  timeframe: '24h', // Default timeframe for CoinGecko data
+                  signal: asset.trend || 'NEUTRAL', // Add a basic signal based on trend if available
+                  strength: Math.abs(asset.price_change_percentage_24h) > 5 ? Math.min(100, Math.abs(asset.price_change_percentage_24h) * 2) : 0, // Example strength calculation
+                  // Include relationship data if available from CoinGecko or a secondary source
+                  relationships: asset.related_coins || [], // Assuming CoinGecko might provide this
+                  // Add custom analysis reports like regime
+                  market_regime: {
+                    regime: asset.market_regime?.regime || 'neutral',
+                    confidence: asset.market_regime?.confidence || 50,
+                    volatility: asset.market_regime?.volatility || 'medium'
+                  },
+                  advanced: {
+                    opportunity_score: asset.coingecko_rank < 50 ? 90 : asset.coingecko_rank < 200 ? 75 : 60 // Example score based on rank
+                  }
+                }));
+                return {
+                  signals: mappedSignals,
+                  filters: { // Mock filters if not provided by the API
+                    exchanges: ['CoinGecko'],
+                    timeframes: ['24h'],
+                    signals: ['BUY', 'SELL', 'NEUTRAL', 'UP', 'DOWN'],
+                    minStrength: 0,
+                    maxStrength: 100
+                  },
+                  metadata: { count: mappedSignals.length, message: 'Displaying CoinGecko data' }
+                };
               }
             }
           } catch (err) {
             console.warn('[Scanner] CoinGecko fallback failed:', err);
           }
-          
+
           // Still no data, return empty structure
           console.log('[Scanner] No signals available from any source');
           return {
             signals: [],
-            filters: data.filters || mockScannerData.filters,
+            filters: data.filters || mockScannerData.filters, // Use mockScannerData if defined elsewhere, otherwise use empty structure
             metadata: data.metadata || { count: 0, message: 'No signals available. System is starting up...' }
           };
         }
-        
+
         return data;
       } catch (err) {
         console.error('Failed to fetch scanner data:', err);
@@ -329,15 +364,16 @@ export default function ScannerPage() {
     }
   };
 
-  const handleQuickScan = () => {
-    if (!isConnected) {
-      alert('WebSocket not connected. Please refresh the page.');
-      return;
-    }
-    setIsScanning(true);
-    setScanProgress(null);
-    send({ type: 'requestQuickScan' });
-  };
+  // Removed handleQuickScan as QuickScanButton is removed
+  // const handleQuickScan = () => {
+  //   if (!isConnected) {
+  //     alert('WebSocket not connected. Please refresh the page.');
+  //     return;
+  //   }
+  //   setIsScanning(true);
+  //   setScanProgress(null);
+  //   send({ type: 'requestQuickScan' });
+  // };
 
   // Save scan results to localStorage for Dashboard access
   useEffect(() => {
@@ -352,10 +388,10 @@ export default function ScannerPage() {
   // Separate live signals (FastScanner via WebSocket) from full scan signals (Python API)
   const liveSignals = realTimeSignals || []; // FastScanner signals via WebSocket
   const fullScanSignals = scannerData?.signals || []; // Python scanner full scan results
-  
+
   // Display both - prioritize live signals if available, otherwise show full scan
   const displaySignals = (liveSignals && liveSignals.length > 0) ? liveSignals : fullScanSignals;
-  
+
   // Debug logging
   useEffect(() => {
     console.log('[Scanner] Display state:', {
@@ -378,7 +414,7 @@ export default function ScannerPage() {
           exchange: selectedExchange,
           signal: selectedFilters.signal,
           minStrength: selectedFilters.minStrength,
-          fullAnalysis: true
+          fullAnalysis: true // This might trigger deeper analysis or custom reports
         }),
       });
 
@@ -387,7 +423,7 @@ export default function ScannerPage() {
       }
 
       const data = await response.json();
-      
+
       // Store signals for this exchange
       setAllExchangeSignals(prev => {
         const updated = new Map(prev);
@@ -408,7 +444,7 @@ export default function ScannerPage() {
   const handleScanAllExchanges = async () => {
     const exchanges = ['kucoinfutures', 'binance', 'coinbase', 'kraken', 'okx', 'bybit'];
     setIsScanning(true);
-    
+
     try {
       for (const exchange of exchanges) {
         const response = await fetch('/api/scanner/scan', {
@@ -421,7 +457,7 @@ export default function ScannerPage() {
             exchange,
             signal: selectedFilters.signal,
             minStrength: selectedFilters.minStrength,
-            fullAnalysis: true
+            fullAnalysis: true // Trigger deeper analysis/custom reports
           }),
         });
 
@@ -445,7 +481,7 @@ export default function ScannerPage() {
   // Calculate top signals that appear across multiple exchanges
   const getTopConsistentSignals = () => {
     const signalMap = new Map<string, { count: number; exchanges: string[]; avgStrength: number; signals: any[] }>();
-    
+
     allExchangeSignals.forEach((signals, exchange) => {
       signals.forEach(signal => {
         const key = signal.symbol;
@@ -519,7 +555,7 @@ export default function ScannerPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading scanner signals...</p>
+          <p className="text-slate-400">Loading market data...</p>
         </div>
       </div>
     );
@@ -530,8 +566,8 @@ export default function ScannerPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-white mb-2">Error Loading Scanner</h2>
-          <p className="text-slate-400 mb-4">Failed to load scanner signals</p>
+          <h2 className="text-xl font-semibold text-white mb-2">Error Loading Market Data</h2>
+          <p className="text-slate-400 mb-4">Failed to load market signals</p>
           <button
             onClick={() => refetch()}
             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all text-white font-semibold shadow-lg shadow-blue-500/20"
@@ -567,9 +603,9 @@ export default function ScannerPage() {
               <div className="h-6 w-px bg-slate-700"></div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  Signal Scanner
+                  Market Intelligence
                 </h1>
-                <p className="text-xs text-slate-500 mt-0.5">Real-time market opportunities</p>
+                <p className="text-xs text-slate-500 mt-0.5">Comprehensive market data and analysis</p>
               </div>
             </div>
 
@@ -602,7 +638,7 @@ export default function ScannerPage() {
                   <List className="w-4 h-4" />
                 </button>
               </div>
-              
+
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-4 py-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all flex items-center space-x-2 text-slate-300 hover:text-white"
@@ -611,7 +647,7 @@ export default function ScannerPage() {
                 <span className="font-medium">Filters</span>
                 {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
-              
+
               <button
                 onClick={() => setShowWatchlistOnly(!showWatchlistOnly)}
                 className={`px-4 py-2.5 rounded-lg transition-all flex items-center space-x-2 font-medium ${
@@ -619,8 +655,8 @@ export default function ScannerPage() {
                     ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/50 text-yellow-400' 
                     : 'bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 text-slate-300 hover:text-white'
                 }`}
-                title={showWatchlistOnly ? 'Show All Signals' : 'Show Watchlist Only'}
-                aria-label={showWatchlistOnly ? 'Show all signals' : 'Show watchlist only'}
+                title={showWatchlistOnly ? 'Show All Data' : 'Show Watchlist Only'}
+                aria-label={showWatchlistOnly ? 'Show all data' : 'Show watchlist only'}
               >
                 <Star className={`w-4 h-4 ${showWatchlistOnly ? 'fill-current' : ''}`} />
                 <span>{watchlist.length}</span>
@@ -654,6 +690,9 @@ export default function ScannerPage() {
               >
                 <Download className="w-4 h-4" />
               </button>
+
+              {/* Removed Quick Scan Button */}
+              {/* <QuickScanButton onScanComplete={handleQuickScan} /> */}
 
               <button
                 onClick={handleScan}
@@ -866,7 +905,7 @@ export default function ScannerPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -880,7 +919,7 @@ export default function ScannerPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -892,7 +931,7 @@ export default function ScannerPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -921,7 +960,7 @@ export default function ScannerPage() {
                 console.warn('[Scanner] Invalid signal data:', signal);
                 return null;
               }
-              
+
               // Log the first signal to debug structure
               if (displaySignals.indexOf(signal) === 0) {
                 console.log('[Scanner] First signal structure:', {
@@ -940,9 +979,9 @@ export default function ScannerPage() {
                   allKeys: Object.keys(signal)
                 });
               }
-              
+
               const opportunityGrade = getOpportunityGrade(signal.advanced?.opportunity_score || signal.strength || 0);
-              
+
               // Wrap in try-catch to prevent crashes
               try {
                 // Compact View
@@ -970,7 +1009,7 @@ export default function ScannerPage() {
                         >
                           <Star className={`w-4 h-4 ${watchlist.includes(signal.symbol) ? 'fill-current' : ''}`} />
                         </button>
-                        
+
                         <div className="min-w-[140px]">
                           <h3 className="text-base font-bold text-white">{signal.symbol}</h3>
                           <p className="text-xs text-slate-500">{signal.exchange} • {signal.timeframe}</p>
@@ -1057,7 +1096,7 @@ export default function ScannerPage() {
                   </div>
                 );
               }
-              
+
               // Grid View
               return (
                 <div
@@ -1092,7 +1131,7 @@ export default function ScannerPage() {
                           <p className="text-xs text-slate-500">{signal.exchange} • {signal.timeframe}</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center space-x-2">
                         {liveSignals.length > 0 && liveSignals.includes(signal) && (
                           <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-green-500/10 text-green-400 border border-green-500/30">
@@ -1160,13 +1199,15 @@ export default function ScannerPage() {
                       <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
                         <div className="flex items-center space-x-2">
                           <div className={`w-2 h-2 rounded-full ${
-                            signal.market_regime.regime === 'bull' ? 'bg-green-400' : 'bg-red-400'
+                            signal.market_regime.regime === 'bull' ? 'bg-green-400' : 
+                            signal.market_regime.regime === 'bear' ? 'bg-red-400' : 'bg-slate-400'
                           } animate-pulse`}></div>
                           <span className="text-xs text-slate-400">Market Regime</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className={`text-sm font-bold ${
-                            signal.market_regime.regime === 'bull' ? 'text-green-400' : 'text-red-400'
+                            signal.market_regime.regime === 'bull' ? 'text-green-400' : 
+                            signal.market_regime.regime === 'bear' ? 'text-red-400' : 'text-slate-300'
                           }`}>
                             {signal.market_regime.regime.toUpperCase()}
                           </span>
@@ -1192,7 +1233,8 @@ export default function ScannerPage() {
                       <div className="p-2 bg-slate-800/30 rounded-lg border border-slate-700/30">
                         <p className="text-xs text-slate-500 mb-1">MACD</p>
                         <p className={`text-sm font-bold capitalize ${
-                          (signal.indicators?.macd || signal.macd || 'neutral') === 'bullish' ? 'text-green-400' : 'text-red-400'
+                          (signal.indicators?.macd || signal.macd || 'neutral') === 'bullish' ? 'text-green-400' : 
+                          (signal.indicators?.macd || signal.macd || 'neutral') === 'bearish' ? 'text-red-400' : 'text-slate-300'
                         }`}>
                           {signal.indicators?.macd || signal.macd || 'N/A'}
                         </p>
@@ -1231,7 +1273,7 @@ export default function ScannerPage() {
                             R:R {signal.risk_reward.risk_reward_ratio.toFixed(2)}
                           </span>
                         </div>
-                        
+
                         <div className="grid grid-cols-3 gap-2">
                           <div className="text-center">
                             <p className="text-xs text-slate-500 mb-1">Entry</p>
@@ -1291,9 +1333,9 @@ export default function ScannerPage() {
             <div className="inline-block p-6 bg-slate-800/30 rounded-2xl border border-slate-700/50 mb-6">
               <Search className="w-16 h-16 text-slate-600 mx-auto" />
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">No Trading Signals Available</h3>
+            <h3 className="text-xl font-bold text-white mb-2">No Market Data Available</h3>
             <p className="text-slate-500 mb-6">
-              {scannerData?.metadata?.message || 'The FastScanner runs automatically every 15 minutes. Click "Scan Market" to run a full scan now, or wait for the next automatic scan.'}
+              {scannerData?.metadata?.message || 'Market data is being fetched. Please try again in a moment, or click "Scan Market" to initiate a manual fetch.'}
             </p>
             <button
               onClick={handleScan}
@@ -1301,7 +1343,7 @@ export default function ScannerPage() {
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <RefreshCw className={`w-5 h-5 ${isScanning ? 'animate-spin' : ''}`} />
-              {isScanning ? 'Scanning...' : 'Scan Market Now'}
+              {isScanning ? 'Fetching...' : 'Fetch Market Data'}
             </button>
           </div>
         )}

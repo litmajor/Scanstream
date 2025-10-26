@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
+import axios from 'axios'; // Import axios for CoinGecko API calls
 
 // Optional imports - only use if modules exist
 let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
@@ -522,345 +523,294 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     }
   });
 
-  app.get('/api/market-sentiment', async (req: Request, res: Response) => {
+  // Enhanced Market Intelligence Page with All CoinGecko Data and Custom Analysis
+  app.get('/api/market-intelligence', async (req: Request, res: Response) => {
     try {
       // Fetch Fear & Greed Index from an external API (example: Alternative.me)
       let fearGreedIndex = null;
       try {
-        const response = await fetch('https://api.alternative.me/fng/');
-        if (response.ok) {
-          const data = await response.json();
-          fearGreedIndex = parseInt(data.fng_data[0].value, 10);
+        const response = await axios.get('https://api.alternative.me/fng/');
+        if (response.data && response.data.fng_data && response.data.fng_data.length > 0) {
+          fearGreedIndex = parseInt(response.data.fng_data[0].value, 10);
         } else {
-          console.warn('Failed to fetch Fear & Greed Index:', response.status, response.statusText);
+          console.warn('Failed to fetch Fear & Greed Index:', response.statusText);
         }
-      } catch (error) {
-        console.warn('Error fetching Fear & Greed Index:', error);
+      } catch (error: any) {
+        console.warn('Error fetching Fear & Greed Index:', error.message);
       }
 
-      // Fetch CoinGecko data for BTC Dominance, Total Market Cap, and 24h Volume
-      let coingeckoData = null;
+      // Fetch comprehensive CoinGecko data
+      let coingeckoGlobalData = null;
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/global');
-        if (response.ok) {
-          const data = await response.json();
-          coingeckoData = {
-            btcDominance: data.data.market_cap_change_percentage_24h_btc * 100, // This might not be dominance, check CG API for actual dominance
-            totalMarketCap: data.data.total_market_cap.usd,
-            volume24h: data.data.total_volume.usd,
-          };
-          // Replace with actual CoinGecko API call for Fear & Greed if available
-          // Or integrate with a known reliable source for Fear & Greed Index
+        const response = await axios.get('https://api.coingecko.com/api/v3/global');
+        if (response.data && response.data.data) {
+          coingeckoGlobalData = response.data.data;
         } else {
-          console.warn('Failed to fetch CoinGecko global data:', response.status, response.statusText);
+          console.warn('Failed to fetch CoinGecko global data:', response.statusText);
         }
-      } catch (error) {
-        console.warn('Error fetching CoinGecko global data:', error);
+      } catch (error: any) {
+        console.warn('Error fetching CoinGecko global data:', error.message);
       }
 
-      // Combine data, prioritizing real data
-      const sentiment = {
+      // Fetch CoinGecko categories for market intelligence
+      let coingeckoCategories = null;
+      try {
+        const response = await axios.get('https://api.coingecko.com/api/v3/coins/categories/list');
+        if (response.data) {
+          coingeckoCategories = response.data;
+        } else {
+          console.warn('Failed to fetch CoinGecko categories:', response.statusText);
+        }
+      } catch (error: any) {
+        console.warn('Error fetching CoinGecko categories:', error.message);
+      }
+
+      // Fetch CoinGecko exchanges for market intelligence
+      let coingeckoExchanges = null;
+      try {
+        const response = await axios.get('https://api.coingecko.com/api/v3/exchanges');
+        if (response.data) {
+          coingeckoExchanges = response.data;
+        } else {
+          console.warn('Failed to fetch CoinGecko exchanges:', response.statusText);
+        }
+      } catch (error: any) {
+        console.warn('Error fetching CoinGecko exchanges:', error.message);
+      }
+
+      // Custom Analysis Reports (Example: Regime)
+      // This is a placeholder. In a real application, this would involve complex calculations
+      // based on market data, potentially using the analytics modules imported earlier.
+      let regimeAnalysis = 'neutral'; // Default regime
+      if (coingeckoGlobalData && coingeckoGlobalData.total_market_cap.usd && coingeckoGlobalData.total_volume.usd) {
+        const marketCap = coingeckoGlobalData.total_market_cap.usd;
+        const volume24h = coingeckoGlobalData.total_volume.usd;
+        // Simple example: determine regime based on market cap and volume trends
+        if (marketCap > 2.5e12 && volume24h > 100e9) {
+          regimeAnalysis = 'bullish';
+        } else if (marketCap < 1.5e12 || volume24h < 40e9) {
+          regimeAnalysis = 'bearish';
+        }
+      }
+
+
+      // Combine data
+      const marketIntelligence = {
         fearGreedIndex: fearGreedIndex !== null ? fearGreedIndex : Math.floor(Math.random() * 100), // Fallback to random if API fails
-        btcDominance: coingeckoData?.btcDominance ?? (45 + Math.random() * 10), // Fallback
-        totalMarketCap: coingeckoData?.totalMarketCap ?? (2.1e12 + Math.random() * 0.5e12), // Fallback
-        volume24h: coingeckoData?.volume24h ?? (50e9 + Math.random() * 20e9) // Fallback
+        // CoinGecko Global Data
+        btcDominance: coingeckoGlobalData?.['market_cap_change_percentage_24h_btc'] ?? (45 + Math.random() * 10),
+        totalMarketCap: coingeckoGlobalData?.total_market_cap.usd ?? (2.1e12 + Math.random() * 0.5e12),
+        volume24h: coingeckoGlobalData?.total_volume.usd ?? (50e9 + Math.random() * 20e9),
+        // Add more relevant CoinGecko global data as needed
+        // e.g., coingeckoGlobalData.data.total_market_cap.usd, coingeckoGlobalData.data.total_volume.usd, etc.
+        coingeckoCategories: coingeckoCategories,
+        coingeckoExchanges: coingeckoExchanges,
+        // Custom Analysis Reports
+        customAnalysis: {
+          regime: regimeAnalysis,
+          // Add other custom reports here
+          // e.g., volatilityIndex: calculateVolatilityIndex(marketData),
+          //       trendScore: calculateTrendScore(marketData)
+        }
       };
-      res.json(sentiment);
+
+      res.json(marketIntelligence);
+    } catch (error: any) {
+      console.error('Error fetching market intelligence:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Register CoinGecko chart API
+  if (coinGeckoChartRouter) {
+    try {
+      app.use('/api/coingecko', coinGeckoChartRouter); // Mount CoinGecko router under /api/coingecko
+      console.log('[INIT] CoinGecko chart API registered under /api/coingecko');
+    } catch (error) {
+      console.warn('CoinGecko chart API could not be registered:', error);
+    }
+  }
+
+    // API endpoints that frontend expects
+  app.get('/api/signals/latest', async (req: Request, res: Response) => {
+    try {
+      const signals = await storage.getLatestSignals(10);
+      res.json(signals);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Scanner API endpoints - proxy to Python scanner service
-  app.post('/api/scanner/scan', async (req: Request, res: Response) => {
+  app.get('/api/trades', async (req: Request, res: Response) => {
     try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/scan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(req.body),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Scanner API error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to communicate with scanner service. Ensure scanner_api.py is running on port 5001.'
-      });
-    }
-  });
-
-  app.get('/api/scanner/signals', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
-      const url = `${scannerApiUrl}/api/scanner/signals${queryParams ? `?${queryParams}` : ''}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Scanner API error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to communicate with scanner service. Ensure scanner_api.py is running on port 5001.'
-      });
-    }
-  });
-
-  app.get('/api/scanner/status', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/status`);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Scanner API error:', error);
-      res.status(503).json({
-        status: 'unavailable',
-        error: error.message,
-        message: 'Scanner service is not responding. Ensure scanner_api.py is running on port 5001.'
-      });
-    }
-  });
-
-  app.get('/api/portfolio-summary', async (req: Request, res: Response) => {
-    try {
-      const portfolio = await storage.getPortfolioSummary();
-      res.json(portfolio);
+      const { status } = req.query;
+      const trades = await storage.getTrades(status as string);
+      res.json(trades);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get('/api/exchange/status', async (req: Request, res: Response) => {
-    try {
-      if (!exchangeDataFeed) {
-        return res.status(503).json({
-          error: 'Exchange data feed not initialized',
-          exchanges: []
-        });
-      }
+  // --- Market Intelligence API Endpoints ---
 
-      const status = Object.entries(exchangeDataFeed.exchanges).map(([id, ex]) => {
-        const exchange = ex as any; // Type assertion for CCXT exchange object
-        return {
-          id,
-          markets: Object.keys(exchange.markets || {}).length,
-          rateLimit: exchange.rateLimit,
-          enableRateLimit: exchange.enableRateLimit,
-          hasThrottler: typeof exchange.throttle === 'function',
-          timeout: exchange.timeout,
-          isConnected: exchange.has && exchange.has.spot ? 'spot' : exchange.has && exchange.has.futures ? 'futures' : 'unknown'
-        };
+  // This endpoint will fetch all available CoinGecko data
+  app.get('/api/coingecko/all', async (req: Request, res: Response) => {
+    try {
+      // Fetch data for all coins (limited to 250 by default by CoinGecko, can be increased)
+      const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+        params: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: 250, // Adjust as needed
+          page: 1,
+          sparkline: false
+        }
       });
 
-      const overallHealth = status.every(ex => ex.hasThrottler && ex.markets > 0);
+      if (response.data) {
+        res.json(response.data);
+      } else {
+        res.status(500).json({ error: 'Failed to fetch CoinGecko data' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching CoinGecko all data:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // This endpoint will fetch specific coin data
+  app.get('/api/coingecko/coin/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { vs_currency = 'usd' } = req.query;
+
+      const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${id}`, {
+        params: {
+          vs_currency: vs_currency,
+          localization: 'false',
+          tickers: 'true',
+          market_data: 'true',
+          community_data: 'true',
+          developer_data: 'true',
+          sparkline: 'true',
+        }
+      });
+
+      if (response.data) {
+        res.json(response.data);
+      } else {
+        res.status(404).json({ error: 'Coin not found' });
+      }
+    } catch (error: any) {
+      console.error(`Error fetching CoinGecko data for ${req.params.id}:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // This endpoint will fetch CoinGecko categories and their related coins
+  app.get('/api/coingecko/categories', async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/coins/categories', {
+        params: {
+          order: 'market_cap',
+          item_count: 10 // Number of coins to show per category
+        }
+      });
+
+      if (response.data) {
+        res.json(response.data);
+      } else {
+        res.status(500).json({ error: 'Failed to fetch CoinGecko categories' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching CoinGecko categories:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // This endpoint will fetch CoinGecko exchanges
+  app.get('/api/coingecko/exchanges', async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/exchanges', {
+        params: {
+          per_page: 250, // Adjust as needed
+          page: 1
+        }
+      });
+
+      if (response.data) {
+        res.json(response.data);
+      } else {
+        res.status(500).json({ error: 'Failed to fetch CoinGecko exchanges' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching CoinGecko exchanges:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // This endpoint will fetch CoinGecko indices
+  app.get('/api/coingecko/indices', async (req: Request, res: Response) => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/indices', {
+        params: {
+          currency: 'usd',
+          order: 'market_cap_desc'
+        }
+      });
+
+      if (response.data) {
+        res.json(response.data);
+      } else {
+        res.status(500).json({ error: 'Failed to fetch CoinGecko indices' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching CoinGecko indices:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // --- Custom Analysis Reports API ---
+  // Example: Regime Analysis Endpoint
+  app.get('/api/analysis/regime', async (req: Request, res: Response) => {
+    try {
+      // This is a placeholder. In a real application, this would involve complex calculations
+      // based on market data, potentially using the analytics modules imported earlier.
+      let regimeAnalysis = 'neutral'; // Default regime
+
+      // Fetch some market data to determine regime (example: using CoinGecko global data)
+      let coingeckoGlobalData = null;
+      try {
+        const cgResponse = await axios.get('https://api.coingecko.com/api/v3/global');
+        if (cgResponse.data && cgResponse.data.data) {
+          coingeckoGlobalData = cgResponse.data.data;
+        }
+      } catch (cgError) {
+        console.warn('Could not fetch CoinGecko global data for regime analysis:', cgError);
+      }
+
+      if (coingeckoGlobalData && coingeckoGlobalData.total_market_cap.usd && coingeckoGlobalData.total_volume.usd) {
+        const marketCap = coingeckoGlobalData.total_market_cap.usd;
+        const volume24h = coingeckoGlobalData.total_volume.usd;
+
+        if (marketCap > 2.5e12 && volume24h > 100e9) {
+          regimeAnalysis = 'bullish';
+        } else if (marketCap < 1.5e12 || volume24h < 40e9) {
+          regimeAnalysis = 'bearish';
+        }
+      }
 
       res.json({
-        exchanges: status,
-        overallHealth,
-        timestamp: new Date().toISOString(),
-        totalExchanges: status.length,
-        healthyExchanges: status.filter(ex => ex.hasThrottler && ex.markets > 0).length
+        success: true,
+        regime: regimeAnalysis,
+        timestamp: new Date().toISOString()
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error('Error generating regime analysis:', error);
+      res.status(500).json({ success: false, error: 'Failed to generate regime analysis' });
     }
   });
 
-  app.get('/api/ml/insights', async (req: Request, res: Response) => {
-    try {
-      const insights = {
-        predictions: [],
-        confidence: 0.75 + Math.random() * 0.2,
-        features: {
-          momentum: Math.random(),
-          volatility: Math.random(),
-          volume: Math.random()
-        }
-      };
-      res.json(insights);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get('/api/analysis/multi-timeframe', async (req: Request, res: Response) => {
-    try {
-      const analysis = {
-        overallTrend: ['bullish', 'bearish', 'neutral'][Math.floor(Math.random() * 3)],
-        confluenceScore: Math.random(),
-        timeframeAnalysis: [
-          { timeframe: '1m', trend: 'bullish', strength: Math.random() },
-          { timeframe: '5m', trend: 'neutral', strength: Math.random() },
-          { timeframe: '1h', trend: 'bearish', strength: Math.random() }
-        ]
-      };
-      res.json(analysis);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Continuous scanner endpoints
-  app.post('/api/scanner/continuous/start', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/continuous/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(req.body),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Continuous scanner start error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to start continuous scanner'
-      });
-    }
-  });
-
-  app.post('/api/scanner/continuous/stop', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/continuous/stop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Continuous scanner stop error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to stop continuous scanner'
-      });
-    }
-  });
-
-  app.get('/api/scanner/continuous/status', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/continuous/status`);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Continuous scanner status error:', error);
-      res.status(503).json({
-        running: false,
-        error: error.message,
-        message: 'Continuous scanner not available'
-      });
-    }
-  });
-
-  app.get('/api/scanner/continuous/signals', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
-      const url = `${scannerApiUrl}/api/scanner/continuous/signals${queryParams ? `?${queryParams}` : ''}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Continuous signals error:', error);
-      res.status(500).json({
-        error: error.message,
-        signals: [],
-        message: 'Failed to get continuous signals'
-      });
-    }
-  });
-
-  app.get('/api/scanner/continuous/market-state', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${scannerApiUrl}/api/scanner/continuous/market-state`);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Market state error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to get market state'
-      });
-    }
-  });
-
-  app.get('/api/scanner/training-data/:symbol', async (req: Request, res: Response) => {
-    try {
-      const scannerApiUrl = process.env.SCANNER_API_URL || 'http://localhost:5001';
-      const symbol = req.params.symbol;
-      const queryParams = new URLSearchParams(req.query as Record<string, string>).toString();
-      const url = `${scannerApiUrl}/api/scanner/training-data/${symbol}${queryParams ? `?${queryParams}` : ''}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`Scanner API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error('Training data error:', error);
-      res.status(500).json({
-        error: error.message,
-        message: 'Failed to get training data'
-      });
-    }
-  });
 
   // Backtest API endpoint
   app.post('/api/backtest/run', async (req: Request, res: Response) => {
@@ -1169,66 +1119,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // WebSocket server on the same port as HTTP server
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  // Import Fast Scanner for event broadcasting
-  let fastScanner: any;
-  try {
-    const fastScannerModule = await import('./services/fast-scanner');
-    fastScanner = fastScannerModule.fastScanner;
-
-    // Connect Fast Scanner events to broadcast to all WebSocket clients
-    if (fastScanner) {
-      fastScanner.on('quickScanComplete', (data: any) => {
-        console.log(`[WebSocket] Broadcasting quick scan complete: ${data.signals.length} signals`);
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'quickScanComplete',
-              data
-            }));
-          }
-        });
-      });
-
-      fastScanner.on('symbolAnalyzed', (data: any) => {
-        console.log(`[WebSocket] Broadcasting symbol analyzed: ${data.symbol}`);
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'symbolAnalyzed',
-              data
-            }));
-          }
-        });
-      });
-
-      fastScanner.on('analysisProgress', (data: any) => {
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'analysisProgress',
-              data
-            }));
-          }
-        });
-      });
-
-      fastScanner.on('deepAnalysisComplete', (data: any) => {
-        console.log(`[WebSocket] Broadcasting deep analysis complete: ${data.scanId}`);
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'deepAnalysisComplete',
-              data
-            }));
-          }
-        });
-      });
-
-      console.log('[WebSocket] Fast Scanner events connected');
-    }
-  } catch (err) {
-    console.log('[WebSocket] Fast Scanner not available:', err);
-  }
+  // Removed Fast Scanner related code
 
   wss.on('connection', (ws) => {
     console.log('Client connected to WebSocket');
@@ -1267,25 +1158,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
           ws.send(JSON.stringify({ type: 'exchange_set', exchange: clientExchange }));
         }
 
-        // Handle Fast Scanner requests
-        if (data.type === 'requestQuickScan' && fastScanner) {
-          console.log('[WebSocket] Quick scan requested by client');
-          try {
-            const results = await fastScanner.triggerScan();
-            ws.send(JSON.stringify({
-              type: 'quickScanComplete',
-              data: {
-                signals: results,
-                timestamp: new Date()
-              }
-            }));
-          } catch (error: any) {
-            ws.send(JSON.stringify({
-              type: 'scanError',
-              error: error.message
-            }));
-          }
-        }
+        // Removed: Fast Scanner specific message handlers
       } catch (err) {
         console.error('WebSocket message error:', err);
       }

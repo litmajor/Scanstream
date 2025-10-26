@@ -17,6 +17,7 @@ import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { Activity, TrendingUp, BarChart3, Zap, Target, Users, DollarSign, Settings } from 'lucide-react';
 import TopSignalsWidget from './components/TopSignalsWidget';
+import { Link } from "wouter";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/optimize" component={OptimizePage} />
       <Route path="/strategies" component={StrategiesPage} />
       <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
+      <Route path="/market-intelligence" component={MarketIntelligence} />
       <Route component={NotFound} />
     </Switch>
   );
