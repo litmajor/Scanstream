@@ -105,24 +105,39 @@ export default function OptimizePage() {
     refetchInterval: 5000, // Refresh every 5 seconds for running optimizations
   });
 
-  const handleOptimize = async () => {
-    if (!selectedStrategy) {
-      alert('Please select a strategy to optimize');
-      return;
-    }
+  const [optimizationConfig, setOptimizationConfig] = useState({
+    optimizeScanner: true,
+    optimizeML: true,
+    optimizeRL: true,
+    optimizeStrategies: true,
+    iterations: 15,
+    symbol: 'BTC/USDT',
+    timeframe: '1h',
+    dataPoints: 500
+  });
 
+  const handleOptimize = async () => {
     setIsOptimizing(true);
     try {
-      // TODO: Implement actual optimization API call
-      // await fetch('/api/optimize/run', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ strategyId: selectedStrategy })
-      // });
+      const response = await fetch('/api/optimize/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(optimizationConfig)
+      });
       
-      // Simulate optimization
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Optimization failed');
+      }
+      
+      console.log('[Optimization] Results:', data);
       await refetch();
+      
+      alert(`Optimization Complete!\nOverall Performance: ${(data.results.overallPerformance * 100).toFixed(2)}%`);
+    } catch (error: any) {
+      console.error('[Optimization] Error:', error);
+      alert(`Optimization failed: ${error.message}`);
     } finally {
       setIsOptimizing(false);
     }
@@ -254,42 +269,104 @@ export default function OptimizePage() {
             <Target className="w-5 h-5 text-slate-400" />
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Select Strategy
+          <div className="space-y-4">
+            {/* Optimization Components */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={optimizationConfig.optimizeScanner}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, optimizeScanner: e.target.checked})}
+                  className="rounded border-slate-700 bg-slate-800/50 text-blue-500 focus:ring-blue-500/50"
+                />
+                <span className="text-sm text-slate-300">Scanner Agent</span>
               </label>
-              <select
-                value={selectedStrategy}
-                onChange={(e) => setSelectedStrategy(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
-              >
-                <option value="">Select Strategy to Optimize</option>
-                {optimizationData?.strategies.map(strategy => (
-                  <option key={strategy.id} value={strategy.id}>{strategy.name}</option>
-                ))}
-              </select>
+              
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={optimizationConfig.optimizeML}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, optimizeML: e.target.checked})}
+                  className="rounded border-slate-700 bg-slate-800/50 text-blue-500 focus:ring-blue-500/50"
+                />
+                <span className="text-sm text-slate-300">ML Models</span>
+              </label>
+              
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={optimizationConfig.optimizeRL}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, optimizeRL: e.target.checked})}
+                  className="rounded border-slate-700 bg-slate-800/50 text-blue-500 focus:ring-blue-500/50"
+                />
+                <span className="text-sm text-slate-300">RL Position Agent</span>
+              </label>
+              
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={optimizationConfig.optimizeStrategies}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, optimizeStrategies: e.target.checked})}
+                  className="rounded border-slate-700 bg-slate-800/50 text-blue-500 focus:ring-blue-500/50"
+                />
+                <span className="text-sm text-slate-300">Strategies</span>
+              </label>
+            </div>
+            
+            {/* Configuration */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Symbol</label>
+                <input
+                  type="text"
+                  value={optimizationConfig.symbol}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, symbol: e.target.value})}
+                  className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Iterations</label>
+                <input
+                  type="number"
+                  value={optimizationConfig.iterations}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, iterations: parseInt(e.target.value)})}
+                  min="5"
+                  max="50"
+                  className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Data Points</label>
+                <input
+                  type="number"
+                  value={optimizationConfig.dataPoints}
+                  onChange={(e) => setOptimizationConfig({...optimizationConfig, dataPoints: parseInt(e.target.value)})}
+                  min="100"
+                  max="1000"
+                  className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
             </div>
 
-            <div className="flex items-end">
-              <button
-                onClick={handleOptimize}
-                disabled={isOptimizing || !selectedStrategy}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg font-medium transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
-              >
-                {isOptimizing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Optimizing...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Run Optimization
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleOptimize}
+              disabled={isOptimizing}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
+            >
+              {isOptimizing ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Running Unified Optimization...
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 mr-2" />
+                  Run Unified Optimization
+                </>
+              )}
+            </button>
           </div>
         </div>
 

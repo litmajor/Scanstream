@@ -60,6 +60,11 @@ console.log('[express] ML Training API registered at /api/ml/training');
 app.use('/api/analytics', analyticsRouter);
 console.log('[express] Analytics API registered at /api/analytics');
 
+// Register Optimization routes
+import optimizationRouter from './routes/optimization';
+app.use('/api/optimize', optimizationRouter);
+console.log('[express] Optimization API registered at /api/optimize');
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
