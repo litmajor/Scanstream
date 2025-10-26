@@ -29,20 +29,8 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
-    host: true,
-    port: 5173,
-    allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:3000',
-        changeOrigin: true,
-        rewrite: (path) => path,
-      },
-      '/ws': {
-        target: process.env.VITE_WS_URL || 'http://localhost:3000',
-        ws: true,
-        changeOrigin: true,
-      },
-    },
+    host: '0.0.0.0',
+    port: 5000,
+    strictPort: true,
   },
 });

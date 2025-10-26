@@ -641,7 +641,7 @@ export default function TradingTerminal() {
     };
   }
 
-  const { data: mlPredictions, isLoading: mlLoading } = useQuery<MLPredictions>({
+  const { data: mlPredictions, isLoading: mlPredictionsLoading } = useQuery<MLPredictions>({
     queryKey: ['/api/ml/predictions', selectedSymbol, chartData.length],
     queryFn: async () => {
       if (!chartData || chartData.length < 20) {
