@@ -6,7 +6,8 @@ import flowFieldBacktestRouter from "./routes/flow-field-backtest";
 import fastScannerRouter from "./routes/fast-scanner";
 import coinGeckoRouter from "./routes/coingecko";
 import enhancedAnalyticsRouter from "./routes/enhanced-analytics";
-import mlPredictionsRouter from "./routes/ml-predictions";
+import mlPredictionsRouter from './routes/ml-predictions';
+import mlTrainingRouter from './routes/ml-training';
 import analyticsRouter from './routes/analytics';
 import { fastScanner } from "./services/fast-scanner";
 
@@ -51,6 +52,11 @@ app.use('/api/coingecko', coinGeckoRouter);
 // Register ML Predictions routes
 app.use('/api/ml', mlPredictionsRouter);
 console.log('[express] ML Predictions API registered at /api/ml/predictions');
+
+// Register ML Training routes
+app.use('/api/ml', mlTrainingRouter);
+console.log('[express] ML Training API registered at /api/ml/training');
+
 app.use('/api/analytics', analyticsRouter);
 console.log('[express] Analytics API registered at /api/analytics');
 

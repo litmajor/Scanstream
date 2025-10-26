@@ -1,6 +1,6 @@
 /**
  * ML Predictions Service
- * 
+ *
  * Provides multiple ML models for trading predictions:
  * 1. Direction Classifier - Binary classification (bullish=1/bearish=0)
  * 2. Price Predictor - Regression for next candle price
@@ -63,7 +63,7 @@ export class MLPredictionService {
 
     // Extract features
     const features = this.extractFeatures(chartData);
-    
+
     // Run all models
     const direction = this.predictDirection(chartData, features);
     const price = this.predictPrice(chartData, features);
@@ -102,30 +102,30 @@ export class MLPredictionService {
       priceChange3: this.calculateChange(prices, 3),
       priceChange5: this.calculateChange(prices, 5),
       priceChange10: this.calculateChange(prices, 10),
-      
+
       // Momentum features
       momentum5: this.calculateMomentum(prices, 5),
       momentum10: this.calculateMomentum(prices, 10),
       rateOfChange: this.calculateRateOfChange(prices, 5),
-      
+
       // Volatility features
       volatility5: this.calculateVolatility(prices, 5),
       volatility10: this.calculateVolatility(prices, 10),
       atr: this.calculateATR(highs, lows, recent.map(d => d.close), 14),
-      
+
       // Volume features
       volumeRatio: current.volume / (volumes.reduce((a, b) => a + b, 0) / volumes.length),
       volumeTrend: this.calculateTrend(volumes, 5),
-      
+
       // Technical indicators (if available)
       rsi: current.rsi || 50,
       macd: current.macd || 0,
       ema: current.ema || current.close,
-      
+
       // Pattern features
       trendStrength: this.calculateTrendStrength(prices),
       meanReversion: this.calculateMeanReversion(prices),
-      
+
       // Support/Resistance
       distanceToHigh: (Math.max(...highs) - current.close) / current.close,
       distanceToLow: (current.close - Math.min(...lows)) / current.close
@@ -137,7 +137,7 @@ export class MLPredictionService {
    * Simple logistic regression-like model
    */
   private static predictDirection(
-    data: ChartDataPoint[], 
+    data: ChartDataPoint[],
     features: Record<string, number>
   ): MLPredictions['direction'] {
     // Feature weights (these would be learned from training data)
@@ -166,11 +166,11 @@ export class MLPredictionService {
     // Normalize score to 0-1 range (probability)
     const normalizedScore = (score / totalWeight + 1) / 2;
     const probability = Math.max(0, Math.min(1, normalizedScore));
-    
+
     // Determine prediction
     const prediction = probability > 0.5 ? 'bullish' : 'bearish';
     const signal = probability > 0.5 ? 1 : 0;
-    
+
     // Calculate confidence based on how far from 0.5
     const confidence = Math.abs(probability - 0.5) * 2;
 
@@ -201,7 +201,7 @@ export class MLPredictionService {
 
     // Base prediction: current price + momentum-adjusted change
     let predictedChange = current.close * (momentum * 0.5 + trend * 0.3);
-    
+
     // Adjust for RSI (mean reversion)
     if (features.rsi > 70) {
       predictedChange *= 0.7; // Expect some pullback
@@ -210,15 +210,15 @@ export class MLPredictionService {
     }
 
     const predicted = current.close + predictedChange;
-    
+
     // Calculate prediction bounds based on volatility
     const volBand = current.close * volatility * 2;
     const high = predicted + volBand;
     const low = predicted - volBand;
-    
+
     // Confidence based on trend strength and volatility
     const confidence = Math.min(1, Math.abs(trend) * (1 - volatility));
-    
+
     const percentChange = ((predicted - current.close) / current.close) * 100;
 
     return {
@@ -244,7 +244,7 @@ export class MLPredictionService {
 
     // Predict volatility as weighted average of recent volatility and volume impact
     let predictedVol = currentVol * 0.7 + (atr / data[data.length - 1].close) * 0.3;
-    
+
     // Volume can increase volatility
     if (volumeRatio > 1.5) {
       predictedVol *= 1.2;
@@ -397,14 +397,14 @@ export class MLPredictionService {
   private static calculateTrend(values: number[], period: number): number {
     const recent = values.slice(-Math.min(period, values.length));
     if (recent.length < 2) return 0;
-    
+
     // Simple linear regression slope
     const n = recent.length;
     const sumX = (n * (n - 1)) / 2;
     const sumY = recent.reduce((a, b) => a + b, 0);
     const sumXY = recent.reduce((sum, y, i) => sum + i * y, 0);
     const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6;
-    
+
     const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
     return slope / (sumY / n); // Normalize by mean
   }
@@ -414,12 +414,12 @@ export class MLPredictionService {
     const recent = prices.slice(-10);
     let upMoves = 0;
     let downMoves = 0;
-    
+
     for (let i = 1; i < recent.length; i++) {
       if (recent[i] > recent[i - 1]) upMoves++;
       else if (recent[i] < recent[i - 1]) downMoves++;
     }
-    
+
     return (upMoves - downMoves) / (recent.length - 1);
   }
 
@@ -440,4 +440,3 @@ export class MLPredictionService {
 }
 
 export default MLPredictionService;
-
