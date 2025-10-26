@@ -12,6 +12,7 @@ import MultiTimeframePage from "@/pages/multi-timeframe";
 import OptimizePage from "@/pages/optimize";
 import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
+import StrategySynthesisPage from './pages/strategy-synthesis';
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
 import { Activity, TrendingUp, BarChart3, Zap, Target, Users, DollarSign, Settings } from 'lucide-react';
@@ -28,7 +29,7 @@ function Router() {
       <Route path="/multi-timeframe" component={MultiTimeframePage} />
       <Route path="/optimize" component={OptimizePage} />
       <Route path="/strategies" component={StrategiesPage} />
-      <Route path="/market-intelligence" component={MarketIntelligence} />
+      <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
       <Route component={NotFound} />
     </Switch>
   );

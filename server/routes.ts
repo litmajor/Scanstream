@@ -859,6 +859,71 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     });
 
 
+  // Strategy Integration Engine
+  import { StrategyIntegrationEngine } from './strategy-integration';
+  const strategyEngine = new StrategyIntegrationEngine();
+
+  // Synthesize signals endpoint
+  app.post('/api/strategies/synthesize', async (req: Request, res: Response) => {
+    try {
+      const { symbol, timeframe } = req.body;
+
+      if (!symbol || !timeframe) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required parameters: symbol, timeframe'
+        });
+      }
+
+      // Fetch recent market frames
+      const frames = await storage.getMarketFrames(symbol, 50);
+
+      if (frames.length < 30) {
+        return res.status(400).json({
+          success: false,
+          error: 'Insufficient market data for synthesis'
+        });
+      }
+
+      // Synthesize signal
+      const synthesizedSignal = await strategyEngine.synthesizeSignals(symbol, timeframe, frames);
+
+      // Get current weights
+      const weights = strategyEngine.getStrategyWeights();
+
+      res.json({
+        success: true,
+        signal: synthesizedSignal,
+        weights,
+        regime: synthesizedSignal.regimeContext,
+        confidenceBreakdown: synthesizedSignal.confidenceBreakdown
+      });
+    } catch (error) {
+      console.error('Error synthesizing signals:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to synthesize signals'
+      });
+    }
+  });
+
+  // Get strategy weights endpoint
+  app.get('/api/strategies/weights', async (req, res) => {
+    try {
+      const weights = strategyEngine.getStrategyWeights();
+      res.json({
+        success: true,
+        weights
+      });
+    } catch (error) {
+      console.error('Error fetching strategy weights:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch strategy weights'
+      });
+    }
+  });
+
   // --- Strategy Management API ---
   console.log('Registering Strategy Management API');
 
