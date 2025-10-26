@@ -16,6 +16,7 @@ let calculate_value_area: any, calculate_poc: any;
 let runBacktest: any, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
 let MLSignalEnhancer: any, EnhancedMultiTimeframeAnalyzer: any;
 let registerChartApi: any, registerAdvancedIndicatorApi: any;
+let StrategyIntegrationEngine: any;
 
 try {
   const bayesianModule = await import('./bayesian-optimizer').catch(() => null);
@@ -60,6 +61,11 @@ try {
   const advancedIndicatorModule = await import('./advanced-indicator-api').catch(() => null);
   if (advancedIndicatorModule) {
     ({ registerAdvancedIndicatorApi } = advancedIndicatorModule);
+  }
+
+  const strategyModule = await import('./strategy-integration').catch(() => null);
+  if (strategyModule) {
+    ({ StrategyIntegrationEngine } = strategyModule);
   }
 } catch (error) {
   console.warn('Some optional modules could not be loaded:', error);
@@ -894,8 +900,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
 
   // Strategy Integration Engine
-  import { StrategyIntegrationEngine } from './strategy-integration';
-  const strategyEngine = new StrategyIntegrationEngine();
+  const strategyEngine = StrategyIntegrationEngine ? new StrategyIntegrationEngine() : null;
 
   // Synthesize signals endpoint
   app.post('/api/strategies/synthesize', async (req: Request, res: Response) => {
