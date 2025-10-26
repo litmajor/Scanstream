@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Settings, Play, Download, Target, TrendingUp, BarChart3, Zap } from 'lucide-react';
+import { ArrowLeft, Settings, Play, Download, Target, TrendingUp, BarChart3, Zap, Activity } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Mock optimization data - replace with real data from API
 const mockOptimizationData = {
@@ -80,6 +81,11 @@ const mockOptimizationData = {
       improvement: -2.1,
       impact: 'low'
     }
+  ],
+  agents: [
+    { id: 'agent-1', name: 'Scanner Agent', performance: 0.15, status: 'active' },
+    { id: 'agent-2', name: 'ML Model Agent', performance: 0.22, status: 'active' },
+    { id: 'agent-3', name: 'RL Agent', performance: 0.18, status: 'inactive' }
   ]
 };
 
@@ -119,16 +125,16 @@ export default function OptimizePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(optimizationConfig)
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Optimization failed');
       }
-      
+
       console.log('[Optimization] Results:', data);
       await refetch();
-      
+
       alert(`Optimization Complete!\nOverall Performance: ${(data.results.overallPerformance * 100).toFixed(2)}%`);
     } catch (error: any) {
       console.error('[Optimization] Error:', error);
@@ -263,7 +269,7 @@ export default function OptimizePage() {
             <h2 className="text-lg font-semibold text-white">Run Optimization</h2>
             <Target className="w-5 h-5 text-slate-400" />
           </div>
-          
+
           <div className="space-y-4">
             {/* Optimization Components */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -276,7 +282,7 @@ export default function OptimizePage() {
                 />
                 <span className="text-sm text-slate-300">Scanner Agent</span>
               </label>
-              
+
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -286,7 +292,7 @@ export default function OptimizePage() {
                 />
                 <span className="text-sm text-slate-300">ML Models</span>
               </label>
-              
+
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -296,7 +302,7 @@ export default function OptimizePage() {
                 />
                 <span className="text-sm text-slate-300">RL Position Agent</span>
               </label>
-              
+
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -307,7 +313,7 @@ export default function OptimizePage() {
                 <span className="text-sm text-slate-300">Strategies</span>
               </label>
             </div>
-            
+
             {/* Configuration */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -319,7 +325,7 @@ export default function OptimizePage() {
                   className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Iterations</label>
                 <input
@@ -331,7 +337,7 @@ export default function OptimizePage() {
                   className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Data Points</label>
                 <input
@@ -365,10 +371,36 @@ export default function OptimizePage() {
           </div>
         </div>
 
-        {/* Optimization Results */}
-        <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 mb-6 shadow-xl shadow-blue-500/5">
-          <h2 className="text-lg font-semibold text-white mb-4">Parameter Optimization Results</h2>
-          
+        {/* Optimization Performance Over Iterations */}
+        <div className="mt-6 bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <Activity className="w-5 h-5 mr-2 text-blue-400" />
+            Optimization Performance
+          </h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={Array.from({length: 15}, (_, i) => ({
+              iteration: i + 1,
+              performance: 50 + Math.random() * 30 + i * 2,
+              bestPerformance: 50 + i * 2.5
+            }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="iteration" stroke="#94a3b8" />
+              <YAxis stroke="#94a3b8" />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                labelStyle={{ color: '#e2e8f0' }}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="performance" stroke="#3b82f6" strokeWidth={2} name="Current Performance" />
+              <Line type="monotone" dataKey="bestPerformance" stroke="#22c55e" strokeWidth={2} strokeDasharray="5 5" name="Best Performance" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Feature Importance */}
+        <div className="mt-6 bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5">
+          <h2 className="text-lg font-semibold text-white mb-4">Feature Importance</h2>
+
           <div className="space-y-4">
             {optimizationData?.optimizationResults.map((result, index) => (
               <div key={index} className="border border-slate-700/30 bg-slate-800/30 rounded-lg p-4">
@@ -378,7 +410,7 @@ export default function OptimizePage() {
                     {result.impact} impact
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="text-slate-400">Current:</span>
@@ -403,7 +435,7 @@ export default function OptimizePage() {
         {/* Strategies */}
         <div className="space-y-6">
           <h2 className="text-lg font-semibold text-white">Optimized Strategies</h2>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {optimizationData?.strategies.map((strategy) => (
               <div key={strategy.id} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
