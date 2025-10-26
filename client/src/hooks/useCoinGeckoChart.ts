@@ -11,12 +11,12 @@ interface CoinGeckoChartData {
   data: ChartDataPoint[];
 }
 
-export function useCoinGeckoChart(symbol: string, days: number = 7) {
+export function useCoinGeckoChart(symbol: string, days: number = 90, extended: boolean = false) {
   // Convert symbol to CoinGecko ID
   const coinId = symbolToCoinId(symbol);
   
   return useQuery<ChartDataPoint[]>({
-    queryKey: ['coingecko-chart', coinId, days],
+    queryKey: ['coingecko-chart', coinId, days, extended],
     queryFn: async () => {
       if (!coinId) {
         console.warn(`[CoinGecko Chart] Unknown symbol: ${symbol}`);
@@ -24,7 +24,8 @@ export function useCoinGeckoChart(symbol: string, days: number = 7) {
       }
       
       try {
-        const response = await fetch(`/api/coingecko/chart/${coinId}?days=${days}`);
+        const url = `/api/coingecko/chart/${coinId}?days=${days}${extended ? '&extended=true' : ''}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -37,7 +38,7 @@ export function useCoinGeckoChart(symbol: string, days: number = 7) {
           return [];
         }
         
-        console.log(`[CoinGecko Chart] Fetched ${result.data.length} candles for ${symbol}`);
+        console.log(`[CoinGecko Chart] Fetched ${result.data.length} candles for ${symbol} (extended: ${extended})`);
         return result.data;
         
       } catch (error: any) {
@@ -49,6 +50,30 @@ export function useCoinGeckoChart(symbol: string, days: number = 7) {
     staleTime: 180000, // Consider fresh for 3 minutes
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+}
+
+/**
+ * Hook for multi-timeframe ML data (500+ points)
+ */
+export function useCoinGeckoMLData(symbol: string) {
+  const coinId = symbolToCoinId(symbol);
+  
+  return useQuery({
+    queryKey: ['coingecko-ml-data', coinId],
+    queryFn: async () => {
+      if (!coinId) return null;
+      
+      const response = await fetch(`/api/coingecko/chart/${coinId}/multi-timeframe`);
+      if (!response.ok) throw new Error('Failed to fetch ML data');
+      
+      const result = await response.json();
+      console.log(`[CoinGecko ML] Fetched ${result.totalDataPoints} total points for ${symbol}`);
+      return result;
+    },
+    refetchInterval: 600000, // 10 minutes
+    staleTime: 300000,
+    retry: 2,
   });
 }
 

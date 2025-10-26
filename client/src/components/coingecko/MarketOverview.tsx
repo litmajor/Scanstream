@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react';
+import { cn } from '@/lib/utils'; // Assuming cn is available for conditional styling
 
 interface MarketOverviewData {
   success: boolean;
@@ -30,6 +31,13 @@ interface MarketOverviewData {
   }>;
 }
 
+// Assuming this interface for Fear & Greed data
+interface FearGreedData {
+  success: boolean;
+  index: number;
+  sentiment: string;
+}
+
 export function MarketOverview() {
   const { data, isLoading, error } = useQuery<MarketOverviewData>({
     queryKey: ['coingecko-market-overview'],
@@ -42,6 +50,18 @@ export function MarketOverview() {
     staleTime: 180000, // Consider data fresh for 3 minutes
     retry: 2, // Retry only twice on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+  });
+
+  // Fetching Fear & Greed data
+  const { data: fearGreedData } = useQuery<FearGreedData>({
+    queryKey: ['coingecko-fear-greed'],
+    queryFn: async () => {
+      const response = await fetch('/api/coingecko/fear-greed');
+      if (!response.ok) throw new Error('Failed to fetch fear & greed');
+      return response.json();
+    },
+    refetchInterval: 60000, // 1 minute
+    staleTime: 60000,
   });
 
   if (isLoading) {
@@ -113,45 +133,50 @@ export function MarketOverview() {
         </div>
 
         {/* Global Metrics */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400 flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
-              Market Cap
-            </div>
-            <div className="font-semibold text-white">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">Market Cap</span>
+            <span className="font-medium text-white">
               ${(data.global.totalMarketCap / 1e12).toFixed(2)}T
-            </div>
+            </span>
           </div>
-
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400 flex items-center gap-1">
-              <Activity className="w-3 h-3" />
-              24h Volume
-            </div>
-            <div className="font-semibold text-white">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">24h Volume</span>
+            <span className="font-medium text-white">
               ${(data.global.totalVolume / 1e9).toFixed(1)}B
-            </div>
+            </span>
           </div>
-
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400">BTC Dominance</div>
-            <div className="font-semibold text-white flex items-center gap-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">BTC Dominance</span>
+            <span className="font-medium text-white">
               {data.global.btcDominance.toFixed(1)}%
               {data.global.btcDominance > 55 ? (
-                <TrendingUp className="w-3 h-3 text-orange-400" />
+                <TrendingUp className="w-3 h-3 text-orange-400 inline ml-1" />
               ) : (
-                <TrendingDown className="w-3 h-3 text-green-400" />
+                <TrendingDown className="w-3 h-3 text-green-400 inline ml-1" />
               )}
-            </div>
+            </span>
           </div>
-
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400">Active Coins</div>
-            <div className="font-semibold text-white">
-              {data.global.activeCryptocurrencies.toLocaleString()}
+          {fearGreedData?.success && (
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-700/50">
+              <span className="text-slate-400">Fear & Greed</span>
+              <div className="flex items-center gap-1.5">
+                <span className={cn(
+                  "font-medium",
+                  fearGreedData.index >= 75 ? "text-green-400" :
+                  fearGreedData.index >= 60 ? "text-green-300" :
+                  fearGreedData.index >= 45 ? "text-yellow-400" :
+                  fearGreedData.index >= 30 ? "text-orange-400" :
+                  "text-red-400"
+                )}>
+                  {fearGreedData.index}
+                </span>
+                <span className="text-slate-500 text-[10px]">
+                  {fearGreedData.sentiment}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Trending Coins */}
@@ -179,4 +204,3 @@ export function MarketOverview() {
     </Card>
   );
 }
-

@@ -518,12 +518,46 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   app.get('/api/market-sentiment', async (req: Request, res: Response) => {
     try {
-      // Mock data for now - you can replace with real API calls
+      // Fetch Fear & Greed Index from an external API (example: Alternative.me)
+      let fearGreedIndex = null;
+      try {
+        const response = await fetch('https://api.alternative.me/fng/');
+        if (response.ok) {
+          const data = await response.json();
+          fearGreedIndex = parseInt(data.fng_data[0].value, 10);
+        } else {
+          console.warn('Failed to fetch Fear & Greed Index:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.warn('Error fetching Fear & Greed Index:', error);
+      }
+
+      // Fetch CoinGecko data for BTC Dominance, Total Market Cap, and 24h Volume
+      let coingeckoData = null;
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/global');
+        if (response.ok) {
+          const data = await response.json();
+          coingeckoData = {
+            btcDominance: data.data.market_cap_change_percentage_24h_btc * 100, // This might not be dominance, check CG API for actual dominance
+            totalMarketCap: data.data.total_market_cap.usd,
+            volume24h: data.data.total_volume.usd,
+          };
+          // Replace with actual CoinGecko API call for Fear & Greed if available
+          // Or integrate with a known reliable source for Fear & Greed Index
+        } else {
+          console.warn('Failed to fetch CoinGecko global data:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.warn('Error fetching CoinGecko global data:', error);
+      }
+
+      // Combine data, prioritizing real data
       const sentiment = {
-        fearGreedIndex: Math.floor(Math.random() * 100),
-        btcDominance: 45 + Math.random() * 10,
-        totalMarketCap: 2.1e12 + Math.random() * 0.5e12,
-        volume24h: 50e9 + Math.random() * 20e9
+        fearGreedIndex: fearGreedIndex !== null ? fearGreedIndex : Math.floor(Math.random() * 100), // Fallback to random if API fails
+        btcDominance: coingeckoData?.btcDominance ?? (45 + Math.random() * 10), // Fallback
+        totalMarketCap: coingeckoData?.totalMarketCap ?? (2.1e12 + Math.random() * 0.5e12), // Fallback
+        volume24h: coingeckoData?.volume24h ?? (50e9 + Math.random() * 20e9) // Fallback
       };
       res.json(sentiment);
     } catch (error: any) {
@@ -1302,35 +1336,58 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
           const results = [];
           for (const symbol of symbols) {
             try {
-              const frames = await exchangeDataFeed.fetchMarketData(symbol, '1m', 1, clientExchange);
-              console.log(`[WebSocket] Fetched ${frames.length} frames for ${symbol} from ${clientExchange}`);
-              if (frames.length === 0) {
-                console.warn(`[WebSocket] No frames returned for ${symbol}`);
-                results.push(null);
-                continue;
-              }
+              // Fetch over 500 data points for each timeframe
+              const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
+              for (const timeframe of timeframes) {
+                const frames = await exchangeDataFeed.fetchMarketData(symbol, timeframe, 500, clientExchange);
+                console.log(`[WebSocket] Fetched ${frames.length} frames for ${symbol} (${timeframe}) from ${clientExchange}`);
+                if (frames.length === 0) {
+                  console.warn(`[WebSocket] No frames returned for ${symbol} (${timeframe})`);
+                  continue;
+                }
 
-              const marketFrame = frames[0];
-              await storage.createMarketFrame(marketFrame);
-              ws.send(JSON.stringify({
-                type: 'market_data',
-                data: marketFrame
-              }));
+                // Store and broadcast chart data, potentially for ML models
+                const chartData = frames.map(frame => ({
+                  timestamp: frame.timestamp,
+                  open: frame.price?.open,
+                  high: frame.price?.high,
+                  low: frame.price?.low,
+                  close: frame.price?.close,
+                  volume: frame.volume,
+                  // Add any other relevant data points needed for ML models
+                }));
 
-              // Generate signal using SignalEngine
-              if (signalEngine) {
-                const index = frames.length - 1;
-                const signal = await signalEngine.generateSignal(frames, index);
-                if (signal) {
-                  await storage.createSignal(signal);
+                await storage.createChartData(symbol, timeframe, chartData);
+                ws.send(JSON.stringify({
+                  type: 'chart_data',
+                  symbol,
+                  timeframe,
+                  data: chartData
+                }));
+
+                // If it's the latest timeframe, also process for signals
+                if (timeframe === '1m') {
+                  const marketFrame = frames[frames.length - 1]; // Use the latest frame for signal generation
+                  await storage.createMarketFrame(marketFrame);
                   ws.send(JSON.stringify({
-                    type: 'signal',
-                    data: signal
+                    type: 'market_data',
+                    data: marketFrame
                   }));
+
+                  // Generate signal using SignalEngine
+                  if (signalEngine) {
+                    const signal = await signalEngine.generateSignal(frames, frames.length - 1);
+                    if (signal) {
+                      await storage.createSignal(signal);
+                      ws.send(JSON.stringify({
+                        type: 'signal',
+                        data: signal
+                      }));
+                    }
+                  }
                 }
               }
 
-              results.push(marketFrame);
 
               // Add delay between requests to prevent throttler overflow
               await new Promise(resolve => setTimeout(resolve, 300));

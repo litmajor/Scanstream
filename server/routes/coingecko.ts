@@ -133,6 +133,32 @@ router.get('/regime', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/coingecko/fear-greed
+ * Get Fear & Greed Index
+ */
+router.get('/fear-greed', async (req: Request, res: Response) => {
+  try {
+    const marketData = await coinGeckoService.getMarketData('usd', 1, 100);
+    const globalData = await coinGeckoService.getGlobalMarket();
+    
+    const fearGreedData = calculateFearGreedIndex(globalData, marketData);
+    
+    res.json({
+      success: true,
+      ...fearGreedData,
+      timestamp: new Date().toISOString(),
+      attribution: 'Data provided by CoinGecko (coingecko.com)'
+    });
+  } catch (error: any) {
+    console.error('[CoinGecko] Fear & Greed error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch Fear & Greed Index'
+    });
+  }
+});
+
+/**
  * GET /api/coingecko/ohlc/:coinId
  * Get OHLC data for a specific coin
  */
@@ -313,26 +339,39 @@ function calculateFearGreedIndex(globalData: any, marketData: any[]): {
   index: number;
   sentiment: string;
   components: any;
+  details: {
+    volatility: number;
+    marketMomentum: number;
+    socialVolume: number;
+    marketCapChange: number;
+    btcDominance: number;
+  };
 } {
   try {
-    // Component 1: Market Cap Change (0-25 points)
+    // Component 1: Market Cap Change (0-20 points)
     const marketCapChange = globalData.market_cap_change_percentage_24h_usd || 0;
-    const marketCapScore = Math.max(0, Math.min(25, 12.5 + (marketCapChange * 2.5)));
+    const marketCapScore = Math.max(0, Math.min(20, 10 + (marketCapChange * 2)));
     
-    // Component 2: Bitcoin Dominance (0-25 points)
+    // Component 2: Bitcoin Dominance (0-20 points)
     const btcDominance = globalData.market_cap_percentage?.btc || 50;
-    const btcScore = btcDominance > 50 ? 25 - ((btcDominance - 50) * 0.5) : 15 + ((50 - btcDominance) * 0.2);
+    const btcScore = btcDominance > 50 ? 20 - ((btcDominance - 50) * 0.4) : 12 + ((50 - btcDominance) * 0.16);
     
-    // Component 3: Volume (0-25 points)
+    // Component 3: Volume (0-20 points)
     const totalVolume = globalData.total_volume?.usd || 0;
-    const volumeScore = Math.min(25, (totalVolume / 100000000000) * 25);
+    const totalMarketCap = globalData.total_market_cap?.usd || 1;
+    const volumeRatio = totalVolume / totalMarketCap;
+    const volumeScore = Math.min(20, volumeRatio * 500);
     
-    // Component 4: Market Momentum (0-25 points)
+    // Component 4: Market Momentum (0-20 points)
     const topCoinsPositive = marketData.filter(c => (c.price_change_percentage_24h || 0) > 0).length;
-    const momentumScore = (topCoinsPositive / marketData.length) * 25;
+    const momentumScore = (topCoinsPositive / marketData.length) * 20;
+    
+    // Component 5: Volatility (0-20 points) - higher volatility = more fear
+    const avgVolatility = marketData.reduce((sum, c) => sum + Math.abs(c.price_change_percentage_24h || 0), 0) / marketData.length;
+    const volatilityScore = avgVolatility > 10 ? Math.max(0, 20 - avgVolatility) : 10 + avgVolatility;
     
     // Calculate total index (0-100)
-    const index = Math.round(marketCapScore + btcScore + volumeScore + momentumScore);
+    const index = Math.round(marketCapScore + btcScore + volumeScore + momentumScore + volatilityScore);
     
     // Determine sentiment
     let sentiment: string;
@@ -349,7 +388,15 @@ function calculateFearGreedIndex(globalData: any, marketData: any[]): {
         marketCapChange: Math.round(marketCapScore),
         bitcoinDominance: Math.round(btcScore),
         volume: Math.round(volumeScore),
-        momentum: Math.round(momentumScore)
+        momentum: Math.round(momentumScore),
+        volatility: Math.round(volatilityScore)
+      },
+      details: {
+        volatility: Math.round(avgVolatility * 10) / 10,
+        marketMomentum: Math.round((topCoinsPositive / marketData.length) * 100),
+        socialVolume: Math.round(volumeRatio * 100),
+        marketCapChange: Math.round(marketCapChange * 10) / 10,
+        btcDominance: Math.round(btcDominance * 10) / 10
       }
     };
   } catch (error) {
@@ -358,10 +405,18 @@ function calculateFearGreedIndex(globalData: any, marketData: any[]): {
       index: 50,
       sentiment: 'Neutral',
       components: {
-        marketCapChange: 12,
-        bitcoinDominance: 12,
-        volume: 12,
-        momentum: 12
+        marketCapChange: 10,
+        bitcoinDominance: 10,
+        volume: 10,
+        momentum: 10,
+        volatility: 10
+      },
+      details: {
+        volatility: 0,
+        marketMomentum: 0,
+        socialVolume: 0,
+        marketCapChange: 0,
+        btcDominance: 50
       }
     };
   }
