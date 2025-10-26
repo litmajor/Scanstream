@@ -15,8 +15,11 @@ export default function ScannerPage() {
     exchange: 'kucoinfutures',
     timeframe: 'medium',
     signal: 'all',
-    minStrength: 0  // Changed from 50 to 0 to show all signals by default
+    minStrength: 0
   });
+  const [selectedExchange, setSelectedExchange] = useState('kucoinfutures');
+  const [allExchangeSignals, setAllExchangeSignals] = useState<Map<string, any[]>>(new Map());
+  const [showTopSignals, setShowTopSignals] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
   const [expandedSignal, setExpandedSignal] = useState<string | null>(null);
@@ -372,7 +375,7 @@ export default function ScannerPage() {
         },
         body: JSON.stringify({
           timeframe: selectedFilters.timeframe === 'all' ? 'medium' : selectedFilters.timeframe,
-          exchange: selectedFilters.exchange,
+          exchange: selectedExchange,
           signal: selectedFilters.signal,
           minStrength: selectedFilters.minStrength,
           fullAnalysis: true
@@ -383,6 +386,15 @@ export default function ScannerPage() {
         throw new Error(`Scan failed: ${response.statusText}`);
       }
 
+      const data = await response.json();
+      
+      // Store signals for this exchange
+      setAllExchangeSignals(prev => {
+        const updated = new Map(prev);
+        updated.set(selectedExchange, data.signals || []);
+        return updated;
+      });
+
       // After successful scan, refetch the data
       await refetch();
     } catch (err) {
@@ -391,6 +403,74 @@ export default function ScannerPage() {
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleScanAllExchanges = async () => {
+    const exchanges = ['kucoinfutures', 'binance', 'coinbase', 'kraken', 'okx', 'bybit'];
+    setIsScanning(true);
+    
+    try {
+      for (const exchange of exchanges) {
+        const response = await fetch('/api/scanner/scan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            timeframe: selectedFilters.timeframe === 'all' ? 'medium' : selectedFilters.timeframe,
+            exchange,
+            signal: selectedFilters.signal,
+            minStrength: selectedFilters.minStrength,
+            fullAnalysis: true
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAllExchangeSignals(prev => {
+            const updated = new Map(prev);
+            updated.set(exchange, data.signals || []);
+            return updated;
+          });
+        }
+      }
+      await refetch();
+    } catch (err) {
+      console.error('Multi-exchange scan error:', err);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // Calculate top signals that appear across multiple exchanges
+  const getTopConsistentSignals = () => {
+    const signalMap = new Map<string, { count: number; exchanges: string[]; avgStrength: number; signals: any[] }>();
+    
+    allExchangeSignals.forEach((signals, exchange) => {
+      signals.forEach(signal => {
+        const key = signal.symbol;
+        if (!signalMap.has(key)) {
+          signalMap.set(key, { count: 0, exchanges: [], avgStrength: 0, signals: [] });
+        }
+        const entry = signalMap.get(key)!;
+        entry.count++;
+        entry.exchanges.push(exchange);
+        entry.avgStrength = (entry.avgStrength * (entry.count - 1) + signal.strength) / entry.count;
+        entry.signals.push({ ...signal, exchange });
+      });
+    });
+
+    // Filter for signals appearing on 2+ exchanges with high strength
+    return Array.from(signalMap.entries())
+      .filter(([_, data]) => data.count >= 2 && data.avgStrength >= 60)
+      .map(([symbol, data]) => ({
+        symbol,
+        exchangeCount: data.count,
+        exchanges: data.exchanges,
+        avgStrength: data.avgStrength,
+        signals: data.signals
+      }))
+      .sort((a, b) => b.exchangeCount - a.exchangeCount || b.avgStrength - a.avgStrength);
   };
 
   // Check for high-opportunity signals and send notifications
@@ -576,13 +656,36 @@ export default function ScannerPage() {
               </button>
 
               <button
-                onClick={handleQuickScan}
+                onClick={handleScan}
                 disabled={isScanning}
                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Search className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
-                <span>{isScanning ? 'Scanning...' : 'Scan Now'}</span>
+                <span>{isScanning ? 'Scanning...' : 'Scan ' + selectedExchange.toUpperCase()}</span>
               </button>
+
+              <button
+                onClick={handleScanAllExchanges}
+                disabled={isScanning}
+                className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Activity className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
+                <span>Scan All Exchanges</span>
+              </button>
+
+              {allExchangeSignals.size >= 2 && (
+                <button
+                  onClick={() => setShowTopSignals(!showTopSignals)}
+                  className={`px-6 py-2.5 rounded-lg transition-all flex items-center space-x-2 font-semibold shadow-lg ${
+                    showTopSignals
+                      ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-500 hover:to-orange-500 text-white shadow-yellow-500/20'
+                      : 'bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <Star className={`w-4 h-4 ${showTopSignals ? 'fill-current' : ''}`} />
+                  <span>Top Consistent Signals ({getTopConsistentSignals().length})</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -591,17 +694,19 @@ export default function ScannerPage() {
             <div className="mt-4 p-4 bg-slate-800/30 border border-slate-700/50 rounded-xl backdrop-blur-sm">
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-2">Exchange</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-2">Exchange to Scan</label>
                   <select 
-                    value={selectedFilters.exchange}
-                    onChange={(e) => setSelectedFilters(prev => ({ ...prev, exchange: e.target.value }))}
+                    value={selectedExchange}
+                    onChange={(e) => setSelectedExchange(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
-                    aria-label="Exchange filter"
+                    aria-label="Exchange selector"
                   >
-                    <option value="all">All Exchanges</option>
-                    {scannerData?.filters.exchanges.map((exchange: string) => (
-                      <option key={exchange} value={exchange}>{exchange}</option>
-                    ))}
+                    <option value="kucoinfutures">KuCoin Futures (Default)</option>
+                    <option value="binance">Binance</option>
+                    <option value="coinbase">Coinbase</option>
+                    <option value="kraken">Kraken</option>
+                    <option value="okx">OKX</option>
+                    <option value="bybit">Bybit</option>
                   </select>
                 </div>
                 <div>
@@ -655,6 +760,47 @@ export default function ScannerPage() {
 
       {/* Main Content */}
       <div className="relative max-w-[1800px] mx-auto px-6 py-6">
+        {/* Top Consistent Signals */}
+        {showTopSignals && allExchangeSignals.size >= 2 && (
+          <div className="mb-6 bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-700/50 rounded-xl p-6">
+            <h2 className="text-2xl font-bold text-yellow-400 mb-4 flex items-center gap-2">
+              <Star className="w-6 h-6 fill-current" />
+              Top Consistent Signals Across Exchanges
+            </h2>
+            <p className="text-slate-300 mb-4">
+              These signals appear on multiple exchanges with high strength - indicating strong market consensus
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {getTopConsistentSignals().map((topSignal, idx) => (
+                <div key={idx} className="bg-slate-800/50 border border-yellow-700/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-white">{topSignal.symbol}</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold">
+                        {topSignal.exchangeCount}x Exchanges
+                      </span>
+                      <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-lg text-sm font-bold">
+                        {Math.round(topSignal.avgStrength)}% Avg
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400 mb-2">
+                    Found on: {topSignal.exchanges.join(', ')}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {topSignal.signals.map((sig: any, i: number) => (
+                      <div key={i} className="text-xs bg-slate-900/50 rounded p-2">
+                        <div className="font-bold text-blue-400">{sig.exchange}</div>
+                        <div className="text-slate-300">{sig.strength}% - {sig.signal}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Scan Progress */}
         {scanProgress && scanProgress.remaining > 0 && (
           <div className="mb-6">
