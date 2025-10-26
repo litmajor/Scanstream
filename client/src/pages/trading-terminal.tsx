@@ -173,7 +173,7 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
   const onMessageRef = useRef(onMessage); // Store callback in ref to avoid reconnections
   const maxReconnectAttempts = 10;
   const baseReconnectDelay = 1000; // Start with 1 second
-  
+
   // Update the callback ref when it changes
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -189,7 +189,7 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
     }
 
     console.log(`[WebSocket] Connecting to: ${url} (attempt ${reconnectAttemptsRef.current + 1})`);
-    
+
     try {
       wsRef.current = new WebSocket(url);
 
@@ -197,7 +197,7 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
         console.log('[WebSocket] Connected successfully');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
-        
+
         // Send initial exchange setting
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({ 
@@ -226,12 +226,12 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
       wsRef.current.onclose = (event) => {
         console.log(`[WebSocket] Connection closed: ${event.code} - ${event.reason}`);
         setIsConnected(false);
-        
+
         // Only attempt reconnection if it wasn't a manual close and we haven't exceeded max attempts
         if (event.code !== 1000 && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current), 30000);
           console.log(`[WebSocket] Reconnecting in ${delay}ms...`);
-          
+
           reconnectAttemptsRef.current++;
           reconnectTimerRef.current = setTimeout(() => {
             connect();
@@ -369,6 +369,9 @@ export default function TradingTerminal() {
     showEMA: true,
     showPatterns: false,
   });
+  // Candle clustering toggle
+  const [showClustering, setShowClustering] = useState(false);
+  const [clusteringData, setClusteringData] = useState<any>(null);
 
   // WebSocket connection through Vite proxy
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -529,7 +532,31 @@ export default function TradingTerminal() {
 
   // Fetch chart data from CoinGecko with error recovery
   const { data: coinGeckoChartData, isLoading: isChartLoading, error: chartError, refetch: refetchChart } = useCoinGeckoChart(selectedSymbol, 7);
-  
+
+  // Fetch clustering data when enabled
+  const { data: clusterData } = useQuery({
+    queryKey: ['clustering', selectedSymbol, chartData?.length],
+    queryFn: async () => {
+      if (!chartData || chartData.length < 20) return null;
+
+      const response = await fetch('/api/analytics/candle-clustering', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: chartData })
+      });
+
+      return response.json();
+    },
+    enabled: showClustering && !!chartData && chartData.length >= 20,
+    refetchInterval: 60000
+  });
+
+  useEffect(() => {
+    if (clusterData) {
+      setClusteringData(clusterData);
+    }
+  }, [clusterData]);
+
   // Chart data computation - use CoinGecko data if available, fallback to WebSocket data
   const chartData: ChartDataPoint[] = useMemo(() => {
     // First try CoinGecko data
@@ -537,15 +564,15 @@ export default function TradingTerminal() {
       console.log(`[Chart] Using CoinGecko data for ${selectedSymbol}: ${coinGeckoChartData.length} candles`);
       return coinGeckoChartData;
     }
-    
+
     // Fallback to WebSocket marketData
     const filteredData = marketData.filter(frame => frame.symbol === selectedSymbol);
-    
+
     if (filteredData.length === 0) {
       console.log(`[Chart] No chart data available for ${selectedSymbol} - neither CoinGecko nor WebSocket`);
       return [];
     }
-    
+
     console.log(`[Chart] Using WebSocket data for ${selectedSymbol}: ${filteredData.length} frames`);
     return filteredData.slice(-200).map(frame => ({
       timestamp: frame.timestamp,
@@ -586,7 +613,7 @@ export default function TradingTerminal() {
       if (!chartData || chartData.length < 2) {
         throw new Error('Insufficient data for flow field calculation');
       }
-      
+
       const flowFieldPoints = chartData.map(d => ({
         timestamp: d.timestamp,
         price: d.close,
@@ -1320,7 +1347,7 @@ export default function TradingTerminal() {
                               </div>
                             </div>
                           </div>
-                          
+
                           {/* Quick Stats Grid */}
                           <div className="grid grid-cols-2 gap-3 text-right">
                             <div>
@@ -1355,10 +1382,13 @@ export default function TradingTerminal() {
                       <div className="flex-1 min-h-0 bg-slate-800/20 rounded-lg border border-slate-700/50 p-2">
                         <TradingChart
                           data={chartData}
-                          showVolume={true}
-                          showRSI={chartData.some(d => d.rsi !== null)}
-                          showMACD={chartData.some(d => d.macd !== null)}
-                          showEMA={chartData.some(d => d.ema !== null)}
+                          showVolume={chartIndicators.showVolume}
+                          showRSI={chartIndicators.showRSI}
+                          showMACD={chartIndicators.showMACD}
+                          showEMA={chartIndicators.showEMA}
+                          showPatterns={chartIndicators.showPatterns}
+                          showClustering={showClustering}
+                          clusteringData={clusteringData}
                           timeframe={selectedTimeframe}
                           height={600}
                           maxCandles={200}
@@ -1374,9 +1404,46 @@ export default function TradingTerminal() {
                           <BarChart3 className="w-4 h-4 mr-2 text-blue-400" />
                           Technical Indicators
                         </h4>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <button
+                            onClick={() => setChartIndicators(prev => ({ ...prev, showVolume: !prev.showVolume }))}
+                            className={`p-2 rounded transition-colors ${chartIndicators.showVolume ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                            title="Toggle Volume"
+                          >
+                            Volume
+                          </button>
+                          <button
+                            onClick={() => setChartIndicators(prev => ({ ...prev, showRSI: !prev.showRSI }))}
+                            className={`p-2 rounded transition-colors ${chartIndicators.showRSI ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                            title="Toggle RSI"
+                          >
+                            RSI
+                          </button>
+                          <button
+                            onClick={() => setChartIndicators(prev => ({ ...prev, showMACD: !prev.showMACD }))}
+                            className={`p-2 rounded transition-colors ${chartIndicators.showMACD ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                            title="Toggle MACD"
+                          >
+                            MACD
+                          </button>
+                          <button
+                            onClick={() => setChartIndicators(prev => ({ ...prev, showEMA: !prev.showEMA }))}
+                            className={`p-2 rounded transition-colors ${chartIndicators.showEMA ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                            title="Toggle EMA"
+                          >
+                            EMA
+                          </button>
+                          <button
+                            onClick={() => setShowClustering(!showClustering)}
+                            className={`p-2 rounded transition-colors ${showClustering ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                            title="Toggle Candle Clustering"
+                          >
+                            Clusters
+                          </button>
+                        </div>
                         <div className="space-y-3">
                           {/* RSI Indicator */}
-                          {chartData[chartData.length - 1]?.rsi && (
+                          {chartData[chartData.length - 1]?.rsi !== null && chartIndicators.showRSI && (
                             <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-slate-400">RSI (14)</span>
@@ -1414,66 +1481,72 @@ export default function TradingTerminal() {
                           )}
 
                           {/* MACD Indicator */}
-                          {chartData[chartData.length - 1]?.macd && (
+                          {chartData[chartData.length - 1]?.macd && chartIndicators.showMACD && (
                             <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-slate-400">MACD</span>
                                 <span className={`text-sm font-mono font-bold ${
-                                  chartData[chartData.length - 1]?.macd! > 0 ? 'text-green-400' : 'text-red-400'
+                                  chartData[chartData.length - 1]?.macd?.line > 0 ? 'text-green-400' : 'text-red-400'
                                 }`}>
-                                  {chartData[chartData.length - 1]?.macd?.toFixed(4)}
+                                  {chartData[chartData.length - 1]?.macd?.line?.toFixed(4)}
                                 </span>
                               </div>
                               <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span className="text-slate-500">Signal:</span>
-                                  <span className="text-slate-300 font-mono">Calculating...</span>
+                                  <span className="text-slate-300 font-mono">{chartData[chartData.length - 1]?.macd?.signal?.toFixed(4)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-slate-500">Histogram:</span>
-                                  <span className="text-slate-300 font-mono">Calculating...</span>
+                                  <span className={`font-mono ${
+                                    chartData[chartData.length - 1]?.macd?.histogram > 0 ? 'text-green-400' : 'text-red-400'
+                                  }`}>
+                                    {chartData[chartData.length - 1]?.macd?.histogram?.toFixed(4)}
+                                  </span>
                                 </div>
                               </div>
                             </div>
                           )}
 
                           {/* Volume Analysis */}
-                          <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-medium text-slate-400">Volume Profile</span>
-                            </div>
-                            <div className="space-y-2">
-                              <div>
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span className="text-slate-500">Avg Volume</span>
-                                  <span className="text-slate-300 font-mono">
-                                    ${(chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length / 1e6).toFixed(2)}M
-                                  </span>
+                          {chartIndicators.showVolume && (
+                            <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-slate-400">Volume Profile</span>
+                              </div>
+                              <div className="space-y-2">
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-slate-500">Avg Volume</span>
+                                    <span className="text-slate-300 font-mono">
+                                      ${(chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length / 1e6).toFixed(2)}M
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Current</span>
+                                    <span className={`font-mono font-bold ${
+                                      chartData[chartData.length - 1]?.volume > (chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length)
+                                        ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                      ${(chartData[chartData.length - 1]?.volume / 1e6).toFixed(2)}M
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-slate-500">Current</span>
-                                  <span className={`font-mono font-bold ${
+                                <div className="pt-2 border-t border-slate-700/50">
+                                  <span className={`text-xs px-2 py-1 rounded ${
                                     chartData[chartData.length - 1]?.volume > (chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length)
-                                      ? 'text-green-400' : 'text-red-400'
+                                      ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                                   }`}>
-                                    ${(chartData[chartData.length - 1]?.volume / 1e6).toFixed(2)}M
+                                    {chartData[chartData.length - 1]?.volume > (chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length)
+                                      ? '📈 Above Average' : '📉 Below Average'}
                                   </span>
                                 </div>
                               </div>
-                              <div className="pt-2 border-t border-slate-700/50">
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                  chartData[chartData.length - 1]?.volume > (chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length)
-                                    ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                                }`}>
-                                  {chartData[chartData.length - 1]?.volume > (chartData.reduce((sum, d) => sum + d.volume, 0) / chartData.length)
-                                    ? '📈 Above Average' : '📉 Below Average'}
-                                </span>
-                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {/* EMA Indicator */}
-                          {chartData[chartData.length - 1]?.ema && (
+                          {chartData[chartData.length - 1]?.ema !== null && chartIndicators.showEMA && (
                             <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-slate-400">EMA (20)</span>
@@ -1596,7 +1669,7 @@ export default function TradingTerminal() {
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-400"></div>
                           )}
                         </div>
-                        
+
                         {flowFieldData ? (
                           <div className="space-y-3">
                             {/* Force Indicator */}
@@ -1723,7 +1796,7 @@ export default function TradingTerminal() {
                             <Brain className="w-4 h-4 mr-2 text-purple-400" />
                             ML Predictions
                           </h4>
-                          {mlLoading && (
+                          {mlPredictionsLoading && (
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-400"></div>
                           )}
                         </div>
@@ -1858,9 +1931,9 @@ export default function TradingTerminal() {
                           <div className="text-center py-4">
                             <Brain className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
                             <p className="text-xs text-slate-500">
-                              {mlLoading ? 'Computing predictions...' : 'ML predictions unavailable'}
+                              {mlPredictionsLoading ? 'Computing predictions...' : 'ML predictions unavailable'}
                             </p>
-                            {!mlLoading && chartData.length < 20 && (
+                            {!mlPredictionsLoading && chartData.length < 20 && (
                               <p className="text-xs text-slate-600 mt-1">
                                 Need 20+ candles for predictions
                               </p>

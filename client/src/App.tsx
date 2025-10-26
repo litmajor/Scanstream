@@ -14,6 +14,8 @@ import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
 import NotFound from "@/pages/not-found";
 import { useState, useEffect } from "react";
+import { Activity, TrendingUp, BarChart3, Zap, Target, Users, DollarSign, Settings } from 'lucide-react';
+import TopSignalsWidget from './components/TopSignalsWidget';
 
 function Router() {
   return (
@@ -40,12 +42,12 @@ function App() {
     if (savedTheme) {
       return savedTheme === 'dark';
     }
-    
+
     // Then check system preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return true;
     }
-    
+
     // Default to light mode
     return false;
   });
@@ -77,11 +79,131 @@ function App() {
       <TooltipProvider>
         <div className={isDark ? "dark" : ""}>
           <Toaster />
-          <Router />
+          {/* Navigation (Sidebar) */}
+          <nav className="fixed inset-y-0 left-0 w-64 bg-slate-900/50 backdrop-blur-sm border-r border-slate-700/50 p-4 flex flex-col space-y-2">
+            <a href="/" className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-white font-bold">
+              <img src="/logo.png" alt="Logo" className="w-8 h-8" />
+              <span>AlgoTrader</span>
+            </a>
+            <a
+              href="/"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <Zap className="w-5 h-5" />
+              <span>Dashboard</span>
+            </a>
+            <a
+              href="/portfolio"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <Users className="w-5 h-5" />
+              <span>Portfolio</span>
+            </a>
+            <a
+              href="/scanner"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <Target className="w-5 h-5" />
+              <span>Scanner</span>
+            </a>
+            <a
+              href="/backtest"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span>Backtest</span>
+            </a>
+            <a
+              href="/strategies"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <Target className="w-5 h-5" />
+              <span>Strategies</span>
+            </a>
+            <a
+              href="/paper-trading"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <DollarSign className="w-5 h-5" />
+              <span>Paper Trading</span>
+            </a>
+            <a
+              href="/ml-engine"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <Settings className="w-5 h-5" />
+              <span>ML Engine</span>
+            </a>
+            <a
+              href="/market-intelligence"
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-slate-300 hover:text-white"
+            >
+              <TrendingUp className="w-5 h-5" />
+              <span>Market Intelligence</span>
+            </a>
+            <div className="mt-auto">
+              {/* Placeholder for potential future elements like settings or logout */}
+            </div>
+          </nav>
+
+          {/* Main Content Area */}
+          <div className="ml-64 p-8">
+            <main className="flex flex-col space-y-8">
+              {/* Top Signals Section */}
+      <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-white flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-green-400" />
+            Top Signals
+          </h2>
+          <a href="/scanner" className="text-sm text-blue-400 hover:text-blue-300">View All →</a>
+        </div>
+        <TopSignalsWidget />
+      </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Market Overview */}
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <Activity className="w-5 h-5 mr-2 text-blue-400" />
+                      Market Overview
+                    </h2>
+                  </div>
+                  {/* Market Overview Content */}
+                  <div className="space-y-4">
+                    <p className="text-slate-400">Current market sentiment and key performance indicators.</p>
+                    {/* Add more market overview components here */}
+                  </div>
+                </div>
+
+                {/* Other Widgets - Placeholder */}
+                <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-white flex items-center">
+                      <BarChart3 className="w-5 h-5 mr-2 text-purple-400" />
+                      Performance Metrics
+                    </h2>
+                  </div>
+                  <p className="text-slate-400">Detailed performance metrics will be displayed here.</p>
+                </div>
+              </div>
+
+              {/* Placeholder for other dashboard sections */}
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 shadow-xl shadow-blue-500/5">
+                <h2 className="text-lg font-semibold text-white mb-4">
+                  <Zap className="w-5 h-5 mr-2 text-yellow-400 inline-block" />
+                  Recent Activity
+                </h2>
+                <p className="text-slate-400">Recent activities and updates will appear here.</p>
+              </div>
+            </main>
+          </div>
+
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}
-            className="theme-toggle"
+            className="fixed bottom-4 right-4 theme-toggle z-50"
             aria-label={`Toggle theme (Current: ${isDark ? 'Dark' : 'Light'} mode). Shortcut: Ctrl+Shift+T`}
             title="Toggle theme (Ctrl+Shift+T)"
           >

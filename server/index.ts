@@ -7,6 +7,7 @@ import fastScannerRouter from "./routes/fast-scanner";
 import coinGeckoRouter from "./routes/coingecko";
 import enhancedAnalyticsRouter from "./routes/enhanced-analytics";
 import mlPredictionsRouter from "./routes/ml-predictions";
+import analyticsRouter from './routes/analytics';
 import { fastScanner } from "./services/fast-scanner";
 
 const app = express();
@@ -49,7 +50,9 @@ app.use('/api/coingecko', coinGeckoRouter);
 
 // Register ML Predictions routes
 app.use('/api/ml', mlPredictionsRouter);
-log('ML Predictions API registered at /api/ml/predictions');
+console.log('[express] ML Predictions API registered at /api/ml/predictions');
+app.use('/api/analytics', analyticsRouter);
+console.log('[express] Analytics API registered at /api/analytics');
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -105,7 +108,7 @@ app.use((req, res, next) => {
   // Backend server on port 5000
   const port = parseInt(process.env.PORT || '5000');
   const host = '0.0.0.0';
-  
+
   server.listen(port, host, () => {
     console.log(`\n╔════════════════════════════════════════════════════════╗`);
     console.log(`║  🚀 Scanstream Backend Server                          ║`);

@@ -397,6 +397,16 @@ export default function ScannerPage() {
     send({ type: 'requestQuickScan' });
   };
 
+  // Save scan results to localStorage for Dashboard access
+  useEffect(() => {
+    if (displaySignals && displaySignals.length > 0) {
+      localStorage.setItem('latestScanResults', JSON.stringify({
+        signals: displaySignals.slice(0, 10), // Top 10 signals
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }, [displaySignals]);
+
   // Separate live signals (FastScanner via WebSocket) from full scan signals (Python API)
   const liveSignals = realTimeSignals || []; // FastScanner signals via WebSocket
   const fullScanSignals = scannerData?.signals || []; // Python scanner full scan results
