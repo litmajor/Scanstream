@@ -78,7 +78,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
   }));
 
   // Win rate over time (calculate rolling win rate)
-  const winRateOverTime = data.trades.map((_, index) => {
+  const winRateOverTime = data.trades && data.trades.length > 0 ? data.trades.map((_, index) => {
     const window = 20; // 20-trade rolling window
     const start = Math.max(0, index - window);
     const windowTrades = data.trades.slice(start, index + 1);
@@ -89,15 +89,15 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
       winRate,
       cumulativeWinRate: ((data.trades.slice(0, index + 1).filter(t => t.pnl > 0).length / (index + 1)) * 100)
     };
-  });
+  }) : [];
 
   // Signal quality over time (based on return %)
-  const signalQuality = data.trades.map((trade, index) => ({
+  const signalQuality = data.trades && data.trades.length > 0 ? data.trades.map((trade, index) => ({
     trade: index + 1,
     quality: Math.abs(trade.returnPct) > 5 ? 'Excellent' : Math.abs(trade.returnPct) > 2 ? 'Good' : 'Fair',
     returnPct: trade.returnPct,
     avgReturn: data.trades.slice(0, index + 1).reduce((sum, t) => sum + t.returnPct, 0) / (index + 1)
-  }));
+  })) : [];
 
   const monthlyReturnsData = Object.entries(data.metrics.monthlyReturns).map(([month, return_]) => ({
     month,
@@ -106,7 +106,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
   }));
 
   // Trade distribution for enhanced pie chart
-  const tradeDistribution = [
+  const tradeDistribution = data.trades && data.trades.length > 0 ? [
     { 
       range: 'Large Loss (< -5%)', 
       count: data.trades.filter(t => t.returnPct < -5).length, 
@@ -131,7 +131,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
       value: data.trades.filter(t => t.returnPct >= 5).reduce((sum, t) => sum + t.pnl, 0),
       color: '#22c55e' 
     },
-  ].filter(item => item.count > 0);
+  ].filter(item => item.count > 0) : [];
 
   type SymbolPerf = { symbol: string; totalPnl: number; trades: number; winRate: number };
   const symbolPerformanceData: Record<string, SymbolPerf> = data.trades.reduce((acc: Record<string, SymbolPerf>, trade) => {
@@ -771,7 +771,7 @@ const PortfolioVisualizer: React.FC<{ data: PortfolioData }> = ({ data }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.trades.slice(-20).reverse().map((trade, index) => (
+                  {(data.trades || []).slice(-20).reverse().map((trade, index) => (
                     <tr key={index} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
                       <td className="py-3 px-4 font-bold text-white">{trade.symbol}</td>
                       <td className="py-3 px-4">

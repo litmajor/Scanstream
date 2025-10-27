@@ -1,8 +1,80 @@
 @import "tailwindcss";
 
-/* Base theming */
-body {
-  font-family: system-ui, -apple-system, sans-serif;
+@layer base {
+  :root {
+    --theme-bg: #0f172a;
+    --theme-surface: #1e293b;
+    --theme-card: #334155;
+    --theme-border: #475569;
+    --theme-text: #f1f5f9;
+    --theme-text-secondary: #cbd5e1;
+    --theme-accent: #3b82f6;
+    --theme-accent-hover: #2563eb;
+    --theme-success: #22c55e;
+    --theme-warning: #f59e0b;
+    --theme-error: #ef4444;
+    --theme-info: #06b6d4;
+  }
+
+  /* Font size scale */
+  [data-font-size='small'] {
+    font-size: 14px;
+  }
+
+  [data-font-size='medium'] {
+    font-size: 16px;
+  }
+
+  [data-font-size='large'] {
+    font-size: 18px;
+  }
+
+  /* High contrast mode */
+  [data-high-contrast='true'] {
+    --theme-bg: #000000;
+    --theme-surface: #1a1a1a;
+    --theme-card: #2a2a2a;
+    --theme-border: #ffffff;
+    --theme-text: #ffffff;
+    --theme-text-secondary: #ffffff;
+  }
+
+  /* Apply theme colors */
+  body {
+    background-color: var(--theme-bg);
+    color: var(--theme-text);
+  }
+}
+
+@layer components {
+  /* Theme-aware utility classes */
+  .bg-theme-surface {
+    background-color: var(--theme-surface);
+  }
+
+  .bg-theme-card {
+    background-color: var(--theme-card);
+  }
+
+  .border-theme {
+    border-color: var(--theme-border);
+  }
+
+  .text-theme {
+    color: var(--theme-text);
+  }
+
+  .text-theme-secondary {
+    color: var(--theme-text-secondary);
+  }
+
+  .bg-theme-accent {
+    background-color: var(--theme-accent);
+  }
+
+  .text-theme-accent {
+    color: var(--theme-accent);
+  }
 }
 
 /* Smooth theme transitions */

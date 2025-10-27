@@ -64,73 +64,196 @@ export interface MLModel {
 export class FeatureExtractor {
   static extractFeatures(frames: MarketFrame[], currentIndex: number): number[] {
     if (currentIndex < 20 || currentIndex >= frames.length) return [];
+    
     const current = frames[currentIndex];
     const recent = frames.slice(currentIndex - 20, currentIndex + 1);
     const prices = recent.map(f => f.price.close);
     const volumes = recent.map(f => f.volume);
+    const highs = recent.map(f => f.price.high);
+    const lows = recent.map(f => f.price.low);
 
-    const features: number[] = [
-      // Price features
+    // === PRICE FEATURES ===
+    const priceFeatures = [
       current.price.close,
+      current.price.open,
+      current.price.high,
+      current.price.low,
       (current.price.high - current.price.low) / current.price.close, // Daily range
       (current.price.close - current.price.open) / current.price.open, // Daily return
+      (current.price.high - current.price.low) / current.price.open, // Range ratio
+    ];
 
-      // Technical indicators
-      current.indicators.rsi / 100,
-  current.indicators.macd.macd,
+    // === TECHNICAL INDICATORS ===
+    const technicalFeatures = [
+      current.indicators.rsi / 100, // Normalized RSI
+      current.indicators.macd.macd,
       current.indicators.macd.signal,
       current.indicators.macd.histogram,
-      (current.price.close - current.indicators.bb.middle) / (current.indicators.bb.upper - current.indicators.bb.lower),
+      (current.price.close - current.indicators.bb.middle) / (current.indicators.bb.upper - current.indicators.bb.lower), // BB position
+      (current.indicators.bb.upper - current.indicators.bb.lower) / current.indicators.bb.middle, // BB width
+      current.indicators.stoch_k / 100,
+      current.indicators.stoch_d / 100,
+      current.indicators.adx / 100,
+      current.indicators.vwap,
+      current.indicators.atr,
+      current.indicators.ema20,
+      current.indicators.ema50,
+      current.indicators.ema200,
+      current.price.close / current.indicators.ema20, // Price/EMA ratios
+      current.price.close / current.indicators.ema50,
+      current.price.close / current.indicators.ema200,
+      current.indicators.ema20 / current.indicators.ema50, // EMA relationships
+      current.indicators.ema50 / current.indicators.ema200,
+    ];
 
-      // Volume features
+    // === VOLUME FEATURES ===
+    const avgVolume = volumes.reduce((sum, v) => sum + v, 0) / volumes.length;
+    const volumeFeatures = [
       current.volume,
-      volumes.reduce((sum, v) => sum + v, 0) / volumes.length, // Average volume
-      current.volume / (volumes.reduce((sum, v) => sum + v, 0) / volumes.length), // Volume ratio
+      avgVolume,
+      current.volume / (avgVolume || 1), // Volume ratio
+      current.indicators.volumeRatio || 0,
+      Math.max(...volumes) / (Math.min(...volumes) || 1), // Volume volatility
+    ];
 
-      // Order flow features
-      current.orderFlow.netFlow / current.volume,
-      current.orderFlow.bidVolume / (current.orderFlow.bidVolume + current.orderFlow.askVolume),
-      current.orderFlow.largeOrders / current.volume,
+    // === ORDER FLOW FEATURES (Comprehensive) ===
+    const bidAskTotal = current.orderFlow.bidVolume + current.orderFlow.askVolume;
+    const orderFlowFeatures = [
+      // Basic flow metrics
+      current.orderFlow.bidVolume,
+      current.orderFlow.askVolume,
+      bidAskTotal,
+      
+      // Net flow metrics
+      current.orderFlow.netFlow,
+      current.orderFlow.netFlow / (current.volume || 1),
+      (current.orderFlow.bidVolume - current.orderFlow.askVolume) / (bidAskTotal || 1), // Bid-ask imbalance
+      
+      // Order size distribution
+      current.orderFlow.largeOrders,
+      current.orderFlow.smallOrders || 0,
+      current.orderFlow.largeOrders / (current.volume || 1),
+      (current.orderFlow.smallOrders || 0) / (current.volume || 1),
+      (current.orderFlow.largeOrders || 0) / ((current.orderFlow.smallOrders || 1) || 1), // Large to small ratio
+      
+      // Bid/ask ratios
+      current.orderFlow.bidVolume / (bidAskTotal || 1),
+      current.orderFlow.askVolume / (bidAskTotal || 1),
+    ];
 
-      // Market microstructure
+    // === MARKET MICROSTRUCTURE FEATURES ===
+    const microstructureFeatures = [
+      // Spread metrics
+      current.marketMicrostructure.spread,
       current.marketMicrostructure.spread / current.price.close,
-      current.marketMicrostructure.depth / current.volume,
+      
+      // Depth metrics
+      current.marketMicrostructure.depth,
+      current.marketMicrostructure.depth / (current.volume || 1),
+      
+      // Order imbalance
       current.marketMicrostructure.imbalance,
+      
+      // Market toxicity
       current.marketMicrostructure.toxicity,
+    ];
 
-      // Price momentum features
+    // === MOMENTUM FEATURES ===
+    const momentumFeatures = [
       this.calculateMomentum(prices, 5),
       this.calculateMomentum(prices, 10),
       this.calculateMomentum(prices, 20),
-
-      // Volatility features
-      this.calculateVolatility(prices, 10),
-      this.calculateVolatility(prices, 20),
-
-      // Trend features
-      this.calculateTrendStrength(prices),
-      this.calculateMeanReversion(prices, current.price.close)
+      this.calculateMomentum(prices, 50),
+      current.indicators.momentumShort || 0,
+      current.indicators.momentumLong || 0,
+      current.indicators.mom7d || 0,
+      current.indicators.mom30d || 0,
     ];
 
-    return features.filter(f => !isNaN(f) && isFinite(f));
+    // === VOLATILITY FEATURES ===
+    const volatilityFeatures = [
+      this.calculateVolatility(prices, 5),
+      this.calculateVolatility(prices, 10),
+      this.calculateVolatility(prices, 20),
+      this.calculateATR(highs, lows, prices, 10),
+      this.calculateATR(highs, lows, prices, 20),
+    ];
+
+    // === TREND FEATURES ===
+    const trendFeatures = [
+      this.calculateTrendStrength(prices),
+      this.calculateMeanReversion(prices, current.price.close),
+      this.calculateTrendDirection(prices),
+      this.calculateSupportResistance(prices, current.price.close),
+    ];
+
+    // === ADDITIONAL EMA FEATURES FROM multiEMA ===
+    const emaFeatures: number[] = [];
+    if (current.indicators.multiEMA) {
+      const emaKeys = Object.keys(current.indicators.multiEMA);
+      emaKeys.forEach(key => {
+        const emaValue = (current.indicators.multiEMA as Record<string, number>)[key];
+        emaFeatures.push(emaValue / current.price.close); // Normalized
+      });
+    }
+
+    // === ICHIMOKU & OTHER INDICATORS ===
+    const indicatorFeatures = [
+      current.indicators.ichimoku_bullish ? 1 : 0,
+      current.indicators.bbPos || 0,
+    ];
+
+    // Combine all features
+    const allFeatures = [
+      ...priceFeatures,
+      ...technicalFeatures,
+      ...volumeFeatures,
+      ...orderFlowFeatures,
+      ...microstructureFeatures,
+      ...momentumFeatures,
+      ...volatilityFeatures,
+      ...trendFeatures,
+      ...emaFeatures,
+      ...indicatorFeatures,
+    ];
+
+    // Filter out invalid values
+    return allFeatures.filter(f => !isNaN(f) && isFinite(f));
   }
   
   private static calculateMomentum(prices: number[], period: number): number {
     if (prices.length < period + 1) return 0;
     const current = prices[prices.length - 1];
     const past = prices[prices.length - 1 - period];
-    return (current - past) / past;
+    return past === 0 ? 0 : (current - past) / past;
   }
   
   private static calculateVolatility(prices: number[], period: number): number {
     if (prices.length < period) return 0;
     const recentPrices = prices.slice(-period);
     const returns = recentPrices.slice(1).map((price, i) => 
-      Math.log(price / recentPrices[i])
+      recentPrices[i] === 0 ? 0 : Math.log(price / recentPrices[i])
     );
+    if (returns.length === 0) return 0;
     const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
     return Math.sqrt(variance);
+  }
+  
+  private static calculateATR(highs: number[], lows: number[], closes: number[], period: number): number {
+    if (highs.length < period || lows.length < period || closes.length < period) return 0;
+    
+    const trueRanges: number[] = [];
+    for (let i = 1; i < period; i++) {
+      const tr = Math.max(
+        highs[i] - lows[i],
+        Math.abs(highs[i] - closes[i - 1]),
+        Math.abs(lows[i] - closes[i - 1])
+      );
+      trueRanges.push(tr);
+    }
+    
+    return trueRanges.length > 0 ? trueRanges.reduce((sum, tr) => sum + tr, 0) / trueRanges.length : 0;
   }
   
   private static calculateTrendStrength(prices: number[]): number {
@@ -152,6 +275,61 @@ export class FeatureExtractor {
     const mean = prices.reduce((sum, p) => sum + p, 0) / prices.length;
     const std = Math.sqrt(prices.reduce((sum, p) => sum + Math.pow(p - mean, 2), 0) / prices.length);
     return std === 0 ? 0 : (currentPrice - mean) / std;
+  }
+  
+  private static calculateTrendDirection(prices: number[]): number {
+    if (prices.length < 10) return 0;
+    const recent = prices.slice(-10);
+    // Linear regression slope
+    const n = recent.length;
+    const x = Array.from({ length: n }, (_, i) => i);
+    const sumX = x.reduce((sum, val) => sum + val, 0);
+    const sumY = recent.reduce((sum, val) => sum + val, 0);
+    const sumXY = x.reduce((sum, val, i) => sum + val * recent[i], 0);
+    const sumX2 = x.reduce((sum, val) => sum + val * val, 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    return slope;
+  }
+  
+  private static calculateSupportResistance(prices: number[], currentPrice: number): number {
+    if (prices.length < 20) return 0;
+    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices);
+    const range = maxPrice - minPrice;
+    
+    if (range === 0) return 0;
+    return (currentPrice - minPrice) / range; // Position in range (0-1)
+  }
+  
+  // Feature names for interpretability
+  static getFeatureNames(): string[] {
+    return [
+      // Price features
+      'close', 'open', 'high', 'low', 'daily_range', 'daily_return', 'range_ratio',
+      // Technical indicators
+      'rsi', 'macd', 'macd_signal', 'macd_hist', 'bb_position', 'bb_width',
+      'stoch_k', 'stoch_d', 'adx', 'vwap', 'atr',
+      'ema20', 'ema50', 'ema200',
+      'price_ema20', 'price_ema50', 'price_ema200',
+      'ema20_50', 'ema50_200',
+      // Volume features
+      'volume', 'avg_volume', 'volume_ratio', 'volume_ratio_2', 'volume_volatility',
+      // Order flow features
+      'bid_volume', 'ask_volume', 'bid_ask_total',
+      'net_flow', 'net_flow_ratio', 'bid_ask_imbalance',
+      'large_orders', 'small_orders', 'large_orders_ratio', 'small_orders_ratio', 'large_small_ratio',
+      'bid_ratio', 'ask_ratio',
+      // Microstructure features
+      'spread', 'spread_ratio', 'depth', 'depth_ratio', 'imbalance', 'toxicity',
+      // Momentum features
+      'momentum_5', 'momentum_10', 'momentum_20', 'momentum_50',
+      'momentum_short', 'momentum_long', 'mom_7d', 'mom_30d',
+      // Volatility features
+      'volatility_5', 'volatility_10', 'volatility_20', 'atr_10', 'atr_20',
+      // Trend features
+      'trend_strength', 'mean_reversion', 'trend_direction', 'support_resistance',
+    ];
   }
 }
 

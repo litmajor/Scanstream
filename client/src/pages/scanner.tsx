@@ -6,6 +6,7 @@ import { useWebSocket } from '../lib/useWebSocket';
 // Removed: import { QuickScanButton } from '../components/QuickScanButton';
 import { ScanProgress } from '../components/ScanProgress';
 import { SymbolDetailModal } from '../components/SymbolDetailModal';
+import { FlowMetricsPanel } from '../components/FlowMetricsPanel';
 
 export default function ScannerPage() {
   const [, setLocation] = useLocation();
@@ -375,6 +376,13 @@ export default function ScannerPage() {
   //   send({ type: 'requestQuickScan' });
   // };
 
+  // Separate live signals (FastScanner via WebSocket) from full scan signals (Python API)
+  const liveSignals = realTimeSignals || []; // FastScanner signals via WebSocket
+  const fullScanSignals = scannerData?.signals || []; // Python scanner full scan results
+
+  // Display both - prioritize live signals if available, otherwise show full scan
+  const displaySignals = (liveSignals && liveSignals.length > 0) ? liveSignals : fullScanSignals;
+
   // Save scan results to localStorage for Dashboard access
   useEffect(() => {
     if (displaySignals && displaySignals.length > 0) {
@@ -384,13 +392,6 @@ export default function ScannerPage() {
       }));
     }
   }, [displaySignals]);
-
-  // Separate live signals (FastScanner via WebSocket) from full scan signals (Python API)
-  const liveSignals = realTimeSignals || []; // FastScanner signals via WebSocket
-  const fullScanSignals = scannerData?.signals || []; // Python scanner full scan results
-
-  // Display both - prioritize live signals if available, otherwise show full scan
-  const displaySignals = (liveSignals && liveSignals.length > 0) ? liveSignals : fullScanSignals;
 
   // Debug logging
   useEffect(() => {
@@ -1298,6 +1299,13 @@ export default function ScannerPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Flow Metrics Panel */}
+                    <FlowMetricsPanel
+                      orderFlow={signal.orderFlow}
+                      microstructure={signal.marketMicrostructure}
+                      symbol={signal.symbol}
+                    />
 
                     {/* Action Buttons */}
                     <div className="flex space-x-2 pt-2">

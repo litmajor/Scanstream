@@ -46,10 +46,15 @@ export function useCoinGeckoChart(symbol: string, days: number = 90, extended: b
         return [];
       }
     },
-    refetchInterval: 300000, // Refresh every 5 minutes
-    staleTime: 180000, // Consider fresh for 3 minutes
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    // RATE LIMIT OPTIMIZATION: Increase intervals to reduce API calls
+    refetchInterval: 600000, // Refresh every 10 minutes (was 5)
+    staleTime: 480000, // Consider fresh for 8 minutes (was 3)
+    gcTime: 900000, // Keep in cache for 15 minutes
+    retry: 1, // Reduce retries to avoid rate limits (was 2)
+    retryDelay: 5000, // Fixed 5 second delay (was exponential)
+    // Pause refetching if tab is not visible
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   });
 }
 
@@ -71,9 +76,12 @@ export function useCoinGeckoMLData(symbol: string) {
       console.log(`[CoinGecko ML] Fetched ${result.totalDataPoints} total points for ${symbol}`);
       return result;
     },
-    refetchInterval: 600000, // 10 minutes
-    staleTime: 300000,
-    retry: 2,
+    // RATE LIMIT OPTIMIZATION: Reduce ML data fetching frequency
+    refetchInterval: 900000, // 15 minutes (was 10)
+    staleTime: 600000, // 10 minutes
+    gcTime: 1200000, // Keep in cache for 20 minutes
+    retry: 1, // Reduce retries
+    refetchOnWindowFocus: false,
   });
 }
 

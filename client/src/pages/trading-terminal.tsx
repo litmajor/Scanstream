@@ -1,10 +1,17 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Brain, Gauge, Search, ChartArea, Wallet, RefreshCw, Layers, Bot, Bell, Cog, BarChart3, ExpandIcon, Target, Wind, Waves, Activity } from 'lucide-react';
+import { Brain, RefreshCw, Layers, Bell, Cog, BarChart3, ExpandIcon, Target, Wind, Waves, Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Maximize2, Minimize2, Search, ChevronDown, Wallet, TrendingUp, TrendingDown } from 'lucide-react';
 import { loadFrontendConfig } from '../lib/config';
 import { TradingChart, ChartDataPoint } from '../components/TradingChart';
 import { useLocation } from 'wouter';
 import { useCoinGeckoChart } from '../hooks/useCoinGeckoChart';
+import MarketStatusBar from '../components/MarketStatusBar';
+import { StatCard } from '../components/cards';
+import FloatingChartToolbar from '../components/FloatingChartToolbar';
+import NotificationHub from '../components/NotificationHub';
+import { useNotifications } from '../contexts/NotificationContext';
+import QuickActionsBar from '../components/QuickActionsBar';
+import QuickTradeModal from '../components/QuickTradeModal';
 
 // Local ErrorBoundary fallback (since 'react-error-boundary' is not installed)
 function ErrorBoundary({ children, FallbackComponent }: { children: React.ReactNode, FallbackComponent: React.FC<{ error: Error }> }) {
@@ -373,6 +380,178 @@ export default function TradingTerminal() {
   const [showClustering, setShowClustering] = useState(false);
   const [clusteringData, setClusteringData] = useState<any>(null);
 
+  // Layout control states - Load from localStorage with defaults
+  const [showLeftSidebar, setShowLeftSidebar] = useState(() => {
+    const saved = localStorage.getItem('showLeftSidebar');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [showRightSidebar, setShowRightSidebar] = useState(() => {
+    const saved = localStorage.getItem('showRightSidebar');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+  const [focusMode, setFocusMode] = useState(false);
+  const [isChartFullscreen, setIsChartFullscreen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showQuickTradeModal, setShowQuickTradeModal] = useState(false);
+  
+  // Notifications
+  const {
+    notifications,
+    unreadCount,
+    settings,
+    markAsRead,
+    markAllAsRead,
+    dismissNotification,
+    clearAll,
+    toggleSound,
+    addNotification
+  } = useNotifications();
+  
+  // Auto-hide timer refs
+  const leftSidebarTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rightSidebarTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const AUTO_HIDE_DELAY = 30000; // 30 seconds
+
+  // Save sidebar preferences to localStorage
+  useEffect(() => {
+    localStorage.setItem('showLeftSidebar', JSON.stringify(showLeftSidebar));
+  }, [showLeftSidebar]);
+
+  useEffect(() => {
+    localStorage.setItem('showRightSidebar', JSON.stringify(showRightSidebar));
+  }, [showRightSidebar]);
+
+  // Demo notifications on first load
+  useEffect(() => {
+    // Check if we've already shown demo notifications
+    const hasShownDemo = sessionStorage.getItem('demoNotificationsShown');
+    if (!hasShownDemo) {
+      // Add demo notifications
+      setTimeout(() => {
+        addNotification('signal', 'high', 'Strong BUY Signal Detected', 'BTC/USDT showing bullish momentum on 1h timeframe', {
+          actionLabel: 'View Chart',
+          metadata: { symbol: 'BTC/USDT', timeframe: '1h', score: '92/100' }
+        });
+      }, 2000);
+
+      setTimeout(() => {
+        addNotification('trade', 'medium', 'Trade Executed Successfully', 'Long position opened at $45,230', {
+          actionLabel: 'View Position',
+          metadata: { symbol: 'ETH/USDT', size: '0.5 BTC', entry: '$45,230' }
+        });
+      }, 3000);
+
+      setTimeout(() => {
+        addNotification('alert', 'urgent', 'Price Alert Triggered', 'BTC/USDT has reached your target price of $45,000!', {
+          actionLabel: 'Take Action',
+          metadata: { symbol: 'BTC/USDT', price: '$45,000', change: '+2.5%' }
+        });
+      }, 4000);
+
+      setTimeout(() => {
+        addNotification('system', 'low', 'System Update Available', 'New ML model v2.6 ready for deployment', {
+          actionLabel: 'Learn More'
+        });
+      }, 5000);
+
+      sessionStorage.setItem('demoNotificationsShown', 'true');
+    }
+  }, [addNotification]);
+
+  // Keyboard shortcuts: S for Signals, P for Portfolio, F for Fullscreen, 1-5 for Timeframes
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      // Sidebar toggles
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        setShowLeftSidebar(prev => !prev);
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        setShowRightSidebar(prev => !prev);
+      }
+      
+      // Chart fullscreen
+      else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        setIsChartFullscreen(prev => !prev);
+      }
+      
+      // ESC to exit fullscreen
+      else if (e.key === 'Escape' && isChartFullscreen) {
+        setIsChartFullscreen(false);
+      }
+      
+      // Timeframe shortcuts (1-5)
+      else if (['1', '2', '3', '4', '5'].includes(e.key)) {
+        e.preventDefault();
+        const timeframes = ['1m', '5m', '1h', '1d', '1w'];
+        setSelectedTimeframe(timeframes[parseInt(e.key) - 1]);
+      }
+      
+      // Quick Actions shortcut (Q)
+      else if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault();
+        setShowQuickActions(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isChartFullscreen]);
+
+  // Auto-hide functionality for left sidebar
+  const resetLeftSidebarTimer = useCallback(() => {
+    if (leftSidebarTimerRef.current) {
+      clearTimeout(leftSidebarTimerRef.current);
+    }
+    leftSidebarTimerRef.current = setTimeout(() => {
+      setShowLeftSidebar(false);
+    }, AUTO_HIDE_DELAY);
+  }, []);
+
+  // Auto-hide functionality for right sidebar
+  const resetRightSidebarTimer = useCallback(() => {
+    if (rightSidebarTimerRef.current) {
+      clearTimeout(rightSidebarTimerRef.current);
+    }
+    rightSidebarTimerRef.current = setTimeout(() => {
+      setShowRightSidebar(false);
+    }, AUTO_HIDE_DELAY);
+  }, []);
+
+  // Setup auto-hide when sidebars are opened
+  useEffect(() => {
+    if (showLeftSidebar) {
+      resetLeftSidebarTimer();
+    } else if (leftSidebarTimerRef.current) {
+      clearTimeout(leftSidebarTimerRef.current);
+    }
+    return () => {
+      if (leftSidebarTimerRef.current) {
+        clearTimeout(leftSidebarTimerRef.current);
+      }
+    };
+  }, [showLeftSidebar, resetLeftSidebarTimer]);
+
+  useEffect(() => {
+    if (showRightSidebar) {
+      resetRightSidebarTimer();
+    } else if (rightSidebarTimerRef.current) {
+      clearTimeout(rightSidebarTimerRef.current);
+    }
+    return () => {
+      if (rightSidebarTimerRef.current) {
+        clearTimeout(rightSidebarTimerRef.current);
+      }
+    };
+  }, [showRightSidebar, resetRightSidebarTimer]);
+
   // WebSocket connection through Vite proxy
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   // Use the proxy path /ws which will be forwarded to the backend server
@@ -533,30 +712,6 @@ export default function TradingTerminal() {
   // Fetch chart data from CoinGecko with error recovery
   const { data: coinGeckoChartData, isLoading: isChartLoading, error: chartError, refetch: refetchChart } = useCoinGeckoChart(selectedSymbol, 7);
 
-  // Fetch clustering data when enabled
-  const { data: clusterData } = useQuery({
-    queryKey: ['clustering', selectedSymbol, chartData?.length],
-    queryFn: async () => {
-      if (!chartData || chartData.length < 20) return null;
-
-      const response = await fetch('/api/analytics/candle-clustering', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: chartData })
-      });
-
-      return response.json();
-    },
-    enabled: showClustering && !!chartData && chartData.length >= 20,
-    refetchInterval: 60000
-  });
-
-  useEffect(() => {
-    if (clusterData) {
-      setClusteringData(clusterData);
-    }
-  }, [clusterData]);
-
   // Chart data computation - use CoinGecko data if available, fallback to WebSocket data
   const chartData: ChartDataPoint[] = useMemo(() => {
     // First try CoinGecko data
@@ -591,6 +746,30 @@ export default function TradingTerminal() {
   const currentFrame = useMemo(() => {
     return marketData.filter(frame => frame.symbol === selectedSymbol).slice(-1)[0] || null;
   }, [marketData, selectedSymbol]);
+
+  // Fetch clustering data when enabled
+  const { data: clusterData } = useQuery({
+    queryKey: ['clustering', selectedSymbol, chartData?.length],
+    queryFn: async () => {
+      if (!chartData || chartData.length < 20) return null;
+
+      const response = await fetch('/api/analytics/candle-clustering', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: chartData })
+      });
+
+      return response.json();
+    },
+    enabled: showClustering && !!chartData && chartData.length >= 20,
+    refetchInterval: 60000
+  });
+
+  useEffect(() => {
+    if (clusterData) {
+      setClusteringData(clusterData);
+    }
+  }, [clusterData]);
 
   // Flow Field data - Define interface and query AFTER chartData is available
   interface FlowFieldData {
@@ -765,12 +944,24 @@ export default function TradingTerminal() {
   );
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-hidden flex flex-col">
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse delay-700"></div>
       </div>
+
+      {/* Professional Market Status Bar */}
+      <MarketStatusBar
+        isConnected={isConnected}
+        currentPrice={currentPrice}
+        priceChange={priceChange}
+        priceChangePercent={priceChangePercent}
+        volume24h={volume24h}
+        portfolioValue={portfolioValue}
+        dayChangePercent={dayChangePercent}
+        exchangeStatus={exchangeStatus}
+      />
 
       {/* Top Bar */}
       <header className="relative border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30 px-6 py-3 flex items-center justify-between">
@@ -786,114 +977,74 @@ export default function TradingTerminal() {
               <p className="text-xs text-slate-500">Trading Terminal</p>
             </div>
           </div>
-          <div className="h-6 w-px bg-slate-700"></div>
-          <nav className="flex items-center space-x-1" role="navigation">
-            <button
-              className="px-4 py-2 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/50 rounded-lg text-sm font-medium text-white transition-colors"
-              data-testid="nav-dashboard"
-              aria-label="Dashboard"
-            >
-              <Gauge className="w-4 h-4 mr-2 inline" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setLocation('/scanner')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-scanner"
-              aria-label="Scanner"
-            >
-              <Search className="w-4 h-4 mr-2 inline" />
-              Scanner
-            </button>
-            <button
-              onClick={() => setLocation('/strategies')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-strategies"
-              aria-label="Strategies"
-            >
-              <Bot className="w-4 h-4 mr-2 inline" />
-              Strategies
-            </button>
-            <button
-              onClick={() => setLocation('/backtest')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-backtest"
-              aria-label="Backtest"
-            >
-              <ChartArea className="w-4 h-4 mr-2 inline" />
-              Backtest
-            </button>
-            <button
-              onClick={() => setLocation('/portfolio')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-portfolio"
-              aria-label="Portfolio"
-            >
-              <Wallet className="w-4 h-4 mr-2 inline" />
-              Portfolio
-            </button>
-            <button
-              onClick={() => setLocation('/ml-engine')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-ml"
-              aria-label="ML Engine"
-            >
-              <Brain className="w-4 h-4 mr-2 inline" />
-              ML Engine
-            </button>
-            <button
-              onClick={() => setLocation('/multi-timeframe')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-timeframes"
-              aria-label="Multi-Timeframe Analysis"
-            >
-              <Layers className="w-4 h-4 mr-2 inline" />
-              Multi-TF
-            </button>
-            <button
-              onClick={() => setLocation('/optimize')}
-              className="px-4 py-2 text-slate-400 hover:text-white rounded-lg text-sm font-medium hover:bg-slate-800/50 transition-colors"
-              data-testid="nav-optimize"
-              aria-label="Optimize"
-            >
-              <Bot className="w-4 h-4 mr-2 inline" />
-              Optimize
-            </button>
-          </nav>
         </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2 text-sm px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-              <span className="text-slate-400">Market</span>
-              <span
-                className={`font-mono font-semibold ${isConnected ? 'text-green-400' : 'text-red-400'}`}
-                data-testid="market-status"
-              >
-                {isConnected ? 'OPEN' : 'CLOSED'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 text-sm px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg">
-              <span className="text-slate-400">BTC:</span>
-              <span className="text-white font-semibold">{formatCurrency(currentPrice)}</span>
-              <span
-                className={`font-semibold ${priceChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}
-                data-testid="price-change"
-              >
-                {formatPercent(priceChangePercent)}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2 text-sm px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg">
-              <span className="text-slate-400">24h Vol</span>
-              <span className="font-mono font-semibold text-blue-400">{volume24h}B</span>
-            </div>
+            {/* Layout Controls */}
+            <div className="h-6 w-px bg-slate-700"></div>
             <button
-              className="p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors"
-              data-testid="button-notifications"
-              aria-label="Notifications"
+              onClick={() => setShowLeftSidebar(!showLeftSidebar)}
+              className={`p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-all ${
+                showLeftSidebar ? 'bg-blue-500/20 border-blue-500/50' : ''
+              }`}
+              title={showLeftSidebar ? 'Hide Market Overview' : 'Show Market Overview'}
+              aria-label={showLeftSidebar ? 'Hide left sidebar' : 'Show left sidebar'}
             >
-              <Bell className="w-4 h-4 text-slate-400" />
+              {showLeftSidebar ? 
+                <PanelLeftClose className="w-4 h-4 text-blue-400" /> : 
+                <PanelLeftOpen className="w-4 h-4 text-slate-400" />
+              }
             </button>
+            <button
+              onClick={() => setShowRightSidebar(!showRightSidebar)}
+              className={`p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-all ${
+                showRightSidebar ? 'bg-blue-500/20 border-blue-500/50' : ''
+              }`}
+              title={showRightSidebar ? 'Hide Portfolio' : 'Show Portfolio'}
+              aria-label={showRightSidebar ? 'Hide right sidebar' : 'Show right sidebar'}
+            >
+              {showRightSidebar ? 
+                <PanelRightClose className="w-4 h-4 text-blue-400" /> : 
+                <PanelRightOpen className="w-4 h-4 text-slate-400" />
+              }
+            </button>
+            <button
+              onClick={() => {
+                setFocusMode(!focusMode);
+                if (!focusMode) {
+                  setShowLeftSidebar(false);
+                  setShowRightSidebar(false);
+                } else {
+                  setShowLeftSidebar(true);
+                  setShowRightSidebar(true);
+                }
+              }}
+              className={`p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-all ${
+                focusMode ? 'bg-purple-500/20 border-purple-500/50' : ''
+              }`}
+              title={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
+              aria-label={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+            >
+              {focusMode ? 
+                <Minimize2 className="w-4 h-4 text-purple-400" /> : 
+                <Maximize2 className="w-4 h-4 text-slate-400" />
+              }
+            </button>
+            
+                    <div className="h-6 w-px bg-slate-700"></div>
+                    <button
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className="relative p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors group"
+                      data-testid="button-notifications"
+                      aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+                    >
+                      <Bell className={`w-4 h-4 transition-colors ${unreadCount > 0 ? 'text-blue-400 animate-pulse' : 'text-slate-400 group-hover:text-white'}`} />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full min-w-[18px] text-center animate-in zoom-in duration-200">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                    </button>
             <button
               className="p-2 hover:bg-slate-800/50 border border-slate-700/50 rounded-lg transition-colors"
               data-testid="button-settings"
@@ -906,10 +1057,49 @@ export default function TradingTerminal() {
       </header>
 
       {/* Main Dashboard */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Market Overview */}
-        <ErrorBoundary FallbackComponent={ErrorFallback}>
-          <div className="w-80 bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border-r border-slate-700/50 flex flex-col relative" aria-label="Market Overview Sidebar">
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Floating Action Buttons */}
+        {!showLeftSidebar && (
+          <button
+            onClick={() => setShowLeftSidebar(true)}
+            className="fixed left-4 top-1/2 -translate-y-1/2 z-50 p-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 group"
+            title="Show Signals Panel (Press S)"
+            aria-label="Show signals panel"
+          >
+            <BarChart3 className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+            <span className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              Signals (S)
+            </span>
+          </button>
+        )}
+        
+        {!showRightSidebar && (
+          <button
+            onClick={() => setShowRightSidebar(true)}
+            className="fixed right-4 top-1/2 -translate-y-1/2 z-50 p-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 group"
+            title="Show Portfolio Panel (Press P)"
+            aria-label="Show portfolio panel"
+          >
+            <Wallet className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+            <span className="absolute right-full mr-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              Portfolio (P)
+            </span>
+          </button>
+        )}
+        
+        {/* Left Sidebar - Market Overview (Overlay Mode) */}
+        {showLeftSidebar && (
+          <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <div 
+              className="absolute left-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-r border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-left duration-300"
+              aria-label="Market Overview Sidebar"
+              onMouseEnter={() => {
+                if (leftSidebarTimerRef.current) {
+                  clearTimeout(leftSidebarTimerRef.current);
+                }
+              }}
+              onMouseLeave={() => resetLeftSidebarTimer()}
+            >
             <div className="p-4 border-b border-slate-700/50">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-white">Top Signals</h2>
@@ -1165,20 +1355,21 @@ export default function TradingTerminal() {
             </div>
           </div>
         </ErrorBoundary>
+        )}
 
-        {/* Main Content Area */}
-        <ErrorBoundary FallbackComponent={ErrorFallback}>
-          <div className="flex-1 flex flex-col" aria-label="Main Content Area">
+            {/* Main Content Area - With Fullscreen Support */}
+            <ErrorBoundary FallbackComponent={ErrorFallback}>
+              <div className={`flex-1 flex flex-col ${isChartFullscreen ? 'fixed inset-0 z-50 bg-slate-950' : ''}`} aria-label="Main Content Area">
             <div className="flex-1 bg-gradient-to-br from-slate-900/60 to-slate-800/60 backdrop-blur-sm p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <div className="relative" data-symbol-search>
-                    <button
-                      onClick={() => setShowSymbolSearch(!showSymbolSearch)}
-                      className="flex items-center space-x-2 px-3 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all group"
-                      aria-label="Select trading symbol"
-                      aria-expanded={showSymbolSearch ? 'true' : 'false'}
-                    >
+                  <button
+                    onClick={() => setShowSymbolSearch(!showSymbolSearch)}
+                    className="flex items-center space-x-2 px-3 py-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all group"
+                    aria-label="Select trading symbol"
+                    aria-expanded={showSymbolSearch ? "true" : "false"}
+                  >
                       <h2 className="text-xl font-bold font-mono" data-testid="selected-symbol">
                         {selectedSymbol}
                       </h2>
@@ -1975,9 +2166,19 @@ export default function TradingTerminal() {
           </div>
         </ErrorBoundary>
 
-        {/* Right Sidebar - Portfolio Summary */}
-        <ErrorBoundary FallbackComponent={ErrorFallback}>
-          <div className="w-80 bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border-l border-slate-700/50 flex flex-col" aria-label="Portfolio Sidebar">
+        {/* Right Sidebar - Portfolio Summary (Overlay Mode) */}
+        {showRightSidebar && (
+          <ErrorBoundary FallbackComponent={ErrorFallback}>
+            <div 
+              className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-l border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-right duration-300"
+              aria-label="Portfolio Sidebar"
+              onMouseEnter={() => {
+                if (rightSidebarTimerRef.current) {
+                  clearTimeout(rightSidebarTimerRef.current);
+                }
+              }}
+              onMouseLeave={() => resetRightSidebarTimer()}
+            >
             {/* Portfolio Header */}
             <div className="p-4 border-b border-slate-700/50">
               <div className="flex items-center justify-between">
@@ -1991,69 +2192,53 @@ export default function TradingTerminal() {
               </div>
             </div>
 
-            {/* Portfolio Metrics */}
-            <div className="p-4 space-y-4 flex-1">
-              {/* Total Return */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Total Return</span>
-                  <span className={`text-lg font-semibold ${
-                    (portfolioSummary?.metrics?.totalReturn ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {((portfolioSummary?.metrics?.totalReturn ?? 0) * 100).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Current Balance */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Current Balance</span>
-                  <span className="text-white font-semibold">
-                    ${((portfolioSummary?.metrics?.currentBalance ?? 10000)).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Win Rate */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Win Rate</span>
-                  <span className="text-white font-semibold">
-                    {((portfolioSummary?.metrics?.winRate ?? 0) * 100).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Total Trades */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Total Trades</span>
-                  <span className="text-white font-semibold">
-                    {portfolioSummary?.metrics?.totalTrades ?? 0}
-                  </span>
-                </div>
-              </div>
-
-              {/* Max Drawdown */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Max Drawdown</span>
-                  <span className="text-red-400 font-semibold">
-                    {((portfolioSummary?.metrics?.maxDrawdown ?? 0) * 100).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Sharpe Ratio */}
-              <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Sharpe Ratio</span>
-                  <span className="text-white font-semibold">
-                    {(portfolioSummary?.metrics?.sharpeRatio ?? 0).toFixed(2)}
-                  </span>
-                </div>
-              </div>
+            {/* Portfolio Metrics - Using Unified StatCard */}
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+              <StatCard
+                title="Total Return"
+                value={`${((portfolioSummary?.metrics?.totalReturn ?? 0) * 100).toFixed(2)}%`}
+                change={(portfolioSummary?.metrics?.totalReturn ?? 0) * 100}
+                icon={TrendingUp}
+                variant={(portfolioSummary?.metrics?.totalReturn ?? 0) >= 0 ? 'success' : 'error'}
+                size="sm"
+              />
+              
+              <StatCard
+                title="Current Balance"
+                value={`$${((portfolioSummary?.metrics?.currentBalance ?? 10000)).toLocaleString()}`}
+                icon={Wallet}
+                size="sm"
+              />
+              
+              <StatCard
+                title="Win Rate"
+                value={`${((portfolioSummary?.metrics?.winRate ?? 0) * 100).toFixed(1)}%`}
+                icon={Target}
+                variant="info"
+                size="sm"
+              />
+              
+              <StatCard
+                title="Total Trades"
+                value={portfolioSummary?.metrics?.totalTrades ?? 0}
+                icon={Activity}
+                size="sm"
+              />
+              
+              <StatCard
+                title="Max Drawdown"
+                value={`${((portfolioSummary?.metrics?.maxDrawdown ?? 0) * 100).toFixed(2)}%`}
+                icon={TrendingDown}
+                variant="warning"
+                size="sm"
+              />
+              
+              <StatCard
+                title="Sharpe Ratio"
+                value={(portfolioSummary?.metrics?.sharpeRatio ?? 0).toFixed(2)}
+                icon={BarChart3}
+                size="sm"
+              />
             </div>
 
             {/* Quick Actions */}
@@ -2067,6 +2252,7 @@ export default function TradingTerminal() {
             </div>
           </div>
         </ErrorBoundary>
+        )}
       </main>
 
       {/* Status Bar */}
@@ -2108,7 +2294,68 @@ export default function TradingTerminal() {
             </div>
           </div>
         </div>
-      </footer>
-    </div>
-  );
-}
+              </footer>
+
+              {/* Notification Hub */}
+              <NotificationHub
+                isOpen={showNotifications}
+                onClose={() => setShowNotifications(false)}
+                notifications={notifications}
+                onMarkAsRead={markAsRead}
+                onMarkAllAsRead={markAllAsRead}
+                onDismiss={dismissNotification}
+                onClearAll={clearAll}
+                soundEnabled={settings.soundEnabled}
+                onToggleSound={toggleSound}
+              />
+
+              {/* Quick Actions Bar */}
+              <QuickActionsBar
+                currentSymbol={selectedSymbol}
+                onQuickTrade={() => setShowQuickTradeModal(true)}
+                onQuickScan={() => {
+                  addNotification('system', 'medium', 'Quick Scan Started', `Running scanner on ${selectedSymbol}...`, {
+                    metadata: { symbol: selectedSymbol, exchange: selectedExchange }
+                  });
+                  // TODO: Implement actual scan logic
+                  setTimeout(() => {
+                    addNotification('signal', 'high', 'Scan Complete', `${selectedSymbol} analysis completed`, {
+                      actionLabel: 'View Results',
+                      metadata: { signals: 3, opportunities: 2 }
+                    });
+                  }, 2000);
+                }}
+                onAddToWatchlist={() => {
+                  addNotification('system', 'low', 'Added to Watchlist', `${selectedSymbol} added to your watchlist`, {
+                    metadata: { symbol: selectedSymbol }
+                  });
+                }}
+                onSetPriceAlert={() => {
+                  addNotification('system', 'low', 'Price Alert Created', `You'll be notified when ${selectedSymbol} reaches your target`, {
+                    metadata: { symbol: selectedSymbol, targetPrice: currentPrice * 1.05 }
+                  });
+                }}
+                onTakeScreenshot={() => {
+                  addNotification('system', 'low', 'Screenshot Saved', 'Chart screenshot saved to downloads', {
+                    actionLabel: 'Open Folder'
+                  });
+                  // TODO: Implement actual screenshot logic
+                }}
+                onShareChart={() => {
+                  navigator.clipboard?.writeText(window.location.href);
+                  addNotification('system', 'low', 'Link Copied', 'Chart link copied to clipboard', {
+                    metadata: { url: window.location.href }
+                  });
+                }}
+              />
+
+              {/* Quick Trade Modal */}
+              <QuickTradeModal
+                isOpen={showQuickTradeModal}
+                onClose={() => setShowQuickTradeModal(false)}
+                symbol={selectedSymbol}
+                currentPrice={currentPrice}
+              />
+            </div>
+          );
+        }

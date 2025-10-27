@@ -11,3 +11,5 @@ ccxt>=2.9.0
 flask>=2.3.0
 flask-cors>=4.0.0
 aiofiles>=23.0.0
+xgboost>=3.1.1
+scipy>=1.16.2

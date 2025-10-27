@@ -13,8 +13,19 @@ import {
   Info,
   Play,
   Settings,
-  Download
+  Download,
+  GitCompare,
+  Activity as ActivityIcon,
+  Wallet,
+  Store,
+  Copy
 } from 'lucide-react';
+import StrategyComparisonDashboard from '../components/StrategyComparisonDashboard';
+import StrategyLiveMonitor from '../components/StrategyLiveMonitor';
+import StrategyPortfolioOptimizer from '../components/StrategyPortfolioOptimizer';
+import StrategyBacktestingSuite from '../components/StrategyBacktestingSuite';
+import StrategyMarketplace from '../components/StrategyMarketplace';
+import StrategyCopyTrading from '../components/StrategyCopyTrading';
 
 // Types
 interface Strategy {
@@ -61,6 +72,12 @@ export default function StrategiesPage() {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [consensusSymbol, setConsensusSymbol] = useState('BTC/USDT');
   const [showConsensus, setShowConsensus] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [showLiveMonitor, setShowLiveMonitor] = useState(false);
+  const [showPortfolioOptimizer, setShowPortfolioOptimizer] = useState(false);
+  const [showMarketplace, setShowMarketplace] = useState(false);
+  const [showCopyTrading, setShowCopyTrading] = useState(false);
+  const [selectedStrategyForBacktest, setSelectedStrategyForBacktest] = useState<Strategy | null>(null);
 
   // Fetch strategies
   const { data: strategiesData, isLoading, error } = useQuery<{ success: boolean; strategies: Strategy[]; total: number }>({
@@ -183,6 +200,27 @@ export default function StrategiesPage() {
             {/* Action Buttons */}
             <div className="flex items-center space-x-2">
               <button
+                onClick={() => setShowLiveMonitor(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-orange-500/20"
+              >
+                <ActivityIcon className="w-4 h-4" />
+                <span>Live Monitor</span>
+              </button>
+              <button
+                onClick={() => setShowPortfolioOptimizer(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-purple-500/20"
+              >
+                <Wallet className="w-4 h-4" />
+                <span>Optimize Portfolio</span>
+              </button>
+              <button
+                onClick={() => setShowComparison(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-green-500/20"
+              >
+                <GitCompare className="w-4 h-4" />
+                <span>Compare Strategies</span>
+              </button>
+              <button
                 onClick={handleRunConsensus}
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-blue-500/20"
               >
@@ -190,8 +228,23 @@ export default function StrategiesPage() {
                 <span>Run Consensus</span>
               </button>
               <button
+                onClick={() => setShowMarketplace(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-cyan-500/20"
+              >
+                <Store className="w-4 h-4" />
+                <span>Marketplace</span>
+              </button>
+              <button
+                onClick={() => setShowCopyTrading(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-indigo-500/20"
+              >
+                <Copy className="w-4 h-4" />
+                <span>Copy Trading</span>
+              </button>
+              <button
                 className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
                 title="Settings"
+                aria-label="Settings"
               >
                 <Settings className="w-4 h-4" />
               </button>
@@ -273,6 +326,8 @@ export default function StrategiesPage() {
               <button
                 onClick={() => setShowConsensus(false)}
                 className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Close consensus"
+                title="Close consensus"
               >
                 <XCircle className="w-5 h-5" />
               </button>
@@ -408,15 +463,65 @@ export default function StrategiesPage() {
                   <Info className="w-4 h-4" />
                   <span>Details</span>
                 </button>
-                <button className="flex-1 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-white py-2 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center space-x-2">
-                  <Play className="w-4 h-4" />
-                  <span>Backtest</span>
-                </button>
+                                 <button 
+                   onClick={() => setSelectedStrategyForBacktest(strategy)}
+                   className="flex-1 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-white py-2 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center space-x-2"
+                 >
+                   <BarChart3 className="w-4 h-4" />
+                   <span>Backtest</span>
+                 </button>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Strategy Comparison Dashboard */}
+      {showComparison && (
+        <StrategyComparisonDashboard
+          strategies={strategies}
+          onClose={() => setShowComparison(false)}
+        />
+      )}
+
+      {/* Live Strategy Monitor */}
+      {showLiveMonitor && (
+        <StrategyLiveMonitor
+          strategies={strategies.map(s => ({ id: s.id, name: s.name }))}
+          onClose={() => setShowLiveMonitor(false)}
+        />
+      )}
+
+      {/* Portfolio Optimizer */}
+      {showPortfolioOptimizer && (
+        <StrategyPortfolioOptimizer
+          strategies={strategies}
+          onClose={() => setShowPortfolioOptimizer(false)}
+          initialCapital={100000}
+        />
+      )}
+
+      {/* Backtesting Suite */}
+      {selectedStrategyForBacktest && (
+        <StrategyBacktestingSuite
+          strategy={selectedStrategyForBacktest}
+          onClose={() => setSelectedStrategyForBacktest(null)}
+        />
+      )}
+
+      {/* Strategy Marketplace */}
+      {showMarketplace && (
+        <StrategyMarketplace
+          onClose={() => setShowMarketplace(false)}
+        />
+      )}
+
+      {/* Strategy Copy Trading */}
+      {showCopyTrading && (
+        <StrategyCopyTrading
+          onClose={() => setShowCopyTrading(false)}
+        />
+      )}
     </div>
   );
 }
