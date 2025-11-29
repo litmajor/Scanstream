@@ -20,8 +20,8 @@ app.set('x-powered-by', false); // Disable X-Powered-By header
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Trust proxy should be false in development to avoid express-rate-limit validation errors
-app.set('trust proxy', false);
+// Enable trust proxy for Replit's proxied environment (required for rate limiter)
+app.set('trust proxy', 1);
 
 // Global debug logging for all route registrations (with types)
 const origAppUse = app.use;
