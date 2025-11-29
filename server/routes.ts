@@ -1227,7 +1227,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
                 }
 
                 // Store and broadcast chart data, potentially for ML models
-                const chartData = frames.map(frame => ({
+                const chartData = frames.map((frame: any) => ({
                   timestamp: frame.timestamp,
                   open: frame.price?.open,
                   high: frame.price?.high,
@@ -1236,8 +1236,6 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
                   volume: frame.volume,
                   // Add any other relevant data points needed for ML models
                 }));
-
-                await storage.createChartData(symbol, timeframe, chartData);
                 ws.send(JSON.stringify({
                   type: 'chart_data',
                   symbol,
