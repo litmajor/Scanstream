@@ -114,7 +114,7 @@ router.post('/cache/invalidate', (req, res) => {
 /**
  * Get aggregated price from multiple exchanges
  */
-router.get('/price/:symbol(*)', async (req, res) => {
+router.get('/price/:symbol', async (req, res) => {
   try {
     let symbol = req.params.symbol;
     
@@ -133,7 +133,7 @@ router.get('/price/:symbol(*)', async (req, res) => {
 /**
  * Get OHLCV data with smart fallback
  */
-router.get('/ohlcv/:symbol(*)', async (req, res) => {
+router.get('/ohlcv/:symbol', async (req, res) => {
   try {
     let symbol = req.params.symbol;
     
