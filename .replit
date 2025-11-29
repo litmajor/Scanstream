@@ -30,25 +30,25 @@ args = "npm run dev"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm start"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 34265
-externalPort = 3001
-
-[[ports]]
 localPort = 38369
 externalPort = 3000
+
+[[ports]]
+localPort = 43011
+externalPort = 3001
 
 [deployment]
 deploymentTarget = "autoscale"
