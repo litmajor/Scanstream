@@ -1,15 +1,16 @@
-
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { CacheManager } from '../services/gateway/cache-manager';
 import { RateLimiter } from '../services/gateway/rate-limiter';
 import { ExchangeAggregator } from '../services/gateway/exchange-aggregator';
+import { CCXTScanner } from '../services/gateway/ccxt-scanner'; // Assuming CCXTScanner is in this path
 
 const router = Router();
 
 // Initialize services
-const cache = new CacheManager(5000);
+const cacheManager = new CacheManager(5000); // Renamed from 'cache' to avoid conflict with CacheManager class
 const rateLimiter = new RateLimiter();
-const aggregator = new ExchangeAggregator(cache, rateLimiter);
+const aggregator = new ExchangeAggregator(cacheManager, rateLimiter);
+const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter); // Initialize CCXTScanner
 
 // Initialize aggregator with CCXT
 aggregator.initialize().then(() => {
@@ -28,7 +29,7 @@ rateLimiter.initExchange('bybit', 150);
 
 // Cleanup cache every 5 minutes
 setInterval(() => {
-  const removed = cache.cleanup();
+  const removed = cacheManager.cleanup();
   if (removed > 0) {
     console.log(`[Gateway] Cleaned up ${removed} expired cache entries`);
   }
@@ -37,47 +38,117 @@ setInterval(() => {
 /**
  * Gateway Health Status
  */
-router.get('/health', async (req, res) => {
-  const cacheStats = cache.getStats();
-  
-  const rateLimitStats = {
-    binance: rateLimiter.getStats('binance'),
-    coinbase: rateLimiter.getStats('coinbase'),
-    kraken: rateLimiter.getStats('kraken'),
-    kucoinfutures: rateLimiter.getStats('kucoinfutures'),
-    okx: rateLimiter.getStats('okx'),
-    bybit: rateLimiter.getStats('bybit')
-  };
+router.get('/health', async (req: Request, res: Response) => {
+  try {
+    const cacheStats = cacheManager.getStats();
 
-  const exchangeHealth = aggregator.getHealthStatus();
+    const rateLimitStats = {
+      binance: rateLimiter.getStats('binance'),
+      coinbase: rateLimiter.getStats('coinbase'),
+      kraken: rateLimiter.getStats('kraken'),
+      kucoinfutures: rateLimiter.getStats('kucoinfutures'),
+      okx: rateLimiter.getStats('okx'),
+      bybit: rateLimiter.getStats('bybit')
+    };
 
-  const healthyCount = Object.values(exchangeHealth).filter(e => e.healthy).length;
-  const status = healthyCount === 0 ? 'down' : 
-                 healthyCount < 3 ? 'degraded' : 'healthy';
+    const exchangeHealth = aggregator.getHealthStatus();
 
-  res.json({
-    status,
-    exchanges: exchangeHealth,
-    rateLimits: rateLimitStats,
-    cache: {
-      hitRate: cacheStats.hitRate,
-      entries: cacheStats.entries
-    },
-    timestamp: new Date()
-  });
+    const healthyCount = Object.values(exchangeHealth).filter(e => e.healthy).length;
+    const status = healthyCount === 0 ? 'down' :
+                   healthyCount < 3 ? 'degraded' : 'healthy';
+
+    res.json({
+      status,
+      exchanges: exchangeHealth,
+      rateLimits: rateLimitStats,
+      cache: {
+        hitRate: cacheStats.hitRate,
+        entries: cacheStats.entries
+      },
+      timestamp: new Date()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Health check error:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
+
+/**
+ * GET /api/gateway/signals
+ * Get aggregated signals from gateway
+ */
+router.get('/signals', async (req: Request, res: Response) => {
+  try {
+    const cacheKey = 'gateway:signals:all';
+    const cached = cacheManager.get<any>(cacheKey);
+
+    if (cached) {
+      return res.json({
+        success: true,
+        signals: cached,
+        cached: true,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get scanner results and convert to signals
+    const scanResults = await ccxtScanner.scanAllExchanges(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
+
+    const signals = scanResults
+      .filter(result => result.price > 0)
+      .map(result => {
+        // Simple signal generation based on price change
+        let signal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+        const change = result.priceChange24h || 0;
+
+        if (change > 3) signal = 'BUY';
+        else if (change < -3) signal = 'SELL';
+
+        return {
+          symbol: result.symbol,
+          exchange: result.exchange,
+          signal,
+          strength: Math.min(Math.abs(change) * 10, 100),
+          price: result.price,
+          change24h: change,
+          volume: result.volume24h,
+          timestamp: Date.now()
+        };
+      });
+
+    cacheManager.set(cacheKey, signals, 30000); // 30s cache
+
+    res.json({
+      success: true,
+      signals,
+      count: signals.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Signals error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 
 /**
  * Cache Metrics
  */
-router.get('/metrics/cache', (req, res) => {
-  res.json(cache.getStats());
+router.get('/metrics/cache', (req: Request, res: Response) => {
+  res.json(cacheManager.getStats());
 });
 
 /**
  * Rate Limit Metrics
  */
-router.get('/metrics/rate-limit', (req, res) => {
+router.get('/metrics/rate-limit', (req: Request, res: Response) => {
   const stats = {
     binance: rateLimiter.getStats('binance'),
     coinbase: rateLimiter.getStats('coinbase'),
@@ -93,34 +164,34 @@ router.get('/metrics/rate-limit', (req, res) => {
 /**
  * Clear cache (admin endpoint)
  */
-router.post('/cache/clear', (req, res) => {
-  cache.clear();
+router.post('/cache/clear', (req: Request, res: Response) => {
+  cacheManager.clear();
   res.json({ success: true, message: 'Cache cleared' });
 });
 
 /**
  * Invalidate cache pattern
  */
-router.post('/cache/invalidate', (req, res) => {
+router.post('/cache/invalidate', (req: Request, res: Response) => {
   const { pattern } = req.body;
   if (!pattern) {
     return res.status(400).json({ error: 'Pattern required' });
   }
 
-  cache.invalidatePattern(pattern);
+  cacheManager.invalidatePattern(pattern);
   res.json({ success: true, message: `Invalidated cache entries matching: ${pattern}` });
 });
 
 /**
  * Get aggregated price from multiple exchanges
  */
-router.get('/price/:symbol', async (req, res) => {
+router.get('/price/:symbol', async (req: Request, res: Response) => {
   try {
     let symbol = req.params.symbol;
-    
+
     // Handle URL-encoded slashes (BTC%2FUSDT -> BTC/USDT)
     symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
-    
+
     console.log(`[Gateway] Fetching price for ${symbol}`);
     const priceData = await aggregator.getAggregatedPrice(symbol);
     res.json(priceData);
@@ -133,23 +204,23 @@ router.get('/price/:symbol', async (req, res) => {
 /**
  * Get OHLCV data with smart fallback
  */
-router.get('/ohlcv/:symbol', async (req, res) => {
+router.get('/ohlcv/:symbol', async (req: Request, res: Response) => {
   try {
     let symbol = req.params.symbol;
-    
+
     // Handle URL-encoded slashes
     symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
-    
+
     const { timeframe = '1m', limit = '100' } = req.query;
-    
+
     console.log(`[Gateway] Fetching OHLCV for ${symbol}, timeframe: ${timeframe}, limit: ${limit}`);
-    
+
     const ohlcv = await aggregator.getOHLCV(
       symbol,
       timeframe as string,
       parseInt(limit as string)
     );
-    
+
     res.json({
       symbol,
       timeframe,
@@ -165,17 +236,17 @@ router.get('/ohlcv/:symbol', async (req, res) => {
 /**
  * Get market frames for signal generation
  */
-router.get('/market-frames/:symbol', async (req, res) => {
+router.get('/market-frames/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
     const { timeframe = '1m', limit = '100' } = req.query;
-    
+
     const frames = await aggregator.getMarketFrames(
       symbol,
       timeframe as string,
       parseInt(limit as string)
     );
-    
+
     res.json({
       symbol,
       timeframe,
@@ -190,7 +261,7 @@ router.get('/market-frames/:symbol', async (req, res) => {
 /**
  * Reset exchange health
  */
-router.post('/exchange/:name/reset', (req, res) => {
+router.post('/exchange/:name/reset', (req: Request, res: Response) => {
   const { name } = req.params;
   aggregator.resetExchangeHealth(name);
   res.json({ success: true, message: `Exchange ${name} health reset` });
@@ -199,7 +270,7 @@ router.post('/exchange/:name/reset', (req, res) => {
 /**
  * Scan multiple symbols through Gateway + CCXT
  */
-router.post('/scan', async (req, res) => {
+router.post('/scan', async (req: Request, res: Response) => {
   try {
     const { symbols, timeframe = '1m', options = {} } = req.body;
 
@@ -209,8 +280,9 @@ router.post('/scan', async (req, res) => {
 
     console.log(`[Gateway] Scanning ${symbols.length} symbols via CCXT`);
 
+    // Use static imports from top of file if possible, otherwise dynamic import is fine here
     const { CCXTScanner } = require('../services/gateway/ccxt-scanner');
-    const scanner = new CCXTScanner(aggregator, cache, rateLimiter);
+    const scanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
 
     const results = await scanner.scanSymbols(symbols, timeframe, options);
 
@@ -231,11 +303,12 @@ router.post('/scan', async (req, res) => {
 /**
  * Get scan statistics
  */
-router.get('/scan/stats', (req, res) => {
+router.get('/scan/stats', (req: Request, res: Response) => {
   try {
+    // Use static imports from top of file if possible, otherwise dynamic import is fine here
     const { CCXTScanner } = require('../services/gateway/ccxt-scanner');
-    const scanner = new CCXTScanner(aggregator, cache, rateLimiter);
-    
+    const scanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
+
     res.json(scanner.getStats());
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -245,10 +318,10 @@ router.get('/scan/stats', (req, res) => {
 /**
  * Generate signal using Gateway pipeline
  */
-router.post('/signal/generate', async (req, res) => {
+router.post('/signal/generate', async (req: Request, res: Response) => {
   try {
     const { symbol, timeframe = '1m', limit = 100 } = req.body;
-    
+
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol required' });
     }
@@ -266,8 +339,8 @@ router.post('/signal/generate', async (req, res) => {
 
     const signal = await pipeline.generateSignal(symbol, timeframe, limit);
 
-    res.json({ 
-      symbol, 
+    res.json({
+      symbol,
       timeframe,
       signal,
       generatedAt: new Date()
@@ -281,10 +354,10 @@ router.post('/signal/generate', async (req, res) => {
 /**
  * Batch signal generation
  */
-router.post('/signal/batch', async (req, res) => {
+router.post('/signal/batch', async (req: Request, res: Response) => {
   try {
     const { symbols, timeframe = '1m' } = req.body;
-    
+
     if (!symbols || !Array.isArray(symbols)) {
       return res.status(400).json({ error: 'Symbols array required' });
     }
@@ -299,7 +372,7 @@ router.post('/signal/batch', async (req, res) => {
 
     const results = await pipeline.generateBatchSignals(symbols, timeframe);
 
-    res.json({ 
+    res.json({
       timeframe,
       count: results.length,
       results,
@@ -312,4 +385,4 @@ router.post('/signal/batch', async (req, res) => {
 });
 
 export default router;
-export { cache, rateLimiter, aggregator };
+export { cacheManager, rateLimiter, aggregator };

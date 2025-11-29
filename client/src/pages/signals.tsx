@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Zap, Brain, Target, Bot, TrendingUp, Filter, RefreshCw, Grid3x3, Clock } from 'lucide-react';
+import { Zap, Brain, Target, Bot, TrendingUp, Filter, RefreshCw, Grid3x3, Clock, Sparkles } from 'lucide-react';
 import EnhancedSignalsList from '../components/EnhancedSignalsList';
 import SignalStrengthHeatmap from '../components/SignalStrengthHeatmap';
 import SignalTimeline from '../components/SignalTimeline';
+import { UnifiedSignalDisplay } from '../components/UnifiedSignalDisplay';
+import { MarketOverview } from '../components/coingecko/MarketOverview';
 
 type SignalSource = 'all' | 'scanner' | 'strategies' | 'ml' | 'rl';
 
@@ -32,7 +34,7 @@ interface UnifiedSignal {
 export default function SignalsPage() {
   const [selectedSource, setSelectedSource] = useState<SignalSource>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'heatmap' | 'timeline'>('list');
+  const [viewMode, setViewMode] = useState<'unified' | 'list' | 'heatmap' | 'timeline'>('unified');
   const [filters, setFilters] = useState({
     hot: false,
     confirmed: false,
@@ -272,6 +274,17 @@ export default function SignalsPage() {
           <div className="flex items-center space-x-2">
             <span className="text-sm text-slate-400 mr-2">View:</span>
             <button
+              onClick={() => setViewMode('unified')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                viewMode === 'unified'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                  : 'bg-slate-800/50 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 inline mr-1" />
+              Unified
+            </button>
+            <button
               onClick={() => setViewMode('list')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 viewMode === 'list'
@@ -345,6 +358,13 @@ export default function SignalsPage() {
       </div>
 
       {/* Content based on view mode */}
+      {viewMode === 'unified' && (
+        <div className="space-y-6">
+          <MarketOverview />
+          <UnifiedSignalDisplay />
+        </div>
+      )}
+
       {viewMode === 'list' && (
         <EnhancedSignalsList 
           signals={displaySignals} 
