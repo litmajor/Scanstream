@@ -486,6 +486,23 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       bidAskRatio: 1.0,
       spread: (latest.high - latest.low),
       orderImbalance: latest.close > prev.close ? 'BUY' : 'SELL',
+    };
+
+    // Cache the dataframe
+    cacheManager.set(cacheKey, dataframe, 60000); // 1 minute cache
+
+    res.json({
+      symbol,
+      timeframe,
+      cached: false,
+      dataframe,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error(`[Gateway] Dataframe error for ${req.params.symbol}:`, error.message);
+    res.status(500).json({ error: error.message, symbol: req.params.symbol });
+  }
+});
 
 /**
  * PHASE 3: INTELLIGENCE LAYER ENDPOINTS
@@ -755,50 +772,6 @@ router.post('/recommend-exchange', async (req: Request, res: Response) => {
   }
 });
 
-
-      // Signals (4)
-      signal: rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'HOLD',
-      signalStrength: Math.abs(50 - (rsi || 50)),
-      signalConfidence: 65 + Math.random() * 20,
-      signalReason: `RSI:${((rsi || 50) as number).toFixed(1)}, Price:${(latest?.close || 0).toFixed(2)}, Trend:${(latest?.close || 0) > (ema50 || 0) ? 'Up' : 'Down'}`,
-
-      // Risk Metrics (5)
-      riskRewardRatio: 2.0,
-      stopLoss: latest.close * 0.95,
-      takeProfit: latest.close * 1.05,
-      supportLevel: Math.min(...frames.slice(-20).map(f => f.low)),
-      resistanceLevel: Math.max(...frames.slice(-20).map(f => f.high)),
-
-      // Performance (6)
-      change1h: ((latest.close - (frames.length > 1 ? frames[0].close : latest.close)) / (frames.length > 1 ? frames[0].close : 1)) * 100,
-      change24h: 0,
-      change7d: 0,
-      change30d: 0,
-      change30d: 0,
-      priceChangePercent: ((latest.close - prev.close) / prev.close) * 100,
-
-      // Quality (4)
-      confidence: 85,
-      dataQuality: 'GOOD',
-      sources: 1,
-      deviation: 0
-    };
-
-    // Cache the result
-    cacheManager.set(cacheKey, dataframe, 30000);
-
-    res.json({
-      symbol,
-      timeframe,
-      cached: false,
-      dataframe,
-      metadata: {
-        totalColumns: 67,
-        scanTime: new Date().toISOString(),
-        cacheHit: false
-      }
-
-
 /**
  * POST /api/gateway/alerts/subscribe
  * Subscribe to signal alerts for specific criteria
@@ -874,15 +847,6 @@ router.get('/signals/history', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error.message
-    });
-  }
-});
-
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      error: error.message,
-      symbol: req.params.symbol
     });
   }
 });

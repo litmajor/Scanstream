@@ -739,97 +739,183 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Enhanced Market Intelligence Page with All CoinGecko Data and Custom Analysis
   app.get('/api/market-intelligence', async (req: Request, res: Response) => {
     try {
-      // Fetch Fear & Greed Index from an external API (example: Alternative.me)
-      let fearGreedIndex = null;
+      // Fetch Fear & Greed Index from Alternative.me (crypto-specific)
+      let fearGreedData: { value: number; classification: string; timestamp: number } | null = null;
       try {
-        const response = await axios.get('https://api.alternative.me/fng/');
-        if (response.data && response.data.fng_data && response.data.fng_data.length > 0) {
-          fearGreedIndex = parseInt(response.data.fng_data[0].value, 10);
-        } else {
-          console.warn('Failed to fetch Fear & Greed Index:', response.statusText);
+        const response = await axios.get('https://api.alternative.me/fng/?limit=1');
+        if (response.data && response.data.data && response.data.data.length > 0) {
+          const fng = response.data.data[0];
+          fearGreedData = {
+            value: parseInt(fng.value, 10),
+            classification: fng.value_classification,
+            timestamp: parseInt(fng.timestamp, 10) * 1000
+          };
         }
       } catch (error: any) {
-        console.warn('Error fetching Fear & Greed Index:', error.message);
+        console.warn('[MarketIntel] Fear & Greed Index fetch failed:', error.message);
       }
 
-      // Fetch comprehensive CoinGecko data
-      let coingeckoGlobalData = null;
+      // Fetch comprehensive CoinGecko global data
+      let coingeckoGlobalData: any = null;
       try {
         const response = await axios.get('https://api.coingecko.com/api/v3/global');
         if (response.data && response.data.data) {
           coingeckoGlobalData = response.data.data;
-        } else {
-          console.warn('Failed to fetch CoinGecko global data:', response.statusText);
         }
       } catch (error: any) {
-        console.warn('Error fetching CoinGecko global data:', error.message);
+        console.warn('[MarketIntel] CoinGecko global data fetch failed:', error.message);
       }
 
-      // Fetch CoinGecko categories for market intelligence
-      let coingeckoCategories = null;
+      // Fetch top 100 coins with multi-timeframe price changes for gainers/losers
+      let marketData: any[] = [];
       try {
-        const response = await axios.get('https://api.coingecko.com/api/v3/coins/categories/list');
+        const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+          params: {
+            vs_currency: 'usd',
+            order: 'market_cap_desc',
+            per_page: 100,
+            page: 1,
+            sparkline: false,
+            price_change_percentage: '1h,24h,7d,30d,1y'
+          }
+        });
         if (response.data) {
-          coingeckoCategories = response.data;
-        } else {
-          console.warn('Failed to fetch CoinGecko categories:', response.statusText);
+          marketData = response.data;
         }
       } catch (error: any) {
-        console.warn('Error fetching CoinGecko categories:', error.message);
+        console.warn('[MarketIntel] CoinGecko market data fetch failed:', error.message);
       }
 
-      // Fetch CoinGecko exchanges for market intelligence
-      let coingeckoExchanges = null;
+      // Fetch trending coins
+      let trendingCoins: any[] = [];
       try {
-        const response = await axios.get('https://api.coingecko.com/api/v3/exchanges');
-        if (response.data) {
-          coingeckoExchanges = response.data;
-        } else {
-          console.warn('Failed to fetch CoinGecko exchanges:', response.statusText);
+        const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
+        if (response.data && response.data.coins) {
+          trendingCoins = response.data.coins.map((coin: any) => ({
+            id: coin.item.id,
+            name: coin.item.name,
+            symbol: coin.item.symbol.toUpperCase(),
+            marketCapRank: coin.item.market_cap_rank,
+            thumb: coin.item.thumb,
+            score: coin.item.score,
+            priceChange24h: coin.item.data?.price_change_percentage_24h?.usd || 0
+          }));
         }
       } catch (error: any) {
-        console.warn('Error fetching CoinGecko exchanges:', error.message);
+        console.warn('[MarketIntel] Trending coins fetch failed:', error.message);
       }
 
-      // Custom Analysis Reports (Example: Regime)
-      // This is a placeholder. In a real application, this would involve complex calculations
-      // based on market data, potentially using the analytics modules imported earlier.
-      let regimeAnalysis = 'neutral'; // Default regime
-      if (coingeckoGlobalData && coingeckoGlobalData.total_market_cap.usd && coingeckoGlobalData.total_volume.usd) {
-        const marketCap = coingeckoGlobalData.total_market_cap.usd;
-        const volume24h = coingeckoGlobalData.total_volume.usd;
-        // Simple example: determine regime based on market cap and volume trends
-        if (marketCap > 2.5e12 && volume24h > 100e9) {
-          regimeAnalysis = 'bullish';
-        } else if (marketCap < 1.5e12 || volume24h < 40e9) {
-          regimeAnalysis = 'bearish';
+      // Calculate top 10 gainers and losers from market data
+      const sortedBy24h = [...marketData].filter(c => c.price_change_percentage_24h_in_currency !== null);
+      const topGainers = sortedBy24h
+        .sort((a, b) => (b.price_change_percentage_24h_in_currency || 0) - (a.price_change_percentage_24h_in_currency || 0))
+        .slice(0, 10)
+        .map(coin => ({
+          id: coin.id,
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          currentPrice: coin.current_price,
+          priceChange1h: coin.price_change_percentage_1h_in_currency,
+          priceChange24h: coin.price_change_percentage_24h_in_currency,
+          priceChange7d: coin.price_change_percentage_7d_in_currency,
+          priceChange30d: coin.price_change_percentage_30d_in_currency,
+          priceChange1y: coin.price_change_percentage_1y_in_currency,
+          marketCap: coin.market_cap,
+          volume24h: coin.total_volume,
+          image: coin.image,
+          marketCapRank: coin.market_cap_rank
+        }));
+
+      const topLosers = sortedBy24h
+        .sort((a, b) => (a.price_change_percentage_24h_in_currency || 0) - (b.price_change_percentage_24h_in_currency || 0))
+        .slice(0, 10)
+        .map(coin => ({
+          id: coin.id,
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          currentPrice: coin.current_price,
+          priceChange1h: coin.price_change_percentage_1h_in_currency,
+          priceChange24h: coin.price_change_percentage_24h_in_currency,
+          priceChange7d: coin.price_change_percentage_7d_in_currency,
+          priceChange30d: coin.price_change_percentage_30d_in_currency,
+          priceChange1y: coin.price_change_percentage_1y_in_currency,
+          marketCap: coin.market_cap,
+          volume24h: coin.total_volume,
+          image: coin.image,
+          marketCapRank: coin.market_cap_rank
+        }));
+
+      // Determine market regime based on multiple factors
+      let regimeAnalysis = 'neutral';
+      let regimeScore = 50;
+      if (coingeckoGlobalData) {
+        const marketCapChangePercent = coingeckoGlobalData.market_cap_change_percentage_24h_usd || 0;
+        const btcDominance = coingeckoGlobalData.market_cap_percentage?.btc || 50;
+        
+        // Calculate regime score (0-100)
+        regimeScore = 50;
+        if (marketCapChangePercent > 5) regimeScore += 25;
+        else if (marketCapChangePercent > 2) regimeScore += 15;
+        else if (marketCapChangePercent > 0) regimeScore += 5;
+        else if (marketCapChangePercent < -5) regimeScore -= 25;
+        else if (marketCapChangePercent < -2) regimeScore -= 15;
+        else if (marketCapChangePercent < 0) regimeScore -= 5;
+
+        // Factor in fear/greed
+        if (fearGreedData) {
+          if (fearGreedData.value > 70) regimeScore += 10;
+          else if (fearGreedData.value < 30) regimeScore -= 10;
         }
+
+        regimeScore = Math.max(0, Math.min(100, regimeScore));
+        if (regimeScore >= 65) regimeAnalysis = 'bullish';
+        else if (regimeScore <= 35) regimeAnalysis = 'bearish';
+        else regimeAnalysis = 'neutral';
       }
 
-
-      // Combine data
+      // Build comprehensive response
       const marketIntelligence = {
-        fearGreedIndex: fearGreedIndex !== null ? fearGreedIndex : Math.floor(Math.random() * 100), // Fallback to random if API fails
-        // CoinGecko Global Data
-        btcDominance: coingeckoGlobalData?.['market_cap_change_percentage_24h_btc'] ?? (45 + Math.random() * 10),
-        totalMarketCap: coingeckoGlobalData?.total_market_cap.usd ?? (2.1e12 + Math.random() * 0.5e12),
-        volume24h: coingeckoGlobalData?.total_volume.usd ?? (50e9 + Math.random() * 20e9),
-        // Add more relevant CoinGecko global data as needed
-        // e.g., coingeckoGlobalData.data.total_market_cap.usd, coingeckoGlobalData.data.total_volume.usd, etc.
-        coingeckoCategories: coingeckoCategories,
-        coingeckoExchanges: coingeckoExchanges,
-        // Custom Analysis Reports
-        customAnalysis: {
-          regime: regimeAnalysis,
-          // Add other custom reports here
-          // e.g., volatilityIndex: calculateVolatilityIndex(marketData),
-          //       trendScore: calculateTrendScore(marketData)
-        }
+        // Fear & Greed (REAL DATA)
+        fearGreedIndex: fearGreedData?.value ?? null,
+        fearGreedClassification: fearGreedData?.classification ?? 'Unknown',
+        fearGreedTimestamp: fearGreedData?.timestamp ?? null,
+        
+        // Global Market Data (REAL DATA)
+        btcDominance: coingeckoGlobalData?.market_cap_percentage?.btc ?? null,
+        ethDominance: coingeckoGlobalData?.market_cap_percentage?.eth ?? null,
+        totalMarketCap: coingeckoGlobalData?.total_market_cap?.usd ?? null,
+        volume24h: coingeckoGlobalData?.total_volume?.usd ?? null,
+        marketCapChange24hPercent: coingeckoGlobalData?.market_cap_change_percentage_24h_usd ?? null,
+        activeCryptocurrencies: coingeckoGlobalData?.active_cryptocurrencies ?? null,
+        totalExchanges: coingeckoGlobalData?.markets ?? null,
+        
+        // Top Gainers/Losers (REAL DATA with multi-timeframe)
+        topGainers,
+        topLosers,
+        
+        // Trending Coins by Social Sentiment (REAL DATA)
+        trendingCoins,
+        
+        // Market Regime Analysis
+        marketRegime: {
+          status: regimeAnalysis,
+          score: regimeScore,
+          description: regimeAnalysis === 'bullish' 
+            ? 'Market showing strong upward momentum' 
+            : regimeAnalysis === 'bearish' 
+              ? 'Market showing downward pressure' 
+              : 'Market in consolidation phase'
+        },
+        
+        // Metadata
+        lastUpdated: new Date().toISOString(),
+        dataSource: 'CoinGecko + Alternative.me',
+        attribution: 'Data provided by CoinGecko (coingecko.com) and Alternative.me'
       };
 
       res.json(marketIntelligence);
     } catch (error: any) {
-      console.error('Error fetching market intelligence:', error);
+      console.error('[MarketIntel] Error fetching market intelligence:', error);
       res.status(500).json({ error: error.message });
     }
   });
