@@ -123,9 +123,17 @@ router.get('/signals', async (req: Request, res: Response) => {
 
     cacheManager.set(cacheKey, signals, 30000); // 30s cache
 
-    // Broadcast high-conviction signals via WebSocket
-    signals.forEach(sig => {
+    // Broadcast high-conviction signals via WebSocket and track performance
+    signals.forEach(async (sig) => {
       if (sig.strength >= 75) {
+        // Track signal for performance monitoring
+        await signalPerformanceTracker.trackSignal({
+          ...sig,
+          id: `sig-${sig.symbol}-${Date.now()}`,
+          stopLoss: sig.price * 0.95, // 5% stop loss
+          takeProfit: sig.price * 1.08, // 8% take profit
+        });
+
         signalWebSocketService.broadcastSignal(sig, 'new');
         
         // Send alert for very high strength

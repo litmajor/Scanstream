@@ -200,6 +200,28 @@ export class MemStorage implements IStorage {
       dayChangePercent: 4.84,
     };
   }
+
+  // Signal Performance Tracking
+  private signalPerformances: Map<string, any> = new Map();
+
+  async createSignalPerformance(performance: any): Promise<void> {
+    this.signalPerformances.set(performance.signalId, performance);
+  }
+
+  async updateSignalPerformance(signalId: string, updates: any): Promise<void> {
+    const existing = this.signalPerformances.get(signalId);
+    if (existing) {
+      this.signalPerformances.set(signalId, { ...existing, ...updates });
+    }
+  }
+
+  async getSignalPerformance(signalId: string): Promise<any> {
+    return this.signalPerformances.get(signalId);
+  }
+
+  async getAllSignalPerformances(): Promise<any[]> {
+    return Array.from(this.signalPerformances.values());
+  }
 }
 
 import { DbStorage } from './db-storage';

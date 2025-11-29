@@ -73,6 +73,7 @@ console.log('[express] Gateway API registered at /api/gateway');
 
 // Initialize WebSocket service for real-time signal streaming
 import { signalWebSocketService } from './services/websocket-signals';
+import { signalPriceMonitor } from './services/signal-price-monitor';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -110,6 +111,10 @@ app.use((req, res, next) => {
   
   // Initialize WebSocket signal streaming
   signalWebSocketService.initialize(server);
+
+  // Start signal price monitoring (updates every 5 seconds)
+  signalPriceMonitor.start(5000);
+  console.log('[SignalMonitor] Price monitoring started');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

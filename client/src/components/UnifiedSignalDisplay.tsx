@@ -225,6 +225,17 @@ export function UnifiedSignalDisplay() {
     refetchInterval: 30000,
   });
 
+  // Query signal performance stats
+  const { data: performanceStats } = useQuery({
+    queryKey: ['signal-performance-stats'],
+    queryFn: async () => {
+      const res = await fetch('/api/gateway/signals/performance/stats');
+      if (!res.ok) return null;
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+
   // WebSocket connection for real-time updates
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -359,6 +370,12 @@ export function UnifiedSignalDisplay() {
             {wsConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
             <span>{wsConnected ? 'Live' : 'Offline'}</span>
           </div>
+          {performanceStats && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-blue-500/10 text-blue-400 border border-blue-500/30">
+              <Activity className="w-4 h-4" />
+              <span>Win Rate: {performanceStats.winRate.toFixed(1)}%</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <span>{unifiedSignals.length} symbols tracked</span>
             <span>•</span>
