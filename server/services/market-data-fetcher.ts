@@ -1,6 +1,7 @@
 import { ExchangeAggregator } from './gateway/exchange-aggregator';
 import { CacheManager } from './gateway/cache-manager';
 import { RateLimiter } from './gateway/rate-limiter';
+import { SignalPipeline } from './gateway/signal-pipeline';
 import { signalWebSocketService } from './websocket-signals';
 
 /**
@@ -12,8 +13,10 @@ export class MarketDataFetcher {
   private aggregator: ExchangeAggregator;
   private cacheManager: CacheManager;
   private rateLimiter: RateLimiter;
+  private signalPipeline: SignalPipeline | null = null;
   private isRunning = false;
   private fetchInterval: NodeJS.Timer | null = null;
+  private latestSignals: Map<string, any> = new Map();
 
   // Popular trading pairs to fetch (Binance blocked on Replit, use other exchanges)
   private readonly symbols = [
@@ -28,10 +31,25 @@ export class MarketDataFetcher {
   // Exchanges to try (Binance is geo-blocked on Replit)
   private readonly exchangesToTry = ['coinbase', 'kucoinfutures', 'okx', 'bybit', 'kraken'];
 
-  constructor(aggregator: ExchangeAggregator, cacheManager: CacheManager, rateLimiter: RateLimiter) {
+  constructor(aggregator: ExchangeAggregator, cacheManager: CacheManager, rateLimiter: RateLimiter, signalPipeline?: SignalPipeline) {
     this.aggregator = aggregator;
     this.cacheManager = cacheManager;
     this.rateLimiter = rateLimiter;
+    this.signalPipeline = signalPipeline || null;
+  }
+
+  /**
+   * Set the signal pipeline (optional, for signal generation)
+   */
+  setSignalPipeline(pipeline: SignalPipeline): void {
+    this.signalPipeline = pipeline;
+  }
+
+  /**
+   * Get latest generated signals
+   */
+  getLatestSignals(): Map<string, any> {
+    return this.latestSignals;
   }
 
   /**
@@ -143,12 +161,36 @@ export class MarketDataFetcher {
           fetchedAt: Date.now(),
         };
 
-        // Broadcast to all connected WebSocket clients
+        // Broadcast market data to WebSocket clients
         signalWebSocketService.broadcastSignal(marketDataMessage, 'update');
 
         // Cache the OHLCV data
         const cacheKey = `ohlcv:${symbol}:1h`;
         this.cacheManager.set(cacheKey, hourlyData, 60000); // 60s cache
+
+        // Step 2: Generate trading signal from the market data
+        if (this.signalPipeline) {
+          try {
+            const signal = await this.signalPipeline.generateSignal(symbol, '1h', 100);
+            if (signal) {
+              this.latestSignals.set(symbol, signal);
+              
+              // Broadcast signal to WebSocket clients
+              const signalMessage = {
+                type: 'signal_generated',
+                symbol,
+                signal,
+                generatedAt: Date.now(),
+              };
+              signalWebSocketService.broadcastSignal(signalMessage, 'new');
+              
+              console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${signal.action}`);
+            }
+          } catch (signalError: any) {
+            console.warn(`[MarketDataFetcher] Signal generation failed for ${symbol}:`, signalError.message);
+            // Don't throw - market data still valid even if signal fails
+          }
+        }
       }
     } catch (error) {
       console.error(`[MarketDataFetcher] Error fetching ${symbol}:`, error);

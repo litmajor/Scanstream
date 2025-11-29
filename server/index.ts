@@ -85,6 +85,7 @@ console.log('[express] Gateway API registered at /api/gateway');
 import { signalWebSocketService } from './services/websocket-signals';
 import { signalPriceMonitor } from './services/signal-price-monitor';
 import { initializeMarketDataFetcher } from './services/market-data-fetcher';
+import { SignalPipeline } from './services/gateway/signal-pipeline';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -129,9 +130,18 @@ app.use((req, res, next) => {
 
   // Initialize and start market data fetcher (auto-fetches BTC, ETH, SOL, etc)
   const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
+  
+  // Initialize signal pipeline
+  const signalPipeline = new SignalPipeline(aggregator, (global as any).signalEngine);
+  
   const marketDataFetcher = initializeMarketDataFetcher(aggregator, cacheManager, rateLimiter);
+  marketDataFetcher.setSignalPipeline(signalPipeline);
   await marketDataFetcher.start();
-  console.log('[MarketDataFetcher] Auto-fetch service started');
+  
+  // Expose market data fetcher globally so endpoints can access signals
+  (global as any).marketDataFetcher = marketDataFetcher;
+  
+  console.log('[MarketDataFetcher] Auto-fetch service started with signal generation');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
