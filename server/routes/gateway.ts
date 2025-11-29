@@ -114,23 +114,35 @@ router.post('/cache/invalidate', (req, res) => {
 /**
  * Get aggregated price from multiple exchanges
  */
-router.get('/price/:symbol', async (req, res) => {
+router.get('/price/:symbol(*)', async (req, res) => {
   try {
-    const { symbol } = req.params;
+    let symbol = req.params.symbol;
+    
+    // Handle URL-encoded slashes (BTC%2FUSDT -> BTC/USDT)
+    symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
+    
+    console.log(`[Gateway] Fetching price for ${symbol}`);
     const priceData = await aggregator.getAggregatedPrice(symbol);
     res.json(priceData);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(`[Gateway] Price fetch error for ${req.params.symbol}:`, error.message);
+    res.status(500).json({ error: error.message, symbol: req.params.symbol });
   }
 });
 
 /**
  * Get OHLCV data with smart fallback
  */
-router.get('/ohlcv/:symbol', async (req, res) => {
+router.get('/ohlcv/:symbol(*)', async (req, res) => {
   try {
-    const { symbol } = req.params;
+    let symbol = req.params.symbol;
+    
+    // Handle URL-encoded slashes
+    symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
+    
     const { timeframe = '1m', limit = '100' } = req.query;
+    
+    console.log(`[Gateway] Fetching OHLCV for ${symbol}, timeframe: ${timeframe}, limit: ${limit}`);
     
     const ohlcv = await aggregator.getOHLCV(
       symbol,
@@ -141,10 +153,12 @@ router.get('/ohlcv/:symbol', async (req, res) => {
     res.json({
       symbol,
       timeframe,
+      count: ohlcv.length,
       data: ohlcv
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(`[Gateway] OHLCV fetch error for ${req.params.symbol}:`, error.message);
+    res.status(500).json({ error: error.message, symbol: req.params.symbol });
   }
 });
 
@@ -183,6 +197,52 @@ router.post('/exchange/:name/reset', (req, res) => {
 });
 
 /**
+ * Scan multiple symbols through Gateway + CCXT
+ */
+router.post('/scan', async (req, res) => {
+  try {
+    const { symbols, timeframe = '1m', options = {} } = req.body;
+
+    if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
+      return res.status(400).json({ error: 'Symbols array required' });
+    }
+
+    console.log(`[Gateway] Scanning ${symbols.length} symbols via CCXT`);
+
+    const { CCXTScanner } = require('../services/gateway/ccxt-scanner');
+    const scanner = new CCXTScanner(aggregator, cache, rateLimiter);
+
+    const results = await scanner.scanSymbols(symbols, timeframe, options);
+
+    res.json({
+      scanned: results.length,
+      total: symbols.length,
+      timeframe,
+      results,
+      stats: scanner.getStats(),
+      timestamp: new Date()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Scan error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Get scan statistics
+ */
+router.get('/scan/stats', (req, res) => {
+  try {
+    const { CCXTScanner } = require('../services/gateway/ccxt-scanner');
+    const scanner = new CCXTScanner(aggregator, cache, rateLimiter);
+    
+    res.json(scanner.getStats());
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Generate signal using Gateway pipeline
  */
 router.post('/signal/generate', async (req, res) => {
@@ -193,10 +253,12 @@ router.post('/signal/generate', async (req, res) => {
       return res.status(400).json({ error: 'Symbol required' });
     }
 
-    // Import signal pipeline components
-    const { SignalEngine, defaultTradingConfig } = await import('../../trading-engine');
-    const { EnhancedMultiTimeframeAnalyzer } = await import('../../multi-timeframe');
-    const { SignalPipeline } = await import('../../services/gateway/signal-pipeline');
+    console.log(`[Gateway] Generating signal for ${symbol}, timeframe: ${timeframe}`);
+
+    // Use static imports from top of file
+    const { SignalEngine, defaultTradingConfig } = require('../trading-engine');
+    const { EnhancedMultiTimeframeAnalyzer } = require('../multi-timeframe');
+    const { SignalPipeline } = require('../services/gateway/signal-pipeline');
 
     const signalEngine = new SignalEngine(defaultTradingConfig);
     const analyzer = new EnhancedMultiTimeframeAnalyzer(signalEngine);
@@ -211,7 +273,8 @@ router.post('/signal/generate', async (req, res) => {
       generatedAt: new Date()
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error(`[Gateway] Signal generation error:`, error.message);
+    res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
 
@@ -226,8 +289,10 @@ router.post('/signal/batch', async (req, res) => {
       return res.status(400).json({ error: 'Symbols array required' });
     }
 
-    const { SignalEngine, defaultTradingConfig } = await import('../../trading-engine');
-    const { SignalPipeline } = await import('../../services/gateway/signal-pipeline');
+    console.log(`[Gateway] Batch signal generation for ${symbols.length} symbols`);
+
+    const { SignalEngine, defaultTradingConfig } = require('../trading-engine');
+    const { SignalPipeline } = require('../services/gateway/signal-pipeline');
 
     const signalEngine = new SignalEngine(defaultTradingConfig);
     const pipeline = new SignalPipeline(aggregator, signalEngine);
@@ -241,6 +306,7 @@ router.post('/signal/batch', async (req, res) => {
       generatedAt: new Date()
     });
   } catch (error: any) {
+    console.error(`[Gateway] Batch signal error:`, error.message);
     res.status(500).json({ error: error.message });
   }
 });
