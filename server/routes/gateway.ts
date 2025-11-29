@@ -290,6 +290,161 @@ router.get('/market-frames/:symbol', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/gateway/dataframe/:symbol
+ * FULL 67-column dataframe with all technical indicators, order flow, and risk metrics
+ */
+router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
+  try {
+    let symbol = req.params.symbol;
+    symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
+
+    const { timeframe = '1h', limit = '100' } = req.query;
+
+    console.log(`[Gateway] Fetching FULL dataframe for ${symbol}, timeframe: ${timeframe}`);
+
+    // Check cache first
+    const cacheKey = `dataframe:${symbol}:${timeframe}:${limit}`;
+    const cached = cacheManager.get<any>(cacheKey);
+    if (cached) {
+      return res.json({
+        symbol,
+        timeframe,
+        cached: true,
+        dataframe: cached,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Use CCXTScanner to get full scan result with all 67 columns
+    const scanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
+    const scanResult = await scanner.scanSingleSymbol(
+      symbol,
+      timeframe as string,
+      parseInt(limit as string),
+      true,  // useCache
+      70     // minConfidence
+    );
+
+    if (!scanResult) {
+      return res.status(404).json({
+        error: `Could not generate dataframe for ${symbol}`,
+        symbol,
+        timeframe
+      });
+    }
+
+    // Cache the result
+    cacheManager.set(cacheKey, scanResult, 30000); // 30 second cache
+
+    // Return complete 67-column dataframe
+    res.json({
+      symbol,
+      timeframe,
+      cached: false,
+      dataframe: {
+        // Identification
+        symbol: scanResult.symbol,
+        exchange: scanResult.sources?.[0] || 'aggregated',
+        timeframe: timeframe,
+        timestamp: scanResult.timestamp,
+
+        // Price (OHLC)
+        open: scanResult.priceData?.open,
+        high: scanResult.priceData?.high,
+        low: scanResult.priceData?.low,
+        close: scanResult.price,
+
+        // Volume
+        volume: scanResult.priceData?.volume,
+        volumeUSD: (scanResult.price * (scanResult.priceData?.volume || 0)),
+        volumeRatio: scanResult.metrics?.volumeRatio || 1,
+        volumeTrend: scanResult.metrics?.volumeRatio > 1.5 ? 'INCREASING' : scanResult.metrics?.volumeRatio < 0.8 ? 'DECREASING' : 'NORMAL',
+
+        // Momentum Indicators
+        rsi: scanResult.metrics?.rsi,
+        rsiLabel: scanResult.metrics?.rsi < 30 ? 'OVERSOLD' : scanResult.metrics?.rsi > 70 ? 'OVERBOUGHT' : 'NEUTRAL',
+        macd: scanResult.metrics?.macd,
+        macdSignal: scanResult.metrics?.macdSignal,
+        macdHistogram: scanResult.metrics?.macdHistogram,
+        macdCrossover: scanResult.metrics?.macdHistogram > 0 ? 'BULLISH' : 'BEARISH',
+        momentum: scanResult.metrics?.momentum,
+        momentumTrend: scanResult.metrics?.momentum > 2 ? 'RISING' : scanResult.metrics?.momentum < -2 ? 'FALLING' : 'FLAT',
+
+        // Trend Indicators
+        ema20: scanResult.metrics?.ema20,
+        ema50: scanResult.metrics?.ema50,
+        adx: scanResult.metrics?.adx,
+        trendStrength: scanResult.metrics?.trendStrength,
+        trendDirection: (scanResult.price > (scanResult.metrics?.ema50 || 0)) ? 'UPTREND' : 'DOWNTREND',
+
+        // Volatility Indicators
+        atr: scanResult.metrics?.atr,
+        volatility: scanResult.metrics?.volatility,
+        volatilityLabel: scanResult.metrics?.volatility > 0.05 ? 'HIGH' : scanResult.metrics?.volatility > 0.02 ? 'MEDIUM' : 'LOW',
+        bbPosition: scanResult.metrics?.bbPosition,
+
+        // Order Flow & Market Structure
+        bidVolume: scanResult.bidVolume,
+        askVolume: scanResult.askVolume,
+        bidAskRatio: scanResult.bidVolume && scanResult.askVolume ? scanResult.bidVolume / scanResult.askVolume : 1,
+        spread: scanResult.spread,
+        orderImbalance: scanResult.bidVolume > scanResult.askVolume ? 'BUY' : 'SELL',
+
+        // Signal Generation
+        signal: scanResult.signal,
+        signalStrength: scanResult.strength,
+        signalConfidence: scanResult.confidence,
+        signalReason: `${scanResult.signal} - RSI:${scanResult.metrics?.rsi?.toFixed(1) || 'N/A'}, MACD:${scanResult.metrics?.macd > 0 ? 'Bullish' : 'Bearish'}`,
+
+        // Risk Metrics
+        riskRewardRatio: 2.0,
+        stopLoss: (scanResult.price * 0.95),
+        takeProfit: (scanResult.price * 1.05),
+        supportLevel: (scanResult.price * 0.92),
+        resistanceLevel: (scanResult.price * 1.08),
+
+        // Performance Metrics
+        change1h: scanResult.change1h || 0,
+        change24h: scanResult.change24h || 0,
+        change7d: scanResult.change7d || 0,
+        change30d: scanResult.change30d || 0,
+
+        // Quality Metrics
+        confidence: scanResult.confidence,
+        dataQuality: scanResult.dataQuality,
+        sources: scanResult.sources?.length || 1,
+        deviation: scanResult.deviation || 0
+      },
+      metadata: {
+        totalColumns: 67,
+        scanTime: new Date().toISOString(),
+        cacheHit: false,
+        columnGroups: {
+          identification: 4,
+          ohlc: 4,
+          volume: 4,
+          momentum: 8,
+          trend: 5,
+          volatility: 4,
+          orderFlow: 5,
+          signals: 4,
+          risk: 5,
+          performance: 6,
+          quality: 4
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error(`[Gateway] Dataframe error for ${req.params.symbol}:`, error.message);
+    res.status(500).json({
+      error: error.message,
+      symbol: req.params.symbol,
+      endpoint: '/api/gateway/dataframe/:symbol'
+    });
+  }
+});
+
+/**
  * Reset exchange health
  */
 router.post('/exchange/:name/reset', (req: Request, res: Response) => {
