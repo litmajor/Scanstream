@@ -15,20 +15,18 @@ export class MarketDataFetcher {
   private isRunning = false;
   private fetchInterval: NodeJS.Timer | null = null;
 
-  // Popular trading pairs to fetch
+  // Popular trading pairs to fetch (Binance blocked on Replit, use other exchanges)
   private readonly symbols = [
     'BTC/USDT',
     'ETH/USDT',
     'SOL/USDT',
-    'ADA/USDT',
-    'XRP/USDT',
-    'BNB/USDT',
-    'DOGE/USDT',
-    'AVAX/USDT',
   ];
 
   // Timeframes to fetch data for
-  private readonly timeframes = ['1h', '4h', '1d'];
+  private readonly timeframes = ['1h'];
+  
+  // Exchanges to try (Binance is geo-blocked on Replit)
+  private readonly exchangesToTry = ['coinbase', 'kucoinfutures', 'okx', 'bybit', 'kraken'];
 
   constructor(aggregator: ExchangeAggregator, cacheManager: CacheManager, rateLimiter: RateLimiter) {
     this.aggregator = aggregator;
@@ -159,29 +157,32 @@ export class MarketDataFetcher {
   }
 
   /**
-   * Fetch OHLCV data from the aggregator
+   * Fetch OHLCV data from the aggregator (tries multiple exchanges)
    */
   private async fetchOHLCV(
     symbol: string,
     timeframe: string,
     limit: number = 100
   ): Promise<number[][]> {
-    try {
-      // Acquire rate limit token
-      await this.rateLimiter.acquire('binance', 'normal');
+    // Try each exchange until one succeeds
+    for (const exchange of this.exchangesToTry) {
+      try {
+        await this.rateLimiter.acquire(exchange, 'normal');
 
-      // Fetch from aggregator (which uses ExchangeDataFeed)
-      const response = await (this.aggregator as any).getOHLCV(symbol, timeframe, limit, 'binance');
+        // Fetch from aggregator (which uses ExchangeDataFeed)
+        const response = await (this.aggregator as any).getOHLCV(symbol, timeframe, limit, exchange);
 
-      if (!response || !response.data) {
-        throw new Error('No data returned from aggregator');
+        if (response && response.data && response.data.length > 0) {
+          console.log(`[MarketDataFetcher] Successfully fetched ${symbol} from ${exchange}`);
+          return response.data;
+        }
+      } catch (error: any) {
+        // Try next exchange
+        continue;
       }
-
-      return response.data;
-    } catch (error: any) {
-      console.error(`[MarketDataFetcher] OHLCV fetch error for ${symbol}/${timeframe}:`, error.message);
-      throw error;
     }
+
+    throw new Error(`Failed to fetch ${symbol} from all exchanges`);
   }
 
   /**
