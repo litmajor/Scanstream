@@ -17,6 +17,10 @@ author = "agent"
 task = "workflow.run"
 args = "Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
 [[workflows.workflow]]
 name = "Server"
 author = "agent"
@@ -38,6 +42,15 @@ mode = "sequential"
 task = "shell.exec"
 args = "npm run dev"
 
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
 [[ports]]
 localPort = 5000
 externalPort = 80
@@ -46,7 +59,11 @@ externalPort = 80
 localPort = 34175
 externalPort = 3000
 
+[[ports]]
+localPort = 41471
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "autoscale"
-run = ["npm", "start"]
-build = ["npm", "run", "db:generate"]
+run = ["npm", "run", "start"]
+build = ["npm", "run", "build"]
