@@ -175,8 +175,6 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const exchangeRef = useRef<string>('binance');
-  const reconnectAttemptsRef = useRef<number>(0);
   const onMessageRef = useRef(onMessage); // Store callback in ref to avoid reconnections
   const maxReconnectAttempts = 10;
   const baseReconnectDelay = 1000; // Start with 1 second
@@ -346,6 +344,7 @@ export default function TradingTerminal() {
   const [btcDominance, setBtcDominance] = useState(0);
   const [totalMarketCap, setTotalMarketCap] = useState(0);
   const [volume24h, setVolume24h] = useState(0);
+  const [gatewayOHLCV, setGatewayOHLCV] = useState<any>(null); // State for Gateway OHLCV data
 
   // Loading and error states
   const [loading, setLoading] = useState({
@@ -394,7 +393,7 @@ export default function TradingTerminal() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showQuickTradeModal, setShowQuickTradeModal] = useState(false);
-  
+
   // Notifications
   const {
     notifications,
@@ -407,7 +406,7 @@ export default function TradingTerminal() {
     toggleSound,
     addNotification
   } = useNotifications();
-  
+
   // Auto-hide timer refs
   const leftSidebarTimerRef = useRef<NodeJS.Timeout | null>(null);
   const rightSidebarTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -466,7 +465,7 @@ export default function TradingTerminal() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      
+
       // Sidebar toggles
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
@@ -475,25 +474,25 @@ export default function TradingTerminal() {
         e.preventDefault();
         setShowRightSidebar(prev => !prev);
       }
-      
+
       // Chart fullscreen
       else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         setIsChartFullscreen(prev => !prev);
       }
-      
+
       // ESC to exit fullscreen
       else if (e.key === 'Escape' && isChartFullscreen) {
         setIsChartFullscreen(false);
       }
-      
+
       // Timeframe shortcuts (1-5)
       else if (['1', '2', '3', '4', '5'].includes(e.key)) {
         e.preventDefault();
         const timeframes = ['1m', '5m', '1h', '1d', '1w'];
         setSelectedTimeframe(timeframes[parseInt(e.key) - 1]);
       }
-      
+
       // Quick Actions shortcut (Q)
       else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault();
@@ -557,7 +556,8 @@ export default function TradingTerminal() {
   // Use the proxy path /ws which will be forwarded to the backend server
   const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
-  const { isConnected, setExchange } = useWebSocket(
+  // Gateway Agent WebSocket hook
+  const { isConnected: isGatewayConnected, setExchange } = useWebSocket(
     wsUrl,
     (message: any) => {
       switch (message.type) {
@@ -592,6 +592,10 @@ export default function TradingTerminal() {
           setAvailableCash(portfolio.availableCash || 0);
           setDayChange(portfolio.dayChange || 0);
           setDayChangePercent(portfolio.dayChangePercent || 0);
+          break;
+        }
+        case 'ohlcv': { // Handle OHLCV data from Gateway Agent
+          setGatewayOHLCV(message.data);
           break;
         }
         default:
@@ -714,7 +718,25 @@ export default function TradingTerminal() {
 
   // Chart data computation - use CoinGecko data if available, fallback to WebSocket data
   const chartData: ChartDataPoint[] = useMemo(() => {
-    // First try CoinGecko data
+    // First try Gateway Agent data if available and successful
+    if (gatewayOHLCV?.success && gatewayOHLCV.candles?.length > 0) {
+      console.log(`[Chart] Using Gateway Agent data for ${selectedSymbol}: ${gatewayOHLCV.candles.length} candles`);
+      // Assuming gatewayOHLCV.candles is in the format [timestamp, open, high, low, close, volume]
+      return gatewayOHLCV.candles.map((candle: any) => ({
+        timestamp: candle[0],
+        open: candle[1],
+        high: candle[2],
+        low: candle[3],
+        close: candle[4],
+        volume: candle[5],
+        // Placeholder for indicators if available from Gateway Agent
+        rsi: null,
+        macd: null,
+        ema: null,
+      }));
+    }
+
+    // Then try CoinGecko data
     if (coinGeckoChartData && coinGeckoChartData.length > 0) {
       console.log(`[Chart] Using CoinGecko data for ${selectedSymbol}: ${coinGeckoChartData.length} candles`);
       return coinGeckoChartData;
@@ -724,7 +746,7 @@ export default function TradingTerminal() {
     const filteredData = marketData.filter(frame => frame.symbol === selectedSymbol);
 
     if (filteredData.length === 0) {
-      console.log(`[Chart] No chart data available for ${selectedSymbol} - neither CoinGecko nor WebSocket`);
+      console.log(`[Chart] No chart data available for ${selectedSymbol} - neither Gateway, CoinGecko, nor WebSocket`);
       return [];
     }
 
@@ -740,7 +762,7 @@ export default function TradingTerminal() {
       macd: frame.indicators?.macd?.line ?? null,
       ema: frame.indicators?.ema20 ?? null,
     }));
-  }, [coinGeckoChartData, marketData, selectedSymbol]);
+  }, [gatewayOHLCV, coinGeckoChartData, marketData, selectedSymbol]);
 
   // Current market frame
   const currentFrame = useMemo(() => {
@@ -953,7 +975,7 @@ export default function TradingTerminal() {
 
       {/* Professional Market Status Bar */}
       <MarketStatusBar
-        isConnected={isConnected}
+        isConnected={isGatewayConnected}
         currentPrice={currentPrice}
         priceChange={priceChange}
         priceChangePercent={priceChangePercent}
@@ -1030,7 +1052,7 @@ export default function TradingTerminal() {
                 <Maximize2 className="w-4 h-4 text-slate-400" />
               }
             </button>
-            
+
                     <div className="h-6 w-px bg-slate-700"></div>
                     <button
                       onClick={() => setShowNotifications(!showNotifications)}
@@ -1072,7 +1094,7 @@ export default function TradingTerminal() {
             </span>
           </button>
         )}
-        
+
         {!showRightSidebar && (
           <button
             onClick={() => setShowRightSidebar(true)}
@@ -1086,7 +1108,7 @@ export default function TradingTerminal() {
             </span>
           </button>
         )}
-        
+
         {/* Left Sidebar - Market Overview (Overlay Mode) */}
         {showLeftSidebar && (
           <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -1419,8 +1441,7 @@ export default function TradingTerminal() {
                       }`}
                       data-testid="price-change"
                     >
-                      {priceChange >= 0 ? '+' : ''}{formatCurrency(priceChange)} (
-                      {formatPercent(priceChangePercent)})
+                      {priceChange >= 0 ? '+' : ''}{formatPercent(priceChangePercent)}
                     </span>
                   </div>
                 </div>
@@ -1465,6 +1486,7 @@ export default function TradingTerminal() {
                   <button
                     className="p-2 hover:bg-slate-800/50 rounded-lg transition-colors"
                     data-testid="chart-fullscreen"
+                    onClick={() => setIsChartFullscreen(!isChartFullscreen)}
                     aria-label="Toggle Fullscreen Chart"
                   >
                     <ExpandIcon className="w-4 h-4 text-slate-400" />
@@ -1496,7 +1518,7 @@ export default function TradingTerminal() {
                   <div className="h-full w-full flex items-center justify-center">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                      <p className="text-slate-400 font-medium">Loading chart data from CoinGecko...</p>
+                      <p className="text-slate-400 font-medium">Loading chart data...</p>
                       <p className="text-xs text-slate-500 mt-2">Fetching {selectedSymbol} candlestick data</p>
                     </div>
                   </div>
@@ -1533,7 +1555,7 @@ export default function TradingTerminal() {
                                     ? 'bg-green-500/10 text-green-400' 
                                     : 'bg-red-500/10 text-red-400'
                                 }`}>
-                                  {priceChange >= 0 ? '+' : ''}{priceChangePercent.toFixed(2)}%
+                                  {priceChange >= 0 ? '+' : ''}{formatPercent(priceChangePercent)}
                                 </span>
                               </div>
                             </div>
@@ -1799,7 +1821,15 @@ export default function TradingTerminal() {
                           </div>
                           <div className="flex justify-between items-center py-1.5">
                             <span className="text-slate-400">Data Source</span>
-                            <span className="text-green-400 font-medium">CoinGecko</span>
+                            {gatewayOHLCV?.success ? (
+                              <span className="text-green-400 font-medium">
+                                ⚡ Live ({gatewayOHLCV.source || selectedExchange})
+                              </span>
+                            ) : (
+                              <span className="text-yellow-400 font-medium">
+                                CoinGecko
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2139,24 +2169,24 @@ export default function TradingTerminal() {
                     <div className="text-center">
                       <div className="mb-4">
                         <div className={`w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center ${
-                          isConnected ? 'bg-yellow-100 dark:bg-yellow-900/20' : 'bg-red-100 dark:bg-red-900/20'
+                          isGatewayConnected ? 'bg-yellow-100 dark:bg-yellow-900/20' : 'bg-red-100 dark:bg-red-900/20'
                         }`}>
                           <div className={`w-8 h-8 rounded-full ${
-                            isConnected ? 'bg-yellow-500' : 'bg-red-500'
+                            isGatewayConnected ? 'bg-yellow-500' : 'bg-red-500'
                           }`}></div>
                       </div>
                         <div className="text-lg font-semibold mb-2">
-                          {isConnected ? 'Connected to Scanner' : 'Connecting to Scanner...'}
+                          {isGatewayConnected ? 'Connected to Scanner' : 'Connecting to Scanner...'}
                         </div>
                         <div className="text-sm text-gray-500 mb-4">
-                          {isConnected 
+                          {isGatewayConnected 
                             ? `Waiting for ${selectedSymbol} data from ${selectedExchange}` 
                             : 'Establishing WebSocket connection...'
                           }
                         </div>
                       </div>
                       <div className="text-xs text-gray-400">
-                        WebSocket Status: {isConnected ? '✅ Connected' : '❌ Disconnected'}
+                        WebSocket Status: {isGatewayConnected ? '✅ Connected' : '❌ Disconnected'}
                       </div>
                     </div>
                   </div>
@@ -2202,14 +2232,14 @@ export default function TradingTerminal() {
                 variant={(portfolioSummary?.metrics?.totalReturn ?? 0) >= 0 ? 'success' : 'error'}
                 size="sm"
               />
-              
+
               <StatCard
                 title="Current Balance"
                 value={`$${((portfolioSummary?.metrics?.currentBalance ?? 10000)).toLocaleString()}`}
                 icon={Wallet}
                 size="sm"
               />
-              
+
               <StatCard
                 title="Win Rate"
                 value={`${((portfolioSummary?.metrics?.winRate ?? 0) * 100).toFixed(1)}%`}
@@ -2217,14 +2247,14 @@ export default function TradingTerminal() {
                 variant="info"
                 size="sm"
               />
-              
+
               <StatCard
                 title="Total Trades"
                 value={portfolioSummary?.metrics?.totalTrades ?? 0}
                 icon={Activity}
                 size="sm"
               />
-              
+
               <StatCard
                 title="Max Drawdown"
                 value={`${((portfolioSummary?.metrics?.maxDrawdown ?? 0) * 100).toFixed(2)}%`}
@@ -2232,7 +2262,7 @@ export default function TradingTerminal() {
                 variant="warning"
                 size="sm"
               />
-              
+
               <StatCard
                 title="Sharpe Ratio"
                 value={(portfolioSummary?.metrics?.sharpeRatio ?? 0).toFixed(2)}
@@ -2260,10 +2290,10 @@ export default function TradingTerminal() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+              <div className={`w-2 h-2 rounded-full ${isGatewayConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
               <span className="text-slate-400">WebSocket:</span>
-              <span className={isConnected ? 'text-green-400' : 'text-red-400'} data-testid="connection-status">
-                {isConnected ? 'Connected' : 'Disconnected'}
+              <span className={isGatewayConnected ? 'text-green-400' : 'text-red-400'} data-testid="connection-status">
+                {isGatewayConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
             <div className="flex items-center space-x-1">
