@@ -9,6 +9,8 @@ import enhancedAnalyticsRouter from "./routes/enhanced-analytics";
 import mlPredictionsRouter from './routes/ml-predictions';
 import mlTrainingRouter from './routes/ml-training';
 import analyticsRouter from './routes/analytics';
+import mlSignalsRouter from './routes/ml-signals';
+import rlSignalsRouter from './routes/rl-signals';
 // Removed fastScanner service import
 
 
@@ -71,6 +73,12 @@ console.log('[express] ML Training API registered at /api/ml/training');
 app.use('/api/analytics', analyticsRouter);
 console.log('[express] Analytics API registered at /api/analytics');
 
+// Register ML and RL signal routes
+app.use('/api/ml-engine', mlSignalsRouter);
+console.log('[express] ML Signals API registered at /api/ml-engine');
+app.use('/api/rl-agent', rlSignalsRouter);
+console.log('[express] RL Signals API registered at /api/rl-agent');
+
 // Register Optimization routes
 import optimizationRouter from './routes/optimization';
 app.use('/api/optimize', optimizationRouter);
@@ -131,21 +139,21 @@ app.use((req, res, next) => {
 
   // Initialize and start market data fetcher (auto-fetches BTC, ETH, SOL, etc)
   const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
-  
+
   // Initialize signal engine for analysis
   const signalEngine = new SignalEngine(defaultTradingConfig);
-  
+
   // Initialize signal pipeline
   const signalPipeline = new SignalPipeline(aggregator, signalEngine);
-  
+
   const marketDataFetcher = initializeMarketDataFetcher(aggregator, cacheManager, rateLimiter);
   marketDataFetcher.setSignalPipeline(signalPipeline);
   await marketDataFetcher.start();
-  
+
   // Expose for other services
   (global as any).marketDataFetcher = marketDataFetcher;
   (global as any).signalPipeline = signalPipeline;
-  
+
   console.log('[MarketDataFetcher] Auto-fetch service started with signal generation');
 
   // importantly only setup vite in development and after

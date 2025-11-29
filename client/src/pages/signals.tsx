@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Zap, Brain, Target, Bot, TrendingUp, Filter, RefreshCw, Grid3x3, Clock, Sparkles, Zap as Radar } from 'lucide-react';
 import EnhancedSignalsList from '../components/EnhancedSignalsList';
@@ -30,6 +30,7 @@ interface UnifiedSignal {
   advanced?: {
     opportunity_score?: number;
   };
+  sourceLabel?: string; // Added for enhanced display
 }
 
 export default function SignalsPage() {
@@ -52,7 +53,7 @@ export default function SignalsPage() {
       const response = await fetch('/api/scanner/signals');
       if (!response.ok) return [];
       const data = await response.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'scanner' as const }));
+      return (data.signals || []).map((s: any) => ({ ...s, source: 'scanner' as const, sourceLabel: '🔍 Scanner' }));
     },
     refetchInterval: 30000,
   });
@@ -64,7 +65,7 @@ export default function SignalsPage() {
       const response = await fetch('/api/strategies/signals');
       if (!response.ok) return [];
       const data = await response.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'strategy' as const }));
+      return (data.signals || []).map((s: any) => ({ ...s, source: 'strategy' as const, sourceLabel: '🎯 Strategy' }));
     },
     refetchInterval: 30000,
   });
@@ -83,6 +84,7 @@ export default function SignalsPage() {
         price: p.price,
         timestamp: p.timestamp,
         source: 'ml' as const,
+        sourceLabel: '🤖 ML Model',
         confidence: p.confidence,
       }));
     },
@@ -96,7 +98,7 @@ export default function SignalsPage() {
       const response = await fetch('/api/rl-agent/signals');
       if (!response.ok) return [];
       const data = await response.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'rl' as const }));
+      return (data.signals || []).map((s: any) => ({ ...s, source: 'rl' as const, sourceLabel: '🧠 RL Agent' }));
     },
     refetchInterval: 45000,
   });
@@ -112,23 +114,30 @@ export default function SignalsPage() {
     volume: g.volume,
     timestamp: new Date(g.timestamp).getTime(),
     source: 'scanner' as const,
+    sourceLabel: '🚀 Gateway',
     confidence: g.signalConfidence / 100,
     indicators: { rsi: g.rsi, macd: g.macd },
     strategyName: 'Gateway Scanner',
   }));
 
-  // Combine all signals
-  const allSignals: UnifiedSignal[] = [
-    ...gatewayUnifiedSignals,
-    ...(scannerSignals || []),
-    ...(strategySignals || []),
-    ...(mlSignals || []),
-    ...(rlSignals || []),
-  ].sort((a, b) => b.timestamp - a.timestamp);
+  // Combine all signals with source labels
+  const allSignals = useMemo(() => {
+    const signals = [
+      ...(gatewayUnifiedSignals || []),
+      ...(scannerSignals || []).map(s => ({ ...s, sourceLabel: '🔍 Scanner' })),
+      ...(strategySignals || []).map(s => ({ ...s, sourceLabel: '🎯 Strategy' })),
+      ...(mlSignals || []).map(s => ({ ...s, sourceLabel: '🤖 ML Model' })),
+      ...(rlSignals || []).map(s => ({ ...s, sourceLabel: '🧠 RL Agent' })),
+    ];
+
+    return signals.sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [gatewayUnifiedSignals, scannerSignals, strategySignals, mlSignals, rlSignals]);
 
   // Filter by source
-  let displaySignals = selectedSource === 'all' 
-    ? allSignals 
+  let displaySignals = selectedSource === 'all'
+    ? allSignals
     : allSignals.filter(s => s.source === selectedSource);
 
   // Apply smart filters
@@ -290,7 +299,7 @@ export default function SignalsPage() {
               <Filter className="h-4 w-4 text-cyan-400" />
             </div>
             <div className="text-2xl font-bold text-white">
-              {allSignals.length > 0 
+              {allSignals.length > 0
                 ? (allSignals.reduce((sum, s) => sum + s.strength, 0) / allSignals.length).toFixed(0)
                 : 0
               }%
@@ -390,13 +399,22 @@ export default function SignalsPage() {
       {viewMode === 'unified' && (
         <div className="space-y-6">
           <MarketOverview />
-          <UnifiedSignalDisplay />
+          <UnifiedSignalDisplay
+            signals={allSignals.map(signal => ({
+              ...signal,
+              // Add sourceLabel to UnifiedSignalDisplay props if it expects it
+              sourceLabel: signal.sourceLabel || '📊 Signal', 
+            }))}
+          />
         </div>
       )}
 
       {viewMode === 'list' && (
-        <EnhancedSignalsList 
-          signals={displaySignals} 
+        <EnhancedSignalsList
+          signals={displaySignals.map(signal => ({
+            ...signal,
+            sourceLabel: signal.sourceLabel || '📊 Signal',
+          }))}
           isLoading={false}
         />
       )}
@@ -432,4 +450,3 @@ export default function SignalsPage() {
     </div>
   );
 }
-

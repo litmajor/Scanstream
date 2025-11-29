@@ -213,7 +213,7 @@ export class DbStorage implements IStorage {
     const summary = await this.prisma.portfolioSummary.findFirst({
       orderBy: { createdAt: 'desc' },
     });
-    
+
     // Return default empty portfolio if no data exists
     if (!summary) {
       return {
@@ -224,7 +224,7 @@ export class DbStorage implements IStorage {
         dayChangePercent: 0,
       };
     }
-    
+
     // If summary fields are nested in summary.data, extract them
     const data = (summary as any).data || summary;
     return {
