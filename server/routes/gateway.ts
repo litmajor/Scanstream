@@ -36,6 +36,11 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
+// Export getter functions for services
+export function getGatewayServices() {
+  return { aggregator, cacheManager, rateLimiter };
+}
+
 /**
  * Gateway Health Status
  */

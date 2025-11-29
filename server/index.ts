@@ -77,13 +77,14 @@ app.use('/api/optimize', optimizationRouter);
 console.log('[express] Optimization API registered at /api/optimize');
 
 // Register Gateway routes
-import gatewayRouter from './routes/gateway';
+import gatewayRouter, { getGatewayServices } from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
 console.log('[express] Gateway API registered at /api/gateway');
 
 // Initialize WebSocket service for real-time signal streaming
 import { signalWebSocketService } from './services/websocket-signals';
 import { signalPriceMonitor } from './services/signal-price-monitor';
+import { initializeMarketDataFetcher } from './services/market-data-fetcher';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -125,6 +126,12 @@ app.use((req, res, next) => {
   // Start signal price monitoring (updates every 5 seconds)
   signalPriceMonitor.start(5000);
   console.log('[SignalMonitor] Price monitoring started');
+
+  // Initialize and start market data fetcher (auto-fetches BTC, ETH, SOL, etc)
+  const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
+  const marketDataFetcher = initializeMarketDataFetcher(aggregator, cacheManager, rateLimiter);
+  await marketDataFetcher.start();
+  console.log('[MarketDataFetcher] Auto-fetch service started');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

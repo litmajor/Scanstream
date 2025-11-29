@@ -197,7 +197,24 @@ router.get('/api/coingecko/coin-from-symbol/:symbol', async (req: Request, res: 
       'INJ': 'injective-protocol',
       'SUI': 'sui',
       'TIA': 'celestia'
+    };
 
+    const cleanSymbol = symbol.replace('/USDT', '').replace('/USD', '').toUpperCase();
+    const coinId = symbolMap[cleanSymbol];
+
+    if (coinId) {
+      res.json({ success: true, symbol: cleanSymbol, coinId });
+    } else {
+      res.json({ success: false, error: 'Symbol not found', symbol: cleanSymbol });
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to map symbol',
+      message: error.message
+    });
+  }
+});
 
 /**
  * Fetch multi-timeframe data for ML training
@@ -301,26 +318,6 @@ router.get('/api/coingecko/chart/:coinId/multi-timeframe', async (req: Request, 
   }
 });
 
-    };
-    
-    const cleanSymbol = symbol.replace('/USDT', '').replace('/USD', '').toUpperCase();
-    const coinId = symbolMap[cleanSymbol];
-    
-    if (coinId) {
-      res.json({ success: true, symbol: cleanSymbol, coinId });
-    } else {
-      res.json({ success: false, error: 'Symbol not found', symbol: cleanSymbol });
-    }
-    
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: 'Failed to map symbol',
-      message: error.message
-    });
-  }
-});
-
 /**
  * Clear chart cache (for testing/debugging)
  * POST /api/coingecko/chart/clear-cache
@@ -331,4 +328,3 @@ router.post('/api/coingecko/chart/clear-cache', (req: Request, res: Response) =>
 });
 
 export default router;
-
