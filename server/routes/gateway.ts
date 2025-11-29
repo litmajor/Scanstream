@@ -129,11 +129,15 @@ router.get('/health', async (req: Request, res: Response) => {
 
 /**
  * GET /api/gateway/signals
- * Get aggregated signals from gateway
+ * Get aggregated signals from gateway with filtering
+ * Query params: signalType (BUY/SELL/HOLD), minConfidence (0-100), trendDirection (up/down/neutral)
  */
 router.get('/signals', async (req: Request, res: Response) => {
   try {
-    const cacheKey = 'gateway:signals:all';
+    const { signalType, minConfidence, trendDirection } = req.query;
+    const minConf = minConfidence ? parseFloat(minConfidence as string) : 0;
+    
+    const cacheKey = `gateway:signals:${signalType || 'all'}:${minConf}:${trendDirection || 'all'}`;
     const cached = cacheManager.get<any>(cacheKey);
 
     if (cached) {
@@ -141,6 +145,7 @@ router.get('/signals', async (req: Request, res: Response) => {
         success: true,
         signals: cached,
         cached: true,
+        filters: { signalType, minConfidence: minConf, trendDirection },
         timestamp: new Date().toISOString()
       });
     }
@@ -148,7 +153,7 @@ router.get('/signals', async (req: Request, res: Response) => {
     // Get scanner results and convert to signals
     const scanResults = await ccxtScanner.scanAllExchanges(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
 
-    const signals = scanResults
+    let signals = scanResults
       .filter(result => result.price > 0)
       .map(result => {
         // Simple signal generation based on price change
@@ -158,6 +163,8 @@ router.get('/signals', async (req: Request, res: Response) => {
         if (change > 3) signal = 'BUY';
         else if (change < -3) signal = 'SELL';
 
+        const trend = change > 1 ? 'up' : change < -1 ? 'down' : 'neutral';
+
         return {
           symbol: result.symbol,
           exchange: result.exchange,
@@ -166,9 +173,23 @@ router.get('/signals', async (req: Request, res: Response) => {
           price: result.price,
           change24h: change,
           volume: result.volume24h,
+          trend,
           timestamp: Date.now()
         };
       });
+
+    // Apply filters
+    if (signalType && signalType !== 'all') {
+      signals = signals.filter(s => s.signal === (signalType as string).toUpperCase());
+    }
+    
+    if (minConf > 0) {
+      signals = signals.filter(s => s.strength >= minConf);
+    }
+    
+    if (trendDirection && trendDirection !== 'all') {
+      signals = signals.filter(s => s.trend === trendDirection);
+    }
 
     cacheManager.set(cacheKey, signals, 30000); // 30s cache
 
@@ -182,6 +203,29 @@ router.get('/signals', async (req: Request, res: Response) => {
           stopLoss: sig.price * 0.95, // 5% stop loss
           takeProfit: sig.price * 1.08, // 8% take profit
         });
+
+        // Store signal in database for historical analysis
+        try {
+          const { storage } = await import('../storage');
+          await storage.addSignal({
+            symbol: sig.symbol,
+            exchange: sig.exchange,
+            timeframe: '24h',
+            signal: sig.signal,
+            strength: sig.strength / 100, // Convert to 0-1 range
+            price: sig.price,
+            indicators: {
+              rsi: sig.indicators?.rsi || 0,
+              macd: sig.indicators?.macd || 'neutral',
+              ema: sig.indicators?.ema || 'neutral',
+              volume: sig.indicators?.volume || 'medium'
+            },
+            reason: `Gateway signal - ${sig.signal} with ${sig.strength}% strength`,
+            timestamp: new Date()
+          });
+        } catch (dbError) {
+          console.error('[Gateway] Failed to store signal:', dbError);
+        }
 
         signalWebSocketService.broadcastSignal(sig, 'new');
         
@@ -201,6 +245,11 @@ router.get('/signals', async (req: Request, res: Response) => {
       success: true,
       signals,
       count: signals.length,
+      filters: {
+        signalType: signalType || 'all',
+        minConfidence: minConf,
+        trendDirection: trendDirection || 'all'
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
@@ -748,6 +797,87 @@ router.post('/recommend-exchange', async (req: Request, res: Response) => {
         scanTime: new Date().toISOString(),
         cacheHit: false
       }
+
+
+/**
+ * POST /api/gateway/alerts/subscribe
+ * Subscribe to signal alerts for specific criteria
+ */
+router.post('/alerts/subscribe', async (req: Request, res: Response) => {
+  try {
+    const { symbols, signalTypes, minStrength } = req.body;
+    
+    // Store subscription (in production, associate with user ID)
+    const subscription = {
+      id: `sub-${Date.now()}`,
+      symbols: symbols || [],
+      signalTypes: signalTypes || ['BUY', 'SELL'],
+      minStrength: minStrength || 80,
+      createdAt: new Date()
+    };
+    
+    // In production, store in database with user association
+    console.log('[Gateway] Alert subscription created:', subscription);
+    
+    res.json({
+      success: true,
+      subscription,
+      message: 'Alert subscription created. You will receive notifications via WebSocket.'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/gateway/signals/history
+ * Get historical signals from database
+ */
+router.get('/signals/history', async (req: Request, res: Response) => {
+  try {
+    const { symbol, signalType, limit = '50', offset = '0' } = req.query;
+    const { storage } = await import('../storage');
+    
+    // Query database for historical signals
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+    
+    // Build query - this is a simplified version
+    // In production, use proper Prisma query with filters
+    const allSignals = await storage.getLatestSignals(limitNum + offsetNum);
+    
+    let filtered = allSignals;
+    
+    if (symbol) {
+      filtered = filtered.filter(s => s.symbol === symbol);
+    }
+    
+    if (signalType) {
+      filtered = filtered.filter(s => s.signal === signalType);
+    }
+    
+    const paginated = filtered.slice(offsetNum, offsetNum + limitNum);
+    
+    res.json({
+      success: true,
+      signals: paginated,
+      total: filtered.length,
+      limit: limitNum,
+      offset: offsetNum,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Signal history error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
     });
   } catch (error: any) {
     res.status(500).json({

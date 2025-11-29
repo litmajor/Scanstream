@@ -7,6 +7,7 @@ import { useWebSocket } from '../lib/useWebSocket';
 import { ScanProgress } from '../components/ScanProgress';
 import { SymbolDetailModal } from '../components/SymbolDetailModal';
 import { FlowMetricsPanel } from '../components/FlowMetricsPanel';
+import { SignalFilters } from '../components/SignalFilters'; // Import SignalFilters component
 
 export default function ScannerPage() {
   const [, setLocation] = useLocation();
@@ -23,7 +24,7 @@ export default function ScannerPage() {
   const [showTopSignals, setShowTopSignals] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
-  const [expandedSignal, setExpandedSignal] = useState<string | null>(null);
+  const [selectedSymbolDetail, setSelectedSymbolDetail] = useState<any | null>(null);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [alertThreshold, setAlertThreshold] = useState(80);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
@@ -32,6 +33,13 @@ export default function ScannerPage() {
   const [showPositionCalculator, setShowPositionCalculator] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
+
+  // Filter state for the new SignalFilters component
+  const [filters, setFilters] = useState({
+    signalType: 'all',
+    minConfidence: 0,
+    trendDirection: 'all'
+  });
 
   // WebSocket for real-time scanner updates
   const [realTimeSignals, setRealTimeSignals] = useState<any[]>([]);
@@ -67,7 +75,6 @@ export default function ScannerPage() {
     loadCachedResults();
   }, []);
   const [scanProgress, setScanProgress] = useState<{ total: number; remaining: number } | null>(null);
-  const [selectedSymbolDetail, setSelectedSymbolDetail] = useState<any | null>(null);
 
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
   const { isConnected, lastMessage, send } = useWebSocket(wsUrl);
@@ -381,7 +388,21 @@ export default function ScannerPage() {
   const fullScanSignals = scannerData?.signals || []; // Python scanner full scan results
 
   // Display both - prioritize live signals if available, otherwise show full scan
-  const displaySignals = (liveSignals && liveSignals.length > 0) ? liveSignals : fullScanSignals;
+  let displaySignals = (liveSignals && liveSignals.length > 0) ? liveSignals : fullScanSignals;
+
+  // Apply filters to displaySignals
+  if (filters.signalType !== 'all') {
+    displaySignals = displaySignals.filter(s => s.signal === filters.signalType);
+  }
+  if (filters.minConfidence > 0) {
+    displaySignals = displaySignals.filter(s => s.strength >= filters.minConfidence);
+  }
+  if (filters.trendDirection !== 'all') {
+    displaySignals = displaySignals.filter(s => 
+      (s as any).trendDirection?.toLowerCase().includes(filters.trendDirection) ||
+      (s as any).trend === filters.trendDirection
+    );
+  }
 
   // Save scan results to localStorage for Dashboard access
   useEffect(() => {
@@ -1353,6 +1374,12 @@ export default function ScannerPage() {
               <RefreshCw className={`w-5 h-5 ${isScanning ? 'animate-spin' : ''}`} />
               {isScanning ? 'Fetching...' : 'Fetch Market Data'}
             </button>
+
+            {/* Render the SignalFilters component */}
+            <SignalFilters
+              currentFilters={filters}
+              onFilterChange={setFilters}
+            />
           </div>
         )}
       </div>
