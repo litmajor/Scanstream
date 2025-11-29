@@ -66,6 +66,11 @@ import optimizationRouter from './routes/optimization';
 app.use('/api/optimize', optimizationRouter);
 console.log('[express] Optimization API registered at /api/optimize');
 
+// Register Gateway routes
+import gatewayRouter from './routes/gateway';
+app.use('/api/gateway', gatewayRouter);
+console.log('[express] Gateway API registered at /api/gateway');
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
