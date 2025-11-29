@@ -2,12 +2,21 @@
 import { Router } from 'express';
 import { CacheManager } from '../services/gateway/cache-manager';
 import { RateLimiter } from '../services/gateway/rate-limiter';
+import { ExchangeAggregator } from '../services/gateway/exchange-aggregator';
 
 const router = Router();
 
 // Initialize services
 const cache = new CacheManager(5000);
 const rateLimiter = new RateLimiter();
+const aggregator = new ExchangeAggregator(cache, rateLimiter);
+
+// Initialize aggregator with CCXT
+aggregator.initialize().then(() => {
+  console.log('[Gateway] Aggregator ready');
+}).catch(err => {
+  console.error('[Gateway] Aggregator initialization failed:', err);
+});
 
 // Initialize rate limits for exchanges
 rateLimiter.initExchange('binance', 400);
@@ -31,7 +40,7 @@ setInterval(() => {
 router.get('/health', async (req, res) => {
   const cacheStats = cache.getStats();
   
-  const exchanges = {
+  const rateLimitStats = {
     binance: rateLimiter.getStats('binance'),
     coinbase: rateLimiter.getStats('coinbase'),
     kraken: rateLimiter.getStats('kraken'),
@@ -40,13 +49,16 @@ router.get('/health', async (req, res) => {
     bybit: rateLimiter.getStats('bybit')
   };
 
-  const healthyCount = Object.values(exchanges).filter(e => e?.healthy).length;
+  const exchangeHealth = aggregator.getHealthStatus();
+
+  const healthyCount = Object.values(exchangeHealth).filter(e => e.healthy).length;
   const status = healthyCount === 0 ? 'down' : 
                  healthyCount < 3 ? 'degraded' : 'healthy';
 
   res.json({
     status,
-    exchanges,
+    exchanges: exchangeHealth,
+    rateLimits: rateLimitStats,
     cache: {
       hitRate: cacheStats.hitRate,
       entries: cacheStats.entries
@@ -99,5 +111,139 @@ router.post('/cache/invalidate', (req, res) => {
   res.json({ success: true, message: `Invalidated cache entries matching: ${pattern}` });
 });
 
+/**
+ * Get aggregated price from multiple exchanges
+ */
+router.get('/price/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const priceData = await aggregator.getAggregatedPrice(symbol);
+    res.json(priceData);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Get OHLCV data with smart fallback
+ */
+router.get('/ohlcv/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = '1m', limit = '100' } = req.query;
+    
+    const ohlcv = await aggregator.getOHLCV(
+      symbol,
+      timeframe as string,
+      parseInt(limit as string)
+    );
+    
+    res.json({
+      symbol,
+      timeframe,
+      data: ohlcv
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Get market frames for signal generation
+ */
+router.get('/market-frames/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { timeframe = '1m', limit = '100' } = req.query;
+    
+    const frames = await aggregator.getMarketFrames(
+      symbol,
+      timeframe as string,
+      parseInt(limit as string)
+    );
+    
+    res.json({
+      symbol,
+      timeframe,
+      count: frames.length,
+      frames
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Reset exchange health
+ */
+router.post('/exchange/:name/reset', (req, res) => {
+  const { name } = req.params;
+  aggregator.resetExchangeHealth(name);
+  res.json({ success: true, message: `Exchange ${name} health reset` });
+});
+
+/**
+ * Generate signal using Gateway pipeline
+ */
+router.post('/signal/generate', async (req, res) => {
+  try {
+    const { symbol, timeframe = '1m', limit = 100 } = req.body;
+    
+    if (!symbol) {
+      return res.status(400).json({ error: 'Symbol required' });
+    }
+
+    // Import signal pipeline components
+    const { SignalEngine, defaultTradingConfig } = await import('../../trading-engine');
+    const { EnhancedMultiTimeframeAnalyzer } = await import('../../multi-timeframe');
+    const { SignalPipeline } = await import('../../services/gateway/signal-pipeline');
+
+    const signalEngine = new SignalEngine(defaultTradingConfig);
+    const analyzer = new EnhancedMultiTimeframeAnalyzer(signalEngine);
+    const pipeline = new SignalPipeline(aggregator, signalEngine, analyzer);
+
+    const signal = await pipeline.generateSignal(symbol, timeframe, limit);
+
+    res.json({ 
+      symbol, 
+      timeframe,
+      signal,
+      generatedAt: new Date()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Batch signal generation
+ */
+router.post('/signal/batch', async (req, res) => {
+  try {
+    const { symbols, timeframe = '1m' } = req.body;
+    
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'Symbols array required' });
+    }
+
+    const { SignalEngine, defaultTradingConfig } = await import('../../trading-engine');
+    const { SignalPipeline } = await import('../../services/gateway/signal-pipeline');
+
+    const signalEngine = new SignalEngine(defaultTradingConfig);
+    const pipeline = new SignalPipeline(aggregator, signalEngine);
+
+    const results = await pipeline.generateBatchSignals(symbols, timeframe);
+
+    res.json({ 
+      timeframe,
+      count: results.length,
+      results,
+      generatedAt: new Date()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
-export { cache, rateLimiter };
+export { cache, rateLimiter, aggregator };
