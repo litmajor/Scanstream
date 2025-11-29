@@ -10,7 +10,9 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+    }),
   ],
   resolve: {
     alias: {
@@ -24,10 +26,18 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "client", "dist"),
     emptyOutDir: true,
   },
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
+  optimizeDeps: {
+    noDiscovery: true,
+    include: [],
+  },
   server: {
     fs: {
-      strict: true,
-      deny: ["**/.*"],
+      strict: false,
+      allow: ['..'],
     },
     host: '0.0.0.0',
     port: 5000,

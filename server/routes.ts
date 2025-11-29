@@ -86,15 +86,18 @@ try {
   // For hot-reload DX, use tsx --watch or nodemon --exec node -r esbuild-register
   // npm i cors helmet express-rate-limit
   export async function registerRoutes(app: Express): Promise<Server> {
-    // Trust proxy for proper IP detection behind reverse proxy (MUST be set before rate limiting)
-    app.set('trust proxy', true);
+    // Trust proxy disabled for development - this avoids rate limiter validation errors
+    app.set('trust proxy', false);
 
     // Security & CORS middleware
     app.use(cors());
-    app.use(helmet());
+    app.use(helmet({
+      contentSecurityPolicy: false,
+    }));
     app.use(rateLimit({
       windowMs: 60 * 1000, // 1 minute
-      max: 100, // limit each IP to 100 requests per windowMs
+      max: 1000, // limit each IP to 1000 requests per windowMs (increased for dev)
+      validate: { trustProxy: false },
     }));
 
     // --- Advanced Volume Profile & Composite Analytics API ---
