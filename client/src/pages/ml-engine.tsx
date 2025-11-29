@@ -81,14 +81,14 @@ export default function MLEnginePage() {
         fetch('/api/ml-engine/predictions'),
         fetch('/api/ml-engine/status')
       ]);
-      
+
       if (!predictionsRes.ok || !statusRes.ok) {
         throw new Error('Failed to fetch ML data');
       }
-      
+
       const predictions = await predictionsRes.json();
       const status = await statusRes.json();
-      
+
       // Transform to expected format
       return {
         models: (predictions.predictions || []).slice(0, 3).map((p: any, i: number) => ({
@@ -135,11 +135,11 @@ export default function MLEnginePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modelId: selectedModel })
       });
-      
+
       if (!response.ok) {
         throw new Error('Training failed');
       }
-      
+
       await refetch();
     } catch (err) {
       console.error('Training error:', err);
@@ -308,7 +308,7 @@ export default function MLEnginePage() {
             <h2 className="text-lg font-semibold text-white">Train Models</h2>
             <Brain className="w-5 h-5 text-slate-400" />
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -351,7 +351,7 @@ export default function MLEnginePage() {
         {/* ML Models */}
         <div className="space-y-6">
           <h2 className="text-lg font-semibold text-white">ML Models</h2>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {mlData?.models.map((model) => (
               <div key={model.id} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
@@ -388,29 +388,29 @@ export default function MLEnginePage() {
                 </div>
 
                 {/* Predictions */}
-                <div className="mb-4 pt-4 border-t border-slate-700/30">
-                  <h4 className="text-sm font-medium text-slate-300 mb-2">Predictions</h4>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="text-center">
-                      <div className="text-slate-400">1H</div>
-                      <div className="font-semibold text-white">
-                        ${model.predictions.nextHour}
-                      </div>
+              <div className="mb-4 pt-4 border-t border-slate-700/30">
+                <h4 className="text-sm font-medium text-slate-300 mb-2">Predictions</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-center">
+                    <div className="text-slate-400">Price</div>
+                    <div className="font-semibold text-white">
+                      ${model.predictions.nextHour?.toFixed(2)}
                     </div>
-                    <div className="text-center">
-                      <div className="text-slate-400">1D</div>
-                      <div className="font-semibold text-white">
-                        ${model.predictions.nextDay}
-                      </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-slate-400">Change</div>
+                    <div className={`font-semibold ${model.predictions.nextDay > model.predictions.nextHour ? 'text-green-400' : 'text-red-400'}`}>
+                      {((model.predictions.nextDay - model.predictions.nextHour) / model.predictions.nextHour * 100).toFixed(2)}%
                     </div>
-                    <div className="text-center">
-                      <div className="text-slate-400">1W</div>
-                      <div className="font-semibold text-white">
-                        ${model.predictions.nextWeek}
-                      </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-slate-400">Hold</div>
+                    <div className="font-semibold text-purple-400">
+                      {(model.predictions.nextWeek / 24).toFixed(1)}d
                     </div>
                   </div>
                 </div>
+              </div>
 
                 {/* Action Buttons */}
                 <div className="flex space-x-2">

@@ -235,4 +235,11 @@ export class DbStorage implements IStorage {
       dayChangePercent: data.dayChangePercent ?? 0,
     };
   }
+
+  async getRecentFrames(limit: number = 1000): Promise<MarketFrame[]> {
+    return this.prisma.marketFrame.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+    });
+  }
 }

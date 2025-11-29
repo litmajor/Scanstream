@@ -39,6 +39,13 @@ export interface MLPredictions {
     level: 'low' | 'medium' | 'high' | 'extreme';
     confidence: number;
   };
+  holdingPeriod: {
+    candles: number;
+    days: number;
+    hours: number;
+    confidence: number;
+    reason: string;
+  };
   risk: {
     score: number; // 0-100
     level: 'low' | 'medium' | 'high' | 'extreme';
@@ -68,12 +75,14 @@ export class MLPredictionService {
     const direction = this.predictDirection(chartData, features);
     const price = this.predictPrice(chartData, features);
     const volatility = this.predictVolatility(chartData, features);
+    const holdingPeriod = this.predictHoldingPeriod(chartData, features, direction, volatility);
     const risk = this.assessRisk(chartData, features, direction, volatility);
 
     return {
       direction,
       price,
       volatility,
+      holdingPeriod,
       risk,
       metadata: {
         timestamp: Date.now(),
@@ -273,7 +282,90 @@ export class MLPredictionService {
   }
 
   /**
-   * Model 4: Risk Assessor
+   * Model 4: Holding Period Predictor
+   * Predicts optimal holding duration (in candles)
+   */
+  private static predictHoldingPeriod(
+    data: ChartDataPoint[],
+    features: Record<string, number>,
+    direction: MLPredictions['direction'],
+    volatility: MLPredictions['volatility']
+  ): {
+    candles: number;
+    days: number;
+    hours: number;
+    confidence: number;
+    reason: string;
+  } {
+    let basePeriod = 10; // Default 10 candles
+    let confidence = 0.5;
+    let reason = 'Normal market conditions';
+
+    // Volatility-based adjustment
+    if (volatility.level === 'low') {
+      basePeriod = 30; // Hold longer in low volatility
+      reason = 'Low volatility favors longer holds';
+      confidence = 0.8;
+    } else if (volatility.level === 'high') {
+      basePeriod = 5; // Exit faster in high volatility
+      reason = 'High volatility favors quick exits';
+      confidence = 0.7;
+    } else if (volatility.level === 'extreme') {
+      basePeriod = 2; // Very quick exits
+      reason = 'Extreme volatility - scalp only';
+      confidence = 0.85;
+    }
+
+    // Trend strength adjustment
+    const trendStrength = Math.abs(features.trendStrength);
+    if (trendStrength > 0.6) {
+      basePeriod = Math.floor(basePeriod * 1.5); // Strong trend = hold longer
+      reason = 'Strong trend detected - extended hold';
+      confidence = Math.min(0.9, confidence + 0.1);
+    } else if (trendStrength < 0.2) {
+      basePeriod = Math.floor(basePeriod * 0.5); // Weak trend = exit faster
+      reason = 'Weak trend - quick scalp recommended';
+    }
+
+    // RSI extremes adjustment
+    if (features.rsi > 70) {
+      basePeriod = Math.floor(basePeriod * 0.7); // Overbought = exit sooner
+      reason = 'Overbought conditions - expect reversal';
+    } else if (features.rsi < 30) {
+      basePeriod = Math.floor(basePeriod * 0.7); // Oversold = exit sooner
+      reason = 'Oversold conditions - expect bounce';
+    }
+
+    // Direction confidence adjustment
+    if (direction.confidence > 0.8) {
+      basePeriod = Math.floor(basePeriod * 1.3); // High confidence = hold longer
+      confidence = Math.max(confidence, direction.confidence);
+    }
+
+    // Volume consideration
+    if (features.volumeRatio > 2) {
+      basePeriod = Math.floor(basePeriod * 0.8); // High volume = faster moves
+      reason = 'High volume - accelerated timeline';
+    }
+
+    // Ensure minimum and maximum bounds
+    basePeriod = Math.max(1, Math.min(100, basePeriod));
+
+    // Convert to days/hours (assuming 1H candles)
+    const hours = basePeriod;
+    const days = Math.round((hours / 24) * 10) / 10;
+
+    return {
+      candles: basePeriod,
+      days,
+      hours,
+      confidence,
+      reason
+    };
+  }
+
+  /**
+   * Model 5: Risk Assessor
    * Evaluates overall risk based on all factors
    */
   private static assessRisk(
