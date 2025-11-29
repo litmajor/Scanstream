@@ -212,6 +212,77 @@ router.get('/coin/:coinId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/coingecko/top-movers
+ * Get top gainers and losers (24h)
+ */
+router.get('/top-movers', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const data = await coinGeckoService.getTopMovers(limit);
+
+    res.json({
+      success: true,
+      ...data,
+      timestamp: new Date().toISOString(),
+      attribution: 'Data provided by CoinGecko (coingecko.com)'
+    });
+  } catch (error: any) {
+    console.error('[CoinGecko] Top movers error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch top movers'
+    });
+  }
+});
+
+/**
+ * GET /api/coingecko/metrics/:coinId
+ * Get comprehensive metrics for a coin
+ */
+router.get('/metrics/:coinId', async (req: Request, res: Response) => {
+  try {
+    const coinId = req.params.coinId;
+    const metrics = await coinGeckoService.getCoinMetrics(coinId);
+
+    res.json({
+      success: true,
+      data: metrics,
+      timestamp: new Date().toISOString(),
+      attribution: 'Data provided by CoinGecko (coingecko.com)'
+    });
+  } catch (error: any) {
+    console.error(`[CoinGecko] Metrics error for ${req.params.coinId}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch coin metrics'
+    });
+  }
+});
+
+/**
+ * GET /api/coingecko/derivatives
+ * Get derivatives market data
+ */
+router.get('/derivatives', async (req: Request, res: Response) => {
+  try {
+    const data = await coinGeckoService.getDerivatives();
+
+    res.json({
+      success: true,
+      data,
+      timestamp: new Date().toISOString(),
+      attribution: 'Data provided by CoinGecko (coingecko.com)'
+    });
+  } catch (error: any) {
+    console.error('[CoinGecko] Derivatives error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch derivatives data'
+    });
+  }
+});
+
+/**
  * POST /api/coingecko/clear-cache
  * Clear the cache (admin endpoint)
  */

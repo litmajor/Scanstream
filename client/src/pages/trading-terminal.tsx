@@ -14,6 +14,7 @@ import NotificationHub from '../components/NotificationHub';
 import { useNotifications } from '../contexts/NotificationContext';
 import QuickActionsBar from '../components/QuickActionsBar';
 import QuickTradeModal from '../components/QuickTradeModal';
+import { TopMoversWidget } from '../components/TopMoversWidget';
 
 // Local ErrorBoundary fallback (since 'react-error-boundary' is not installed)
 function ErrorBoundary({ children, FallbackComponent }: { children: React.ReactNode, FallbackComponent: React.FC<{ error: Error }> }) {
@@ -1345,6 +1346,11 @@ export default function TradingTerminal() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Top Movers Section */}
+            <div className="p-4 border-b border-slate-700/50">
+              <TopMoversWidget limit={5} />
             </div>
 
             <div className="p-4 flex-1">

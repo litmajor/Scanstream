@@ -398,6 +398,110 @@ class CoinGeckoService {
   }
 
   /**
+   * Get top gainers and losers (24h)
+   */
+  async getTopMovers(limit = 10) {
+    return this.getCached(
+      `top_movers_${limit}`,
+      async () => {
+        const markets = await this.getMarketData('usd', 1, 250);
+        
+        // Sort by price change percentage
+        const sorted = [...markets].sort((a, b) => 
+          (b.price_change_percentage_24h || 0) - (a.price_change_percentage_24h || 0)
+        );
+        
+        const gainers = sorted.slice(0, limit).map(coin => ({
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          change24h: coin.price_change_percentage_24h || 0,
+          volume: coin.total_volume,
+          marketCap: coin.market_cap,
+          rank: coin.market_cap_rank
+        }));
+        
+        const losers = sorted.slice(-limit).reverse().map(coin => ({
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          change24h: coin.price_change_percentage_24h || 0,
+          volume: coin.total_volume,
+          marketCap: coin.market_cap,
+          rank: coin.market_cap_rank
+        }));
+        
+        return { gainers, losers };
+      },
+      300000 // 5 minutes cache
+    );
+  }
+
+  /**
+   * Get comprehensive coin data with historical changes
+   */
+  async getCoinMetrics(coinId: string) {
+    return this.getCached(
+      `coin_metrics_${coinId}`,
+      async () => {
+        const details = await this.getCoinDetails(coinId);
+        
+        return {
+          symbol: details.symbol?.toUpperCase(),
+          name: details.name,
+          currentPrice: details.market_data?.current_price?.usd || 0,
+          marketCap: details.market_data?.market_cap?.usd || 0,
+          volume24h: details.market_data?.total_volume?.usd || 0,
+          circulatingSupply: details.market_data?.circulating_supply || 0,
+          totalSupply: details.market_data?.total_supply || 0,
+          maxSupply: details.market_data?.max_supply || null,
+          ath: details.market_data?.ath?.usd || 0,
+          athDate: details.market_data?.ath_date?.usd || null,
+          athChangePercentage: details.market_data?.ath_change_percentage?.usd || 0,
+          atl: details.market_data?.atl?.usd || 0,
+          atlDate: details.market_data?.atl_date?.usd || null,
+          atlChangePercentage: details.market_data?.atl_change_percentage?.usd || 0,
+          priceChanges: {
+            '1h': details.market_data?.price_change_percentage_1h_in_currency?.usd || 0,
+            '24h': details.market_data?.price_change_percentage_24h || 0,
+            '7d': details.market_data?.price_change_percentage_7d || 0,
+            '30d': details.market_data?.price_change_percentage_30d || 0,
+            '1y': details.market_data?.price_change_percentage_1y || 0
+          },
+          roi: details.market_data?.roi || null,
+          socialData: {
+            twitterFollowers: details.community_data?.twitter_followers || 0,
+            redditSubscribers: details.community_data?.reddit_subscribers || 0,
+            redditActiveAccounts: details.community_data?.reddit_average_posts_48h || 0,
+            telegramUsers: details.community_data?.telegram_channel_user_count || 0
+          },
+          developerData: {
+            githubStars: details.developer_data?.stars || 0,
+            githubForks: details.developer_data?.forks || 0,
+            commits4Weeks: details.developer_data?.commit_count_4_weeks || 0,
+            contributors: details.developer_data?.pull_request_contributors || 0
+          }
+        };
+      },
+      600000 // 10 minutes cache
+    );
+  }
+
+  /**
+   * Get derivatives data (futures, perpetuals)
+   */
+  async getDerivatives() {
+    return this.getCached(
+      'derivatives',
+      async () => {
+        const response = await this.client.get('/derivatives');
+        return response.data;
+      },
+      600000 // 10 minutes cache
+    );
+  }
+
+  /**
    * Clear cache (useful for testing or manual refresh)
    */
   clearCache() {

@@ -177,6 +177,7 @@ export default function MarketIntelligence() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="regime">Regime Analysis</TabsTrigger>
             <TabsTrigger value="trending">Trending</TabsTrigger>
+            <TabsTrigger value="movers">Top Movers</TabsTrigger>
             <TabsTrigger value="signals">Signals</TabsTrigger>
             <TabsTrigger value="metrics">Global Metrics</TabsTrigger>
           </TabsList>
@@ -367,6 +368,44 @@ export default function MarketIntelligence() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Top Movers Tab */}
+          <TabsContent value="movers" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Gainers */}
+              <Card className="bg-slate-800/40 border-slate-700/50">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-400" />
+                    Top Gainers (24h)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TopMoversWidget limit={10} />
+                </CardContent>
+              </Card>
+
+              {/* Historical Performance Card */}
+              <Card className="bg-slate-800/40 border-slate-700/50">
+                <CardHeader>
+                  <CardTitle className="text-white">Performance Tracking</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm text-slate-400 space-y-2">
+                    <p>• Track price changes across multiple timeframes</p>
+                    <p>• Monitor ATH/ATL distances</p>
+                    <p>• ROI since launch calculations</p>
+                    <p>• Volume trends and patterns</p>
+                    <div className="pt-4 border-t border-slate-700/50 mt-4">
+                      <div className="text-xs text-slate-500">
+                        Click on any coin in the list to see detailed historical data
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Trending Tab */}
