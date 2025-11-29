@@ -23,6 +23,18 @@ export class MarketDataFetcher {
     'BTC/USDT',
     'ETH/USDT',
     'SOL/USDT',
+    'AVAX/USDT',
+    'ADA/USDT',
+    'DOT/USDT',
+    'LINK/USDT',
+    'XRP/USDT',
+    'DOGE/USDT',
+    'ATOM/USDT',
+    'ARB/USDT',
+    'OP/USDT',
+    'AAVE/USDT',
+    'UNI/USDT',
+    'NEAR/USDT',
   ];
 
   // Timeframes to fetch data for
