@@ -1,25 +1,36 @@
 // Normalize a symbol for the given exchange, so only valid symbols are used
 function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
   // Check if exchange and symbols are available
-  if (!exchange || !exchange.symbols || !Array.isArray(exchange.symbols)) {
-    console.warn('[normalizeSymbol] Exchange symbols not loaded, returning symbol as-is:', symbol);
+  if (!exchange || !exchange.markets || Object.keys(exchange.markets).length === 0) {
+    console.warn('[normalizeSymbol] Exchange markets not loaded, returning symbol as-is:', symbol);
     return symbol;
   }
+
+  const symbols = Object.keys(exchange.markets);
 
   // If symbol is already valid, return it
-  if (exchange.symbols.includes(symbol)) {
+  if (symbols.includes(symbol)) {
     return symbol;
   }
 
-  // Try futures mapping (e.g. BTC/USDT -> BTCUSDT:USDT)
-  const perp = symbol.replace("/", "") + ":USDT";
-  if (exchange.symbols.includes(perp)) {
-    return perp;
+  // Try futures mapping (e.g. BTC/USDT -> BTCUSDT:USDT or BTC/USDT:USDT)
+  const futuresVariants = [
+    symbol.replace("/", "") + ":USDT",
+    symbol + ":USDT",
+    symbol.replace("/USDT", "USDT:USDT")
+  ];
+  
+  for (const variant of futuresVariants) {
+    if (symbols.includes(variant)) {
+      console.log(`[normalizeSymbol] Mapped ${symbol} -> ${variant}`);
+      return variant;
+    }
   }
 
-  // Last resort: try plain spot (e.g. BTCUSDT -> BTC/USDT)
+  // Try spot mapping (e.g. BTCUSDT -> BTC/USDT)
   const spot = symbol.includes("/") ? symbol : symbol.replace("USDT", "/USDT");
-  if (exchange.symbols.includes(spot)) {
+  if (symbols.includes(spot)) {
+    console.log(`[normalizeSymbol] Mapped ${symbol} -> ${spot}`);
     return spot;
   }
 

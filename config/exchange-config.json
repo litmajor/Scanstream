@@ -1,32 +1,40 @@
 {
   "binance": {
-    "sandbox": true,
+    "enabled": true,
+    "sandbox": false,
     "enableRateLimit": true
   },
   "coinbase": {
+    "enabled": true,
+    "sandbox": false,
     "enableRateLimit": true
   },
   "kraken": {
+    "enabled": true,
+    "sandbox": false,
     "enableRateLimit": true
   },
   "kucoinfutures": {
+    "enabled": true,
     "main": true,
     "enableRateLimit": true
   },
   "okx": {
-    "enableRateLimit": true,
-    "sandbox": true
+    "enabled": true,
+    "sandbox": false,
+    "enableRateLimit": true
   },
   "bybit": {
-    "enableRateLimit": true,
-    "sandbox": true
+    "enabled": true,
+    "sandbox": false,
+    "enableRateLimit": true
   },
   "oanda": {
-    "enabled": true,
+    "enabled": false,
     "enableRateLimit": true
   },
   "fxcm": {
-    "enabled": true,
+    "enabled": false,
     "enableRateLimit": true
   }
 }
