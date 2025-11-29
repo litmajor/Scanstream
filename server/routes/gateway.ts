@@ -7,8 +7,13 @@ import { LiquidityMonitor } from '../services/gateway/liquidity-monitor';
 import { GasProvider } from '../services/gateway/gas-provider';
 import { SecurityValidator } from '../services/gateway/security-validator';
 import { signalWebSocketService } from '../services/websocket-signals';
+import { gatewayAlertSystem } from '../services/gateway-alerts';
+import gatewayMetricsRouter from './gateway-metrics';
 
 const router = Router();
+
+// Mount metrics routes
+router.use('/metrics', gatewayMetricsRouter);
 
 // Initialize services
 const cacheManager = new CacheManager(5000);
@@ -21,9 +26,19 @@ const liquidityMonitor = new LiquidityMonitor(aggregator, cacheManager);
 const gasProvider = new GasProvider(cacheManager);
 const securityValidator = new SecurityValidator(aggregator, liquidityMonitor);
 
-// Initialize aggregator with CCXT
-aggregator.initialize().then(() => {
+// Initialize aggregator with CCXT and warm cache
+aggregator.initialize().then(async () => {
   console.log('[Gateway] Aggregator ready');
+  
+  // Import and initialize cache warmer
+  const { CacheWarmer } = await import('../services/gateway/cache-warmer');
+  const warmer = new CacheWarmer(aggregator);
+  
+  // Warm cache on startup
+  await warmer.warmCache();
+  
+  // Start continuous warming (every 60 seconds)
+  warmer.startContinuousWarming(60000);
 }).catch(err => {
   console.error('[Gateway] Aggregator initialization failed:', err);
 });
@@ -36,12 +51,33 @@ rateLimiter.initExchange('kucoinfutures', 50);
 rateLimiter.initExchange('okx', 150);
 rateLimiter.initExchange('bybit', 150);
 
-// Cleanup cache every 5 minutes
+// Cleanup cache every 5 minutes and check metrics
 setInterval(() => {
   const removed = cacheManager.cleanup();
   if (removed > 0) {
     console.log(`[Gateway] Cleaned up ${removed} expired cache entries`);
   }
+  
+  // Check cache performance
+  const cacheStats = cacheManager.getStats();
+  gatewayAlertSystem.checkCachePerformance(cacheStats.hitRate);
+  
+  // Check exchange health and rate limits
+  const healthStatus = aggregator.getHealthStatus();
+  Object.entries(healthStatus).forEach(([exchange, health]) => {
+    gatewayAlertSystem.checkExchangeHealth(exchange, health);
+    if (health.latency > 0) {
+      gatewayAlertSystem.checkLatency(exchange, health.latency);
+    }
+  });
+  
+  // Check rate limit usage
+  ['binance', 'coinbase', 'kraken', 'kucoinfutures', 'okx', 'bybit'].forEach(exchange => {
+    const stats = rateLimiter.getStats(exchange);
+    if (stats) {
+      gatewayAlertSystem.checkRateLimitUsage(exchange, stats.usage);
+    }
+  });
 }, 5 * 60 * 1000);
 
 // Export getter functions for services
@@ -471,6 +507,69 @@ router.get('/gas/:chain?', async (req: Request, res: Response) => {
     const { chain = 'ethereum' } = req.params;
     
     const gasPrice = await gasProvider.getGasPrice(chain);
+
+
+/**
+ * Get all alerts
+ */
+router.get('/alerts', (req: Request, res: Response) => {
+  try {
+    const { acknowledged, severity } = req.query;
+    
+    const alerts = gatewayAlertSystem.getAlerts({
+      acknowledged: acknowledged === 'true' ? true : acknowledged === 'false' ? false : undefined,
+      severity: severity as string
+    });
+    
+    res.json({
+      success: true,
+      count: alerts.length,
+      alerts
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Acknowledge alert
+ */
+router.post('/alerts/:id/acknowledge', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const success = gatewayAlertSystem.acknowledgeAlert(id);
+    
+    res.json({ success, message: success ? 'Alert acknowledged' : 'Alert not found' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Clear acknowledged alerts
+ */
+router.delete('/alerts/acknowledged', (req: Request, res: Response) => {
+  try {
+    const cleared = gatewayAlertSystem.clearAcknowledged();
+    res.json({ success: true, cleared });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Update alert thresholds
+ */
+router.post('/alerts/thresholds', (req: Request, res: Response) => {
+  try {
+    const thresholds = req.body;
+    gatewayAlertSystem.updateThresholds(thresholds);
+    res.json({ success: true, message: 'Thresholds updated' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
     
     res.json({
       success: true,
