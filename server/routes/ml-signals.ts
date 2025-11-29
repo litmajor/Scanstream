@@ -1,7 +1,7 @@
 
 import express, { type Request, type Response } from 'express';
 import { MLSignalEnhancer } from '../ml-engine';
-import { db } from '../db-storage';
+import { storage } from '../storage';
 import MLPredictionService from '../services/ml-predictions';
 import type { MarketFrame } from '@shared/schema';
 
@@ -14,8 +14,14 @@ const mlEnhancer = new MLSignalEnhancer();
  */
 router.get('/predictions', async (_req: Request, res: Response) => {
   try {
-    // Get real market data from database (populated by Gateway scanner)
-    const recentFrames = await db.getRecentFrames(500);
+    // Get market data from multiple symbols using storage interface
+    const defaultSymbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT', 'XRP/USDT'];
+    const recentFrames: MarketFrame[] = [];
+    
+    for (const symbol of defaultSymbols) {
+      const frames = await storage.getMarketFrames(symbol, 100);
+      recentFrames.push(...frames);
+    }
     
     if (!recentFrames || recentFrames.length === 0) {
       return res.json({ 
@@ -188,7 +194,14 @@ async function calculateHistoricalAccuracy(symbol: string, frames: MarketFrame[]
 router.get('/status', async (_req: Request, res: Response) => {
   try {
     const insights = mlEnhancer.getModelInsights();
-    const recentFrames = await db.getRecentFrames(100);
+    
+    // Get market data from a few symbols
+    const defaultSymbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
+    const recentFrames: MarketFrame[] = [];
+    for (const symbol of defaultSymbols) {
+      const frames = await storage.getMarketFrames(symbol, 30);
+      recentFrames.push(...frames);
+    }
     
     // Calculate feature coverage
     const featureCoverage = calculateFeatureCoverage(recentFrames);
