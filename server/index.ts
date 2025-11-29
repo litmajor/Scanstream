@@ -14,8 +14,8 @@ import analyticsRouter from './routes/analytics';
 
 const app = express();
 
-// Trust proxy MUST be set before any rate limiting middleware
-app.set('trust proxy', true);
+// Trust proxy should be false in development to avoid express-rate-limit validation errors
+app.set('trust proxy', false);
 
 // Global debug logging for all route registrations (with types)
 const origAppUse = app.use;
