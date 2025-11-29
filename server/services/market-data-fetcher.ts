@@ -157,32 +157,39 @@ export class MarketDataFetcher {
   }
 
   /**
-   * Fetch OHLCV data from the aggregator (tries multiple exchanges)
+   * Fetch OHLCV data from the aggregator (returns array of candles in CCXT format)
    */
   private async fetchOHLCV(
     symbol: string,
     timeframe: string,
     limit: number = 100
   ): Promise<number[][]> {
-    // Try each exchange until one succeeds
-    for (const exchange of this.exchangesToTry) {
-      try {
-        await this.rateLimiter.acquire(exchange, 'normal');
+    try {
+      // The aggregator tries exchanges in priority order internally
+      // It returns OHLCVData[] but we need to convert to number[][] format
+      const ohlcvData = await (this.aggregator as any).getOHLCV(symbol, timeframe, limit);
 
-        // Fetch from aggregator (which uses ExchangeDataFeed)
-        const response = await (this.aggregator as any).getOHLCV(symbol, timeframe, limit, exchange);
-
-        if (response && response.data && response.data.length > 0) {
-          console.log(`[MarketDataFetcher] Successfully fetched ${symbol} from ${exchange}`);
-          return response.data;
-        }
-      } catch (error: any) {
-        // Try next exchange
-        continue;
+      if (ohlcvData && Array.isArray(ohlcvData) && ohlcvData.length > 0) {
+        console.log(`[MarketDataFetcher] Successfully fetched ${symbol} (${ohlcvData.length} candles)`);
+        
+        // Convert OHLCVData[] format to CCXT number[][] format: [timestamp, open, high, low, close, volume]
+        const candles = ohlcvData.map((candle: any) => [
+          candle.timestamp,
+          candle.open,
+          candle.high,
+          candle.low,
+          candle.close,
+          candle.volume
+        ]);
+        
+        return candles;
+      } else {
+        throw new Error(`No valid OHLCV data returned for ${symbol}`);
       }
+    } catch (error: any) {
+      console.error(`[MarketDataFetcher] OHLCV fetch error for ${symbol}/${timeframe}:`, error.message);
+      throw error;
     }
-
-    throw new Error(`Failed to fetch ${symbol} from all exchanges`);
   }
 
   /**

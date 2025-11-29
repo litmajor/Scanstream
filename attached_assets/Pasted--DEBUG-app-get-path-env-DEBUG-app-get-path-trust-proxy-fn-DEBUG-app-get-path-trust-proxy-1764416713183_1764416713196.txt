@@ -1,0 +1,36 @@
+
+[DEBUG] app.get path: env
+[DEBUG] app.get path: trust proxy fn
+[DEBUG] app.get path: trust proxy fn
+[MarketDataFetcher] Error fetching BTC/USDT: Error: Failed to fetch BTC/USDT from all exchanges
+    at MarketDataFetcher.fetchOHLCV (/home/runner/workspace/server/services/market-data-fetcher.ts:185:11)
+    at runNextTicks (node:internal/process/task_queues:60:5)
+    at listOnTimeout (node:internal/timers:545:9)
+    at process.processTimers (node:internal/timers:519:7)
+    at async Promise.all (index 0)
+    at async MarketDataFetcher.fetchSymbolData (/home/runner/workspace/server/services/market-data-fetcher.ts:119:23)
+    at async Promise.all (index 0)
+    at async MarketDataFetcher.fetchAllData (/home/runner/workspace/server/services/market-data-fetcher.ts:102:7)
+[MarketDataFetcher] Error fetching ETH/USDT: Error: Failed to fetch ETH/USDT from all exchanges
+    at MarketDataFetcher.fetchOHLCV (/home/runner/workspace/server/services/market-data-fetcher.ts:185:11)
+    at runNextTicks (node:internal/process/task_queues:60:5)
+    at listOnTimeout (node:internal/timers:545:9)
+    at process.processTimers (node:internal/timers:519:7)
+    at async Promise.all (index 0)
+    at async MarketDataFetcher.fetchSymbolData (/home/runner/workspace/server/services/market-data-fetcher.ts:119:23)
+    at async Promise.all (index 1)
+    at async MarketDataFetcher.fetchAllData (/home/runner/workspace/server/services/market-data-fetcher.ts:102:7)
+[MarketDataFetcher] Error fetching SOL/USDT: Error: Failed to fetch SOL/USDT from all exchanges
+    at MarketDataFetcher.fetchOHLCV (/home/runner/workspace/server/services/market-data-fetcher.ts:185:11)
+    at runNextTicks (node:internal/process/task_queues:60:5)
+    at listOnTimeout (node:internal/timers:545:9)
+    at process.processTimers (node:internal/timers:519:7)
+    at async Promise.all (index 0)
+    at async MarketDataFetcher.fetchSymbolData (/home/runner/workspace/server/services/market-data-fetcher.ts:119:23)
+    at async Promise.all (index 2)
+    at async MarketDataFetcher.fetchAllData (/home/runner/workspace/server/services/market-data-fetcher.ts:102:7)
+[MarketDataFetcher] Failed to fetch BTC/USDT: Failed to fetch BTC/USDT from all exchanges
+[MarketDataFetcher] Failed to fetch ETH/USDT: Failed to fetch ETH/USDT from all exchanges
+[MarketDataFetcher] Failed to fetch SOL/USDT: Failed to fetch SOL/USDT from all exchanges
+[MarketDataFetcher] Fetch completed: 0/3 symbols (2ms)
+[DEBUG] app.get path: env
