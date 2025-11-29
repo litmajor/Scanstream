@@ -37,6 +37,12 @@ app.use = function (path: any, ...args: any[]): any {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Serve frontend config
+import path from 'path';
+app.get('/config/frontend-config.json', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'config', 'frontend-config.json'));
+});
+
 // Register Flow Field analytics routes
 app.use('/api/analytics', flowFieldRouter);
 app.use('/api/analytics', flowFieldBacktestRouter);
