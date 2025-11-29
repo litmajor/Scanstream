@@ -16,6 +16,7 @@ import OptimizePage from "@/pages/optimize";
 import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
 import StrategySynthesisPage from './pages/strategy-synthesis';
+import AnalyticsDashboard from '@/pages/analytics-dashboard';
 import PaperTradingPage from "@/pages/paper-trading";
 import PositionsPage from "@/pages/positions";
 import SignalsPage from "@/pages/signals";
@@ -40,12 +41,13 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/multi-timeframe" component={MultiTimeframePage} />
         <Route path="/optimize" component={OptimizePage} />
         <Route path="/strategies" component={StrategiesPage} />
-                <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
-                <Route path="/market-intelligence" component={MarketIntelligence} />
-                <Route path="/paper-trading" component={PaperTradingPage} />
-                <Route path="/card-showcase" component={CardShowcase} />
-                <Route path="/dashboard-grid" component={DashboardGridPage} />
-                <Route component={NotFound} />
+        <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
+        <Route path="/analytics" component={AnalyticsDashboard} />
+        <Route path="/market-intelligence" component={MarketIntelligence} />
+        <Route path="/paper-trading" component={PaperTradingPage} />
+        <Route path="/card-showcase" component={CardShowcase} />
+        <Route path="/dashboard-grid" component={DashboardGridPage} />
+        <Route component={NotFound} />
       </Switch>
     </AppLayout>
   );

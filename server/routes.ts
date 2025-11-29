@@ -295,6 +295,132 @@ try {
   });
   // --- End Advanced Volume Profile & Composite Analytics API ---
 
+  // Analytics API - Strategy list endpoint
+  app.get('/api/strategies/list', async (req: Request, res: Response) => {
+    try {
+      const { symbol } = req.query;
+      
+      // Mock strategies data with performance metrics
+      const strategies = [
+        {
+          id: 'gradient_trend_filter',
+          name: 'Gradient Trend Filter',
+          weight: 0.25,
+          baseWeight: 0.25,
+          regimeMultiplier: 1.1,
+          volatilityMultiplier: 0.95,
+          momentumAlignment: 1.05,
+          temporalDecay: 0.98,
+          finalWeight: 0.27,
+          performance: { winRate: 0.68, profitFactor: 2.1, trades: 234 },
+        },
+        {
+          id: 'ut_bot',
+          name: 'UT Bot',
+          weight: 0.20,
+          baseWeight: 0.20,
+          regimeMultiplier: 1.0,
+          volatilityMultiplier: 1.08,
+          momentumAlignment: 0.98,
+          temporalDecay: 0.97,
+          finalWeight: 0.21,
+          performance: { winRate: 0.62, profitFactor: 1.8, trades: 189 },
+        },
+        {
+          id: 'mean_reversion',
+          name: 'Mean Reversion',
+          weight: 0.20,
+          baseWeight: 0.20,
+          regimeMultiplier: 0.85,
+          volatilityMultiplier: 1.2,
+          momentumAlignment: 0.92,
+          temporalDecay: 0.96,
+          finalWeight: 0.18,
+          performance: { winRate: 0.71, profitFactor: 2.3, trades: 156 },
+        },
+        {
+          id: 'volume_profile',
+          name: 'Volume Profile',
+          weight: 0.20,
+          baseWeight: 0.20,
+          regimeMultiplier: 1.05,
+          volatilityMultiplier: 0.9,
+          momentumAlignment: 1.02,
+          temporalDecay: 0.99,
+          finalWeight: 0.19,
+          performance: { winRate: 0.65, profitFactor: 1.9, trades: 201 },
+        },
+        {
+          id: 'market_structure',
+          name: 'Market Structure',
+          weight: 0.15,
+          baseWeight: 0.15,
+          regimeMultiplier: 0.92,
+          volatilityMultiplier: 1.1,
+          momentumAlignment: 0.88,
+          temporalDecay: 0.95,
+          finalWeight: 0.15,
+          performance: { winRate: 0.59, profitFactor: 1.6, trades: 112 },
+        },
+      ];
+
+      const regime = {
+        type: 'BULL_STRONG',
+        volatility: 'medium' as const,
+        momentum: 0.125,
+        trend: 'up',
+      };
+
+      res.json({ strategies, regime });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to fetch strategies' });
+    }
+  });
+
+  // Analytics API - ML models endpoint
+  app.get('/api/ml/models', async (req: Request, res: Response) => {
+    try {
+      const { symbol = 'BTC/USDT' } = req.query;
+
+      const models = [
+        {
+          id: '1',
+          name: 'LSTM Price Predictor',
+          type: 'LSTM',
+          symbol,
+          accuracy: 87.3,
+          status: 'trained',
+          confidence: 0.85,
+          predictions: { direction: 'UP', nextHour: 45120, nextDay: 46250 },
+        },
+        {
+          id: '2',
+          name: 'Random Forest Classifier',
+          type: 'Random Forest',
+          symbol,
+          accuracy: 82.1,
+          status: 'trained',
+          confidence: 0.78,
+          predictions: { direction: 'UP', nextHour: 3250, nextDay: 3180 },
+        },
+        {
+          id: '3',
+          name: 'Market Sentiment Analyzer',
+          type: 'BERT',
+          symbol,
+          accuracy: 91.5,
+          status: 'trained',
+          confidence: 0.92,
+          predictions: { direction: 'UP', nextHour: 98, nextDay: 105 },
+        },
+      ];
+
+      res.json({ models });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Failed to fetch ML models' });
+    }
+  });
+
   // Gateway API - Dataframe endpoint with technical indicators
   app.get('/api/gateway/dataframe/:symbol', async (req: Request, res: Response) => {
     try {
