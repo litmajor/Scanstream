@@ -28,7 +28,7 @@ export class SimpleBayesianOptimizer {
     iterations?: number,
     initPoints?: number
   ): Promise<OptimizationResult> {
-  const config = (await import('../config/trading-config.json', { assert: { type: 'json' } })).default;
+  const config = (await import('../config/trading-config.json', { with: { type: 'json' } })).default;
   iterations = (iterations ?? config.optimizer.iterations) as number;
   initPoints = (initPoints ?? config.optimizer.initPoints) as number;
     
@@ -169,7 +169,7 @@ export class ScannerAgent implements OptimizableAgent {
   }
 
   static async create(): Promise<ScannerAgent> {
-    const config = (await import('../config/trading-config.json', { assert: { type: 'json' } })).default;
+    const config = (await import('../config/trading-config.json', { with: { type: 'json' } })).default;
     return new ScannerAgent(config.scannerAgent);
   }
 

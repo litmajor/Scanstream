@@ -894,7 +894,7 @@ class ExchangeDataFeed {
    */
   private async initializeExchanges() {
     try {
-      const config = (await import('../config/exchange-config.json', { assert: { type: 'json' } })).default;
+      const config = (await import('../config/exchange-config.json', { with: { type: 'json' } })).default;
       // --- Crypto Exchanges ---
       // Initialize all exchanges with proper rate limiting and throttler verification
       const cryptoExchanges = [
@@ -1027,7 +1027,7 @@ class ExchangeDataFeed {
     }
     try {
       // Use kucoinfutures as main if present in config
-      const config = (await import('../config/exchange-config.json', { assert: { type: 'json' } })).default;
+      const config = (await import('../config/exchange-config.json', { with: { type: 'json' } })).default;
       let mainExchange = 'kucoinfutures';
       if (exchangeName && this.exchanges.has(exchangeName)) {
         mainExchange = exchangeName;
