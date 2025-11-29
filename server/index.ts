@@ -12,7 +12,13 @@ import analyticsRouter from './routes/analytics';
 // Removed fastScanner service import
 
 
+// Disable Express debug logging
+process.env.DEBUG = '';
+
 const app = express();
+app.set('x-powered-by', false); // Disable X-Powered-By header
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Trust proxy should be false in development to avoid express-rate-limit validation errors
 app.set('trust proxy', false);
@@ -34,8 +40,6 @@ app.use = function (path: any, ...args: any[]): any {
     return orig.call(this, path, ...args);
   };
 });
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 
 // Serve frontend config
 import path from 'path';
@@ -114,7 +118,7 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
-  
+
   // Initialize WebSocket signal streaming
   signalWebSocketService.initialize(server);
 
