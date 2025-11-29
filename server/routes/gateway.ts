@@ -233,6 +233,10 @@ router.get('/price/:symbol', async (req: Request, res: Response) => {
 
     console.log(`[Gateway] Fetching price for ${symbol}`);
     const priceData = await aggregator.getAggregatedPrice(symbol);
+    
+    // Broadcast price update via WebSocket
+    signalWebSocketService.broadcastPriceUpdate(symbol, priceData);
+    
     res.json(priceData);
   } catch (error: any) {
     console.error(`[Gateway] Price fetch error for ${req.params.symbol}:`, error.message);
@@ -414,6 +418,9 @@ router.get('/liquidity/:symbol', async (req: Request, res: Response) => {
     const amountNum = amount ? parseFloat(amount as string) : undefined;
     
     const liquidity = await liquidityMonitor.checkLiquidity(symbol, amountNum);
+    
+    // Broadcast liquidity update via WebSocket
+    signalWebSocketService.broadcastLiquidityUpdate(symbol, liquidity);
     
     res.json({
       success: true,
