@@ -8,6 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import TradingTerminal from "@/pages/trading-terminal";
 import PortfolioPage from "@/pages/portfolio";
 import ScannerPage from "@/pages/scanner";
+import GatewayScannerPage from "@/pages/gateway-scanner";
 import BacktestPage from "@/pages/backtest";
 import MLEnginePage from "@/pages/ml-engine";
 import MultiTimeframePage from "@/pages/multi-timeframe";
@@ -33,6 +34,7 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/positions" component={PositionsPage} />
         <Route path="/portfolio" component={PortfolioPage} />
         <Route path="/scanner" component={ScannerPage} />
+        <Route path="/gateway-scanner" component={GatewayScannerPage} />
         <Route path="/backtest" component={BacktestPage} />
         <Route path="/ml-engine" component={MLEnginePage} />
         <Route path="/multi-timeframe" component={MultiTimeframePage} />
