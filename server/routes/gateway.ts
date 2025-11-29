@@ -3,15 +3,23 @@ import { CacheManager } from '../services/gateway/cache-manager';
 import { RateLimiter } from '../services/gateway/rate-limiter';
 import { ExchangeAggregator } from '../services/gateway/exchange-aggregator';
 import { CCXTScanner } from '../services/gateway/ccxt-scanner';
+import { LiquidityMonitor } from '../services/gateway/liquidity-monitor';
+import { GasProvider } from '../services/gateway/gas-provider';
+import { SecurityValidator } from '../services/gateway/security-validator';
 import { signalWebSocketService } from '../services/websocket-signals';
 
 const router = Router();
 
 // Initialize services
-const cacheManager = new CacheManager(5000); // Renamed from 'cache' to avoid conflict with CacheManager class
+const cacheManager = new CacheManager(5000);
 const rateLimiter = new RateLimiter();
 const aggregator = new ExchangeAggregator(cacheManager, rateLimiter);
-const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter); // Initialize CCXTScanner
+const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
+
+// Phase 3: Intelligence Layer
+const liquidityMonitor = new LiquidityMonitor(aggregator, cacheManager);
+const gasProvider = new GasProvider(cacheManager);
+const securityValidator = new SecurityValidator(aggregator, liquidityMonitor);
 
 // Initialize aggregator with CCXT
 aggregator.initialize().then(() => {
@@ -389,6 +397,209 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       bidAskRatio: 1.0,
       spread: (latest.high - latest.low),
       orderImbalance: latest.close > prev.close ? 'BUY' : 'SELL',
+
+/**
+ * PHASE 3: INTELLIGENCE LAYER ENDPOINTS
+ */
+
+/**
+ * Check liquidity for a symbol
+ */
+router.get('/liquidity/:symbol', async (req: Request, res: Response) => {
+  try {
+    let symbol = req.params.symbol;
+    symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
+    
+    const { amount } = req.query;
+    const amountNum = amount ? parseFloat(amount as string) : undefined;
+    
+    const liquidity = await liquidityMonitor.checkLiquidity(symbol, amountNum);
+    
+    res.json({
+      success: true,
+      liquidity,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Liquidity check error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Batch liquidity check
+ */
+router.post('/liquidity/batch', async (req: Request, res: Response) => {
+  try {
+    const { symbols } = req.body;
+    
+    if (!symbols || !Array.isArray(symbols)) {
+      return res.status(400).json({ error: 'Symbols array required' });
+    }
+    
+    const results = await liquidityMonitor.batchCheckLiquidity(symbols);
+    
+    res.json({
+      success: true,
+      count: results.size,
+      liquidity: Object.fromEntries(results),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get gas prices
+ */
+router.get('/gas/:chain?', async (req: Request, res: Response) => {
+  try {
+    const { chain = 'ethereum' } = req.params;
+    
+    const gasPrice = await gasProvider.getGasPrice(chain);
+    
+    res.json({
+      success: true,
+      gasPrice,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Gas price error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Estimate transaction cost
+ */
+router.post('/gas/estimate', async (req: Request, res: Response) => {
+  try {
+    const { chain = 'ethereum', gasLimit = 21000, speed = 'standard' } = req.body;
+    
+    const cost = await gasProvider.estimateCost(chain, gasLimit, speed);
+    
+    res.json({
+      success: true,
+      estimatedCostUSD: cost,
+      chain,
+      gasLimit,
+      speed,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Validate trading operation
+ */
+router.post('/security/validate', async (req: Request, res: Response) => {
+  try {
+    const { symbol, amount, operation = 'buy' } = req.body;
+    
+    if (!symbol || !amount) {
+      return res.status(400).json({ error: 'Symbol and amount required' });
+    }
+    
+    const validation = await securityValidator.validateOperation(
+      symbol,
+      parseFloat(amount),
+      operation
+    );
+    
+    res.json({
+      success: true,
+      validation,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Security validation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Get optimal exchange recommendation
+ */
+router.post('/recommend-exchange', async (req: Request, res: Response) => {
+  try {
+    const { symbol, operation = 'fetch', requirements = {} } = req.body;
+    
+    if (!symbol) {
+      return res.status(400).json({ error: 'Symbol required' });
+    }
+    
+    // Get liquidity and health data
+    const [liquidity, health] = await Promise.all([
+      liquidityMonitor.checkLiquidity(symbol),
+      Promise.resolve(aggregator.getHealthStatus())
+    ]);
+    
+    // Score each exchange
+    const scores = liquidity.exchanges.map(ex => {
+      const exchangeHealth = health[ex.name];
+      if (!exchangeHealth?.healthy) return { name: ex.name, score: 0 };
+      
+      let score = 0;
+      
+      // Liquidity weight (40%)
+      score += (ex.volume / liquidity.totalVolume24h) * 40;
+      
+      // Latency weight (30%)
+      score += Math.max(0, 30 - (exchangeHealth.latency / 10));
+      
+      // Spread weight (20%)
+      score += Math.max(0, 20 - (ex.spread * 1000));
+      
+      // Rate limit weight (10%)
+      score += (1 - exchangeHealth.rateUsage) * 10;
+      
+      return { name: ex.name, score };
+    });
+    
+    // Sort by score
+    scores.sort((a, b) => b.score - a.score);
+    
+    const recommended = scores[0];
+    
+    res.json({
+      success: true,
+      recommended: recommended.name,
+      score: recommended.score,
+      alternatives: scores.slice(1, 3),
+      reasoning: [
+        `Best liquidity: ${liquidity.liquidityScore.toFixed(0)}/100`,
+        `Low latency: ${health[recommended.name]?.latency || 0}ms`,
+        `Tight spread: ${(liquidity.spreadPercent * 100).toFixed(2)}%`
+      ],
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Exchange recommendation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 
       // Signals (4)
       signal: rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'HOLD',
