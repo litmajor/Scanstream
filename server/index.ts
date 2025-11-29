@@ -86,6 +86,7 @@ import { signalWebSocketService } from './services/websocket-signals';
 import { signalPriceMonitor } from './services/signal-price-monitor';
 import { initializeMarketDataFetcher } from './services/market-data-fetcher';
 import { SignalPipeline } from './services/gateway/signal-pipeline';
+import { SignalEngine, defaultTradingConfig } from './trading-engine';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -131,15 +132,19 @@ app.use((req, res, next) => {
   // Initialize and start market data fetcher (auto-fetches BTC, ETH, SOL, etc)
   const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
   
+  // Initialize signal engine for analysis
+  const signalEngine = new SignalEngine(defaultTradingConfig);
+  
   // Initialize signal pipeline
-  const signalPipeline = new SignalPipeline(aggregator, (global as any).signalEngine);
+  const signalPipeline = new SignalPipeline(aggregator, signalEngine);
   
   const marketDataFetcher = initializeMarketDataFetcher(aggregator, cacheManager, rateLimiter);
   marketDataFetcher.setSignalPipeline(signalPipeline);
   await marketDataFetcher.start();
   
-  // Expose market data fetcher globally so endpoints can access signals
+  // Expose for other services
   (global as any).marketDataFetcher = marketDataFetcher;
+  (global as any).signalPipeline = signalPipeline;
   
   console.log('[MarketDataFetcher] Auto-fetch service started with signal generation');
 

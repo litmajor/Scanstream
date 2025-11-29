@@ -184,7 +184,8 @@ export class MarketDataFetcher {
               };
               signalWebSocketService.broadcastSignal(signalMessage, 'new');
               
-              console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${signal.action}`);
+              const action = (signal as any).action || (signal as any).type || 'generated';
+              console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${action} (confidence: ${(signal.confidence || 0).toFixed(1)}%)`);
             }
           } catch (signalError: any) {
             console.warn(`[MarketDataFetcher] Signal generation failed for ${symbol}:`, signalError.message);
