@@ -133,6 +133,16 @@ export default function AnalyticsDashboard() {
 
   const mockModels: MLModel[] = [
     {
+      id: '0',
+      name: 'Consensus Ensemble',
+      type: 'Ensemble',
+      symbol: selectedSymbol,
+      accuracy: 89.6,
+      status: 'trained',
+      confidence: 0.88,
+      predictions: { direction: 'UP', nextHour: 45180, nextDay: 46290 },
+    },
+    {
       id: '1',
       name: 'LSTM Price Predictor',
       type: 'LSTM',

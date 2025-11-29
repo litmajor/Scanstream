@@ -384,6 +384,17 @@ try {
 
       const models = [
         {
+          id: '0',
+          name: 'Consensus Ensemble',
+          type: 'Ensemble',
+          symbol,
+          accuracy: 89.6,
+          status: 'trained',
+          confidence: 0.88,
+          predictions: { direction: 'UP', nextHour: 45180, nextDay: 46290 },
+          description: 'Combines all 3 models for consensus signals',
+        },
+        {
           id: '1',
           name: 'LSTM Price Predictor',
           type: 'LSTM',
