@@ -394,7 +394,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       signal: rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'HOLD',
       signalStrength: Math.abs(50 - (rsi || 50)),
       signalConfidence: 65 + Math.random() * 20,
-      signalReason: `RSI:${(rsi || 50).toFixed(1)}, Price:${latest.close.toFixed(2)}, Trend:${latest.close > ema50 ? 'Up' : 'Down'}`,
+      signalReason: `RSI:${((rsi || 50) as number).toFixed(1)}, Price:${(latest?.close || 0).toFixed(2)}, Trend:${(latest?.close || 0) > (ema50 || 0) ? 'Up' : 'Down'}`,
 
       // Risk Metrics (5)
       riskRewardRatio: 2.0,
