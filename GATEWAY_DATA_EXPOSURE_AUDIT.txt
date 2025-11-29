@@ -1,0 +1,150 @@
+GATEWAY DATA EXPOSURE AUDIT
+═════════════════════════════════════════════════════════════════
+
+QUESTION: Is gateway wired to provide all 67 columns of scanner data ACTIVELY?
+
+ANSWER: 🔴 NO - PARTIALLY WIRED (Missing 70%+ of data)
+
+════════════════════════════════════════════════════════════════════
+
+CURRENT ENDPOINTS & DATA BEING RETURNED:
+
+1. GET /api/gateway/signals
+   ✅ Returns:
+     - symbol, exchange, signal, strength, price, change24h, volume
+     - timestamp
+   ❌ Missing:
+     - 59 columns (OHLC, indicators, risk metrics, order flow, etc)
+
+2. GET /api/gateway/market-frames/:symbol
+   ✅ Returns:
+     - Raw candle frames from aggregator (basic OHLCV)
+   ❌ Missing:
+     - All 40 calculated technical indicators
+     - Order flow data
+     - Risk metrics
+     - Signal generation data
+     - Quality metrics
+
+3. GET /api/gateway/health
+   ✅ Returns:
+     - Exchange health status
+   ❌ NOT a data endpoint
+
+4. GET /api/signals/latest
+   ✅ Returns:
+     - Basic signal info
+   ❌ Missing:
+     - Full technical analysis data
+     - Order flow
+     - Risk parameters
+
+════════════════════════════════════════════════════════════════════
+
+WHAT'S WIRED UP (Infrastructure Present):
+
+✅ CCXTScanner - Collects all 67 columns INTERNALLY
+✅ Signal Pipeline - Processes all data INTERNALLY
+✅ Exchange Aggregator - Fetches OHLCV PARTIALLY
+✅ Database - Can store all 67 columns (market_frames table)
+✅ WebSocket - Broadcasting PARTIALLY
+
+WHAT'S NOT WIRED (Data Not Exposed):
+
+❌ API endpoints DO NOT return all 67 columns
+❌ Signals endpoint returns only basic signal (8 columns)
+❌ Market frames endpoint returns only OHLCV (5 columns)
+❌ No dedicated endpoint for technical indicators
+❌ No dedicated endpoint for order flow data
+❌ No dedicated endpoint for risk metrics
+❌ WebSocket likely only sending partial data
+
+════════════════════════════════════════════════════════════════════
+
+DATA PIPELINE FLOW:
+
+Exchange API
+    ↓ (fetches OHLCV)
+ExchangeAggregator
+    ↓ (raw candles only)
+CCXTScanner
+    ↓ (calculates all 67 columns INTERNALLY)
+[Data stays internal - NOT returned via API]
+    ↓
+Signal Generation
+    ↓ (returns 8 columns)
+API Response ❌ INCOMPLETE
+
+════════════════════════════════════════════════════════════════════
+
+MISSING DATA BREAKDOWN (59+ Columns Not Exposed):
+
+MOMENTUM INDICATORS (8 cols):
+  ❌ rsi, rsiLabel
+  ❌ macd, macdSignal, macdHistogram, macdCrossover
+  ❌ momentum, momentumTrend
+
+TREND INDICATORS (11 cols):
+  ❌ ema12, ema26, ema50, ema200
+  ❌ sma20, sma50, sma200
+  ❌ adx, adxTrend, trendDirection, trendStrength
+
+VOLATILITY (9 cols):
+  ❌ atr, atrPercent, volatility, volatilityLabel
+  ❌ bbUpper, bbMiddle, bbLower, bbPosition, bbBandwidth
+
+STOCHASTIC (2 cols):
+  ❌ stochasticK, stochasticD
+
+ORDER FLOW (6 cols):
+  ❌ bidVolume, askVolume, bidAskRatio
+  ❌ spread, spreadPercent, orderImbalance
+
+RISK METRICS (5 cols):
+  ❌ riskRewardRatio, stopLoss, takeProfit
+  ❌ supportLevel, resistanceLevel
+
+PERFORMANCE (6 cols):
+  ❌ change1h, change24h, change7d, change30d
+  ❌ highestPrice24h, lowestPrice24h
+
+QUALITY (3 cols):
+  ❌ confidence, dataQuality, sources, deviation
+
+════════════════════════════════════════════════════════════════════
+
+WHAT NEEDS TO BE WIRED (TO-DO):
+
+1. Modify /api/gateway/market-frames/:symbol to return FULL dataframe
+   - Include all 67 columns from CCXTScanner
+   - Add query param: ?detailed=true for full data
+
+2. Create NEW endpoint: /api/gateway/dataframe/:symbol
+   - Returns complete 67-column dataframe
+   - Includes all technical indicators
+   - Includes order flow + risk metrics
+
+3. Create NEW endpoint: /api/gateway/indicators/:symbol
+   - Returns only indicator data (40 columns)
+   - Excludes OHLCV, returns just calculations
+
+4. Update WebSocket to broadcast all 67 columns
+   - Current: ~8 columns only
+   - Needed: Full dataframe per signal
+
+5. Update /api/gateway/signals to include full technical data
+   - Current: 8 columns
+   - Needed: 67 columns
+
+════════════════════════════════════════════════════════════════════
+
+CONCLUSION:
+
+❌ Gateway is NOT currently wired to provide all 67 columns
+✅ Data IS being calculated internally (in CCXTScanner)
+❌ Data is NOT being exposed via API/WebSocket
+🔧 Requires API modifications to expose complete dataframe
+
+ESTIMATE: 30 minutes to fully wire (create 2-3 new endpoints)
+
+════════════════════════════════════════════════════════════════════

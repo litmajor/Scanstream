@@ -1,0 +1,144 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                  GATEWAY DATA EXPOSURE STATUS REPORT                          ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+YOUR QUESTION: "Is gateway wired to provide all that data actively?"
+
+ANSWER: 🔴 **NO - NOT ACTIVELY EXPOSED** (But infrastructure exists)
+
+════════════════════════════════════════════════════════════════════════════════
+
+STATUS BREAKDOWN:
+
+✅ DATA CALCULATION (CCXTScanner)
+   • Collects all 67 columns from exchanges
+   • Calculates all technical indicators (RSI, MACD, EMA, ADX, etc)
+   • Analyzes order flow (bid/ask volumes, spreads)
+   • Generates signals with confidence scores
+   • All data is CALCULATED but INTERNAL
+
+❌ DATA EXPOSURE (API/WebSocket)
+   • /api/gateway/signals → Returns ONLY 8 columns
+   • /api/gateway/market-frames/:symbol → Returns ONLY 5 columns (OHLCV)
+   • /api/signals/latest → Returns ONLY basic signal
+   • WebSocket → Broadcasting ONLY partial data
+   • 59+ columns are HIDDEN from API
+
+❌ MISSING TECHNICAL DATA
+   • No momentum indicators (RSI, MACD, Stochastic)
+   • No trend indicators (EMA, SMA, ADX)
+   • No volatility metrics (ATR, Bollinger Bands)
+   • No order flow (bid/ask, spread)
+   • No risk metrics (stop-loss, take-profit, R/R)
+   • No performance tracking (change1h/24h/7d/30d)
+
+════════════════════════════════════════════════════════════════════════════════
+
+WHAT'S ACTUALLY HAPPENING:
+
+1. Exchange → Scanner fetches OHLCV (5 columns)
+2. CCXTScanner → Calculates all 67 columns INTERNALLY
+   ├─ Momentum indicators
+   ├─ Trend analysis
+   ├─ Volatility metrics
+   ├─ Order flow analysis
+   ├─ Signal generation
+   └─ Risk calculations
+3. Signal Pipeline → Generates signals with 67 columns
+4. API Routes → Returns only 8 columns to client ❌
+5. Frontend → Receives INCOMPLETE data
+
+════════════════════════════════════════════════════════════════════════════════
+
+CURRENT ENDPOINT RESPONSES:
+
+GET /api/gateway/signals
+{
+  "success": true,
+  "signals": [
+    {
+      "symbol": "BTC/USDT",
+      "exchange": "okx",
+      "signal": "BUY",
+      "strength": 75,
+      "price": 67711.14,
+      "change24h": 0.16,
+      "volume": 327881318,
+      "timestamp": 1732880709409
+    }
+  ]
+}
+❌ Missing 59 columns!
+
+────────────────────────────────────────────────────────────────────────────────
+
+GET /api/gateway/market-frames/BTC%2FUSDT?limit=100
+{
+  "symbol": "BTC/USDT",
+  "timeframe": "1m",
+  "count": 100,
+  "frames": [
+    {
+      "open": 68885.17,
+      "high": 70631.19,
+      "low": 67526.08,
+      "close": 67711.14,
+      "volume": 51920.61
+    }
+  ]
+}
+❌ Missing 62 columns!
+
+════════════════════════════════════════════════════════════════════════════════
+
+TO GET ALL 67 COLUMNS, CLIENT CURRENTLY NEEDS TO:
+
+1. Call /api/gateway/market-frames (gets OHLCV)
+2. Manually calculate indicators (NOT PROVIDED)
+3. Parse signal separately (8 columns)
+4. Manually construct 67-column dataframe
+5. Result: Frontend CANNOT access all data
+
+════════════════════════════════════════════════════════════════════════════════
+
+WHAT NEEDS TO BE DONE:
+
+Option A: Quick Fix (Add ?detailed=true param)
+   /api/gateway/market-frames/BTC%2FUSDT?detailed=true
+   → Returns full 67 columns (5 min to implement)
+
+Option B: New Dedicated Endpoint
+   GET /api/gateway/dataframe/:symbol
+   → Returns complete 67-column dataframe
+   → Includes all indicators, order flow, risk metrics
+   (10 min to implement)
+
+Option C: Full Wiring
+   • Modify /signals to include all 67 columns
+   • Add /indicators endpoint
+   • Update WebSocket to broadcast full data
+   (30 min to implement)
+
+════════════════════════════════════════════════════════════════════════════════
+
+RECOMMENDATION:
+
+Implement Option B (Dedicated /dataframe endpoint) because:
+✅ Doesn't break existing endpoints
+✅ Explicit and clear (separate endpoint for full data)
+✅ Fastest to implement (10 min)
+✅ Frontend can opt-in for full data
+✅ Easy to cache and optimize
+
+════════════════════════════════════════════════════════════════════════════════
+
+CONCLUSION:
+
+The gateway infrastructure is READY - it has all the data calculated.
+It just needs to be EXPOSED via API endpoints.
+
+You need to "wire" the gateway to send ALL 67 columns to the frontend.
+
+Ready to implement? (Yes/No)
+
+════════════════════════════════════════════════════════════════════════════════
