@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { CacheManager } from '../services/gateway/cache-manager';
 import { RateLimiter } from '../services/gateway/rate-limiter';
 import { ExchangeAggregator } from '../services/gateway/exchange-aggregator';
-import { CCXTScanner } from '../services/gateway/ccxt-scanner'; // Assuming CCXTScanner is in this path
+import { CCXTScanner } from '../services/gateway/ccxt-scanner';
+import { signalWebSocketService } from '../services/websocket-signals';
 
 const router = Router();
 
@@ -121,6 +122,23 @@ router.get('/signals', async (req: Request, res: Response) => {
       });
 
     cacheManager.set(cacheKey, signals, 30000); // 30s cache
+
+    // Broadcast high-conviction signals via WebSocket
+    signals.forEach(sig => {
+      if (sig.strength >= 75) {
+        signalWebSocketService.broadcastSignal(sig, 'new');
+        
+        // Send alert for very high strength
+        if (sig.strength >= 90) {
+          signalWebSocketService.broadcastAlert({
+            title: `High Conviction ${sig.signal}`,
+            message: `${sig.symbol} - Strength: ${sig.strength}%`,
+            signal: sig,
+            priority: 'high'
+          });
+        }
+      }
+    });
 
     res.json({
       success: true,
@@ -382,6 +400,26 @@ router.post('/signal/batch', async (req: Request, res: Response) => {
     console.error(`[Gateway] Batch signal error:`, error.message);
     res.status(500).json({ error: error.message });
   }
+});
+
+/**
+ * Signal Performance Tracking
+ */
+import { signalPerformanceTracker } from '../services/signal-performance-tracker';
+
+router.get('/signals/performance/stats', (req: Request, res: Response) => {
+  const stats = signalPerformanceTracker.getPerformanceStats();
+  res.json(stats);
+});
+
+router.get('/signals/performance/recent', (req: Request, res: Response) => {
+  const { limit = '20' } = req.query;
+  const recent = signalPerformanceTracker.getRecentPerformance(parseInt(limit as string));
+  res.json({ performances: recent });
+});
+
+router.get('/ws/stats', (req: Request, res: Response) => {
+  res.json(signalWebSocketService.getStats());
 });
 
 export default router;

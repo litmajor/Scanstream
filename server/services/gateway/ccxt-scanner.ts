@@ -1,5 +1,3 @@
-
-```typescript
 import { ExchangeAggregator } from './exchange-aggregator';
 import { CacheManager } from './cache-manager';
 import { RateLimiter } from './rate-limiter';
@@ -54,7 +52,7 @@ export class CCXTScanner {
       );
 
       const settled = await Promise.allSettled(scanPromises);
-      
+
       settled.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
           results.push(result.value);
@@ -73,7 +71,7 @@ export class CCXTScanner {
             useCache, 
             minConfidence
           );
-          
+
           if (result) {
             results.push(result);
           }
@@ -167,7 +165,7 @@ export class CCXTScanner {
    */
   private calculateMetrics(frames: any[], priceData: PriceData): ScanMetrics {
     const latest = frames[frames.length - 1];
-    
+
     if (!latest || !latest.indicators) {
       return this.getDefaultMetrics();
     }
@@ -350,4 +348,3 @@ interface ScanStats {
 }
 
 export type { ScanOptions, ScanResult, ScanMetrics, ScanStats };
-```

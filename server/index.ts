@@ -71,6 +71,9 @@ import gatewayRouter from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
 console.log('[express] Gateway API registered at /api/gateway');
 
+// Initialize WebSocket service for real-time signal streaming
+import { signalWebSocketService } from './services/websocket-signals';
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -104,6 +107,9 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+  
+  // Initialize WebSocket signal streaming
+  signalWebSocketService.initialize(server);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
