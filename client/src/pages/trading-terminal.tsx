@@ -5,6 +5,8 @@ import { loadFrontendConfig } from '../lib/config';
 import { TradingChart, ChartDataPoint } from '../components/TradingChart';
 import { useLocation } from 'wouter';
 import { useCoinGeckoChart } from '../hooks/useCoinGeckoChart';
+import { useGatewaySignals } from '../hooks/useGatewaySignals';
+import { GatewaySignalCard } from '../components/GatewaySignalCard';
 import MarketStatusBar from '../components/MarketStatusBar';
 import { StatCard } from '../components/cards';
 import FloatingChartToolbar from '../components/FloatingChartToolbar';
@@ -406,6 +408,9 @@ export default function TradingTerminal() {
     toggleSound,
     addNotification
   } = useNotifications();
+
+  // Gateway Signals
+  const { data: gatewaySignals = [], refetch: refetchGatewaySignals } = useGatewaySignals();
 
   // Auto-hide timer refs
   const leftSidebarTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1113,7 +1118,7 @@ export default function TradingTerminal() {
         {showLeftSidebar && (
           <ErrorBoundary FallbackComponent={ErrorFallback}>
             <div 
-              className="absolute left-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-r border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-left duration-300"
+              className="absolute left-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-r border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto"
               aria-label="Market Overview Sidebar"
               onMouseEnter={() => {
                 if (leftSidebarTimerRef.current) {
@@ -1122,12 +1127,15 @@ export default function TradingTerminal() {
               }}
               onMouseLeave={() => resetLeftSidebarTimer()}
             >
-            <div className="p-4 border-b border-slate-700/50">
+            <div className="p-4 border-b border-slate-700/50 sticky top-0 bg-slate-900/95 backdrop-blur-sm z-10">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-white">Top Signals</h2>
                 <button
-                  className="text-xs bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white px-3 py-1.5 rounded-lg font-medium transition-all shadow-lg shadow-green-500/20"
-                  onClick={() => refetchSignals()}
+                  className="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium transition-all shadow-lg shadow-blue-500/20"
+                  onClick={() => {
+                    refetchSignals();
+                    refetchGatewaySignals();
+                  }}
                   data-testid="button-refresh-signals"
                   aria-label="Refresh Signals"
                 >
@@ -1135,6 +1143,22 @@ export default function TradingTerminal() {
                   Refresh
                 </button>
               </div>
+            </div>
+
+            {/* Gateway Scanner Signals */}
+            {gatewaySignals && gatewaySignals.length > 0 && (
+              <div className="p-4 border-b border-slate-700/50">
+                <h3 className="text-sm font-semibold text-indigo-400 mb-3 uppercase tracking-wide">Gateway Scanner</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {gatewaySignals.slice(0, 6).map((signal) => (
+                    <GatewaySignalCard key={signal.symbol} signal={signal} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="p-4">
+              <h3 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Latest Signals</h3>
               <div className="space-y-3">
                 {signalsLoading && (
                   <div className="animate-pulse space-y-2">

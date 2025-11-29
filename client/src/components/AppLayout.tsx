@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   
   // Trading Section - Active trading tools
   { name: 'Scanner', path: '/scanner', icon: Search, section: 'trading' },
+  { name: 'Gateway Scanner', path: '/gateway-scanner', icon: Zap, section: 'trading' },
   { name: 'Strategies', path: '/strategies', icon: Target, section: 'trading' },
   { name: 'Backtest', path: '/backtest', icon: BarChart3, section: 'trading' },
   

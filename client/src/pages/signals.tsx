@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Zap, Brain, Target, Bot, TrendingUp, Filter, RefreshCw, Grid3x3, Clock, Sparkles } from 'lucide-react';
+import { Zap, Brain, Target, Bot, TrendingUp, Filter, RefreshCw, Grid3x3, Clock, Sparkles, Zap as Radar } from 'lucide-react';
 import EnhancedSignalsList from '../components/EnhancedSignalsList';
 import SignalStrengthHeatmap from '../components/SignalStrengthHeatmap';
 import SignalTimeline from '../components/SignalTimeline';
 import { UnifiedSignalDisplay } from '../components/UnifiedSignalDisplay';
 import { MarketOverview } from '../components/coingecko/MarketOverview';
+import { useGatewaySignals } from '../hooks/useGatewaySignals';
 
-type SignalSource = 'all' | 'scanner' | 'strategies' | 'ml' | 'rl';
+type SignalSource = 'all' | 'gateway' | 'scanner' | 'strategies' | 'ml' | 'rl';
 
 interface UnifiedSignal {
   symbol: string;
@@ -40,6 +41,9 @@ export default function SignalsPage() {
     confirmed: false,
     highConviction: false,
   });
+
+  // Fetch Gateway Signals
+  const { data: gatewaySignals, refetch: refetchGateway } = useGatewaySignals();
 
   // Fetch Scanner Signals
   const { data: scannerSignals, refetch: refetchScanner } = useQuery<UnifiedSignal[]>({
@@ -97,8 +101,25 @@ export default function SignalsPage() {
     refetchInterval: 45000,
   });
 
+  // Convert gateway signals to unified format
+  const gatewayUnifiedSignals: UnifiedSignal[] = (gatewaySignals || []).map(g => ({
+    symbol: g.symbol,
+    exchange: 'aggregated',
+    signal: g.signal,
+    strength: g.signalConfidence,
+    price: g.close,
+    change: g.priceChangePercent,
+    volume: g.volume,
+    timestamp: new Date(g.timestamp).getTime(),
+    source: 'scanner' as const,
+    confidence: g.signalConfidence / 100,
+    indicators: { rsi: g.rsi, macd: g.macd },
+    strategyName: 'Gateway Scanner',
+  }));
+
   // Combine all signals
   const allSignals: UnifiedSignal[] = [
+    ...gatewayUnifiedSignals,
     ...(scannerSignals || []),
     ...(strategySignals || []),
     ...(mlSignals || []),
@@ -130,6 +151,7 @@ export default function SignalsPage() {
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
     await Promise.all([
+      refetchGateway(),
       refetchScanner(),
       refetchStrategies(),
       refetchML(),
@@ -145,6 +167,13 @@ export default function SignalsPage() {
       count: allSignals.length,
       icon: Zap,
       color: 'blue',
+    },
+    {
+      id: 'gateway',
+      name: 'Gateway Scanner',
+      count: gatewaySignals?.length || 0,
+      icon: Radar,
+      color: 'indigo',
     },
     {
       id: 'scanner',
