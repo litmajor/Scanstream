@@ -72,7 +72,15 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   app.get("/", serveIndexHtml);
-  app.get("/*splat", serveIndexHtml);
+  app.get("/*splat", (req, res, next) => {
+    if (req.path.startsWith('/api') || 
+        req.path.startsWith('/ws') ||
+        req.path.includes('.') ||
+        req.path.startsWith('/socket')) {
+      return next();
+    }
+    return serveIndexHtml(req, res, next);
+  });
 }
 
 export function serveStatic(app: Express) {
@@ -92,5 +100,13 @@ export function serveStatic(app: Express) {
   };
 
   app.get("/", serveIndexHtml);
-  app.get("/*splat", serveIndexHtml);
+  app.get("/*splat", (req, res, next) => {
+    if (req.path.startsWith('/api') || 
+        req.path.startsWith('/ws') ||
+        req.path.includes('.') ||
+        req.path.startsWith('/socket')) {
+      return next();
+    }
+    return serveIndexHtml(req, res, next);
+  });
 }
