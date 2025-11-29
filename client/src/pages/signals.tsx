@@ -86,6 +86,8 @@ export default function SignalsPage() {
         source: 'ml' as const,
         sourceLabel: '🤖 ML Model',
         confidence: p.confidence,
+        holdingPeriod: p.holdingPeriod,
+        strategyName: `ML: ${p.holdingPeriod?.reason || 'Auto'}`,
       }));
     },
     refetchInterval: 45000,

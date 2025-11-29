@@ -32,6 +32,13 @@ interface Signal {
   };
   stopLoss?: number;
   takeProfit?: number;
+  holdingPeriod?: {
+    candles: number;
+    days: number;
+    hours: number;
+    confidence: number;
+    reason: string;
+  };
 }
 
 interface CompositeScore {
@@ -482,6 +489,10 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
     staleTime: 300000,
   });
 
+  // Get ML holding period if available
+  const mlSignal = unified.signals.find((s: Signal) => s.source === 'ml' && s.holdingPeriod);
+  const holdingPeriod = mlSignal?.holdingPeriod;
+
   return (
     <Card className={cn(
       'bg-slate-800/40 border-slate-700/50 hover:border-slate-600/50 transition-all',
@@ -506,6 +517,14 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
                   {unified.change24h.toFixed(2)}%
                 </span>
               </div>
+              {holdingPeriod && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/30">
+                  <Clock className="w-3 h-3" />
+                  <span>Hold: {holdingPeriod.days > 0 ? `${holdingPeriod.days}d` : `${holdingPeriod.hours}h`}</span>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-slate-400">{holdingPeriod.reason}</span>
+                </div>
+              )}
             </div>
 
             <div className="text-right space-y-2">

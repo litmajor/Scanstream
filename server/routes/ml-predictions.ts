@@ -43,7 +43,11 @@ router.post('/predictions', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      predictions,
+      predictions: {
+        ...predictions,
+        // Ensure holding period is explicitly included
+        holdingPeriod: predictions.holdingPeriod
+      },
       timestamp: new Date().toISOString()
     });
     

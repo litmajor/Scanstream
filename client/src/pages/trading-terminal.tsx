@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Brain, RefreshCw, Layers, Bell, Cog, BarChart3, ExpandIcon, Target, Wind, Waves, Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Maximize2, Minimize2, Search, ChevronDown, Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+import { Brain, RefreshCw, Layers, Bell, Cog, BarChart3, ExpandIcon, Target, Wind, Waves, Activity, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Maximize2, Minimize2, Search, ChevronDown, Wallet, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import { loadFrontendConfig } from '../lib/config';
 import { TradingChart, ChartDataPoint } from '../components/TradingChart';
 import { useLocation } from 'wouter';
@@ -181,6 +181,8 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
   const onMessageRef = useRef(onMessage); // Store callback in ref to avoid reconnections
   const maxReconnectAttempts = 10;
   const baseReconnectDelay = 1000; // Start with 1 second
+  const reconnectAttemptsRef = useRef(0); // Track reconnection attempts
+  const exchangeRef = useRef('binance'); // Default exchange
 
   // Update the callback ref when it changes
   useEffect(() => {
@@ -208,9 +210,9 @@ function useWebSocket(url: string, onMessage: (data: any) => void) {
 
         // Send initial exchange setting
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ 
-            type: 'set_exchange', 
-            exchange: exchangeRef.current 
+          wsRef.current.send(JSON.stringify({
+            type: 'set_exchange',
+            exchange: exchangeRef.current
           }));
         }
       };
@@ -873,6 +875,13 @@ export default function TradingTerminal() {
       level: 'low' | 'medium' | 'high' | 'extreme';
       factors: string[];
     };
+    holdingPeriod?: { // Added holdingPeriod interface
+      days: number;
+      hours: number;
+      candles: number;
+      confidence: number;
+      reason: string;
+    };
   }
 
   const { data: mlPredictions, isLoading: mlPredictionsLoading } = useQuery<MLPredictions>({
@@ -1018,8 +1027,8 @@ export default function TradingTerminal() {
               title={showLeftSidebar ? 'Hide Market Overview' : 'Show Market Overview'}
               aria-label={showLeftSidebar ? 'Hide left sidebar' : 'Show left sidebar'}
             >
-              {showLeftSidebar ? 
-                <PanelLeftClose className="w-4 h-4 text-blue-400" /> : 
+              {showLeftSidebar ?
+                <PanelLeftClose className="w-4 h-4 text-blue-400" /> :
                 <PanelLeftOpen className="w-4 h-4 text-slate-400" />
               }
             </button>
@@ -1031,8 +1040,8 @@ export default function TradingTerminal() {
               title={showRightSidebar ? 'Hide Portfolio' : 'Show Portfolio'}
               aria-label={showRightSidebar ? 'Hide right sidebar' : 'Show right sidebar'}
             >
-              {showRightSidebar ? 
-                <PanelRightClose className="w-4 h-4 text-blue-400" /> : 
+              {showRightSidebar ?
+                <PanelRightClose className="w-4 h-4 text-blue-400" /> :
                 <PanelRightOpen className="w-4 h-4 text-slate-400" />
               }
             </button>
@@ -1053,8 +1062,8 @@ export default function TradingTerminal() {
               title={focusMode ? 'Exit Focus Mode' : 'Enter Focus Mode'}
               aria-label={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
             >
-              {focusMode ? 
-                <Minimize2 className="w-4 h-4 text-purple-400" /> : 
+              {focusMode ?
+                <Minimize2 className="w-4 h-4 text-purple-400" /> :
                 <Maximize2 className="w-4 h-4 text-slate-400" />
               }
             </button>
@@ -1118,7 +1127,7 @@ export default function TradingTerminal() {
         {/* Left Sidebar - Market Overview (Overlay Mode) */}
         {showLeftSidebar && (
           <ErrorBoundary FallbackComponent={ErrorFallback}>
-            <div 
+            <div
               className="absolute left-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-r border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto"
               aria-label="Market Overview Sidebar"
               onMouseEnter={() => {
@@ -1181,8 +1190,8 @@ export default function TradingTerminal() {
                   <div
                     key={index}
                     className={`bg-slate-800/30 rounded-lg p-3 border transition-all cursor-pointer hover:shadow-lg ${
-                      signal.type === 'BUY' 
-                        ? 'border-green-500/30 hover:border-green-500/50 hover:shadow-green-500/10' 
+                      signal.type === 'BUY'
+                        ? 'border-green-500/30 hover:border-green-500/50 hover:shadow-green-500/10'
                         : 'border-red-500/30 hover:border-red-500/50 hover:shadow-red-500/10'
                     }`}
                     data-testid={`signal-card-${index}`}
@@ -1197,8 +1206,8 @@ export default function TradingTerminal() {
                         </span>
                         <span
                           className={`text-xs px-2 py-0.5 rounded-lg font-bold ${
-                            signal.type === 'BUY' 
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                            signal.type === 'BUY'
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                               : 'bg-red-500/20 text-red-400 border border-red-500/30'
                           }`}
                           data-testid={`signal-type-${index}`}
@@ -1441,8 +1450,8 @@ export default function TradingTerminal() {
                                 setShowSymbolSearch(false);
                               }}
                               className={`w-full text-left px-3 py-2 rounded text-sm font-mono transition-all ${
-                                sym === selectedSymbol 
-                                  ? 'bg-blue-600 text-white font-semibold' 
+                                sym === selectedSymbol
+                                  ? 'bg-blue-600 text-white font-semibold'
                                   : 'hover:bg-slate-700 text-slate-300 hover:text-white'
                               }`}
                             >
@@ -1461,7 +1470,7 @@ export default function TradingTerminal() {
                   </span>
                   <div className="flex items-center space-x-2">
                     <span className="text-2xl font-mono text-white" data-testid="current-price">
-                      {chartData.length > 0 
+                      {chartData.length > 0
                         ? formatCurrency(chartData[chartData.length - 1]?.close || currentPrice)
                         : formatCurrency(currentPrice)}
                     </span>
@@ -1581,8 +1590,8 @@ export default function TradingTerminal() {
                                   ${chartData[chartData.length - 1]?.close?.toFixed(2) || '0.00'}
                                 </span>
                                 <span className={`text-sm font-mono px-2 py-1 rounded ${
-                                  priceChangePercent >= 0 
-                                    ? 'bg-green-500/10 text-green-400' 
+                                  priceChangePercent >= 0
+                                    ? 'bg-green-500/10 text-green-400'
                                     : 'bg-red-500/10 text-red-400'
                                 }`}>
                                   {priceChange >= 0 ? '+' : ''}{formatPercent(priceChangePercent)}
@@ -1797,7 +1806,7 @@ export default function TradingTerminal() {
                                   ${chartData[chartData.length - 1]?.ema?.toFixed(2)}
                                 </span>
                               </div>
-                              <div className="text-xs space-y-1">
+                              <div className="space-y-1 text-xs">
                                 <div className="flex justify-between">
                                   <span className="text-slate-500">Current Price:</span>
                                   <span className="text-slate-300 font-mono">
@@ -1810,7 +1819,7 @@ export default function TradingTerminal() {
                                     chartData[chartData.length - 1]?.close! > chartData[chartData.length - 1]?.ema!
                                       ? 'text-green-400' : 'text-red-400'
                                   }`}>
-                                    {(((chartData[chartData.length - 1]?.close! - chartData[chartData.length - 1]?.ema!) / 
+                                    {(((chartData[chartData.length - 1]?.close! - chartData[chartData.length - 1]?.ema!) /
                                       chartData[chartData.length - 1]?.ema!) * 100).toFixed(2)}%
                                   </span>
                                 </div>
@@ -1879,7 +1888,7 @@ export default function TradingTerminal() {
                               </span>
                             </div>
                             <div className="text-xs text-red-400/70 mt-1">
-                              +{(((Math.max(...chartData.map(d => d.high)) - chartData[chartData.length - 1]?.close!) / 
+                              +{(((Math.max(...chartData.map(d => d.high)) - chartData[chartData.length - 1]?.close!) /
                                 chartData[chartData.length - 1]?.close!) * 100).toFixed(2)}% away
                             </div>
                           </div>
@@ -1902,7 +1911,7 @@ export default function TradingTerminal() {
                               </span>
                             </div>
                             <div className="text-xs text-green-400/70 mt-1">
-                              {(((chartData[chartData.length - 1]?.close! - Math.min(...chartData.map(d => d.low))) / 
+                              {(((chartData[chartData.length - 1]?.close! - Math.min(...chartData.map(d => d.low))) /
                                 chartData[chartData.length - 1]?.close!) * 100).toFixed(2)}% away
                             </div>
                           </div>
@@ -2059,8 +2068,8 @@ export default function TradingTerminal() {
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xs font-medium text-slate-400">Next Candle</span>
                                 <span className={`text-sm font-mono font-bold px-2 py-1 rounded ${
-                                  mlPredictions.direction.prediction === 'bullish' 
-                                    ? 'bg-green-500/20 text-green-400' 
+                                  mlPredictions.direction.prediction === 'bullish'
+                                    ? 'bg-green-500/20 text-green-400'
                                     : 'bg-red-500/20 text-red-400'
                                 }`}>
                                   {mlPredictions.direction.prediction === 'bullish' ? '🟢 BULLISH' : '🔴 BEARISH'}
@@ -2139,44 +2148,79 @@ export default function TradingTerminal() {
                               </div>
                             </div>
 
-                            {/* Risk Assessment */}
+                            {/* Risk Assessment Card */}
                             <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/30">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-slate-400">Risk Level</span>
-                                <span className={`text-sm font-mono font-bold ${
-                                  mlPredictions.risk.level === 'low' ? 'text-green-400' :
-                                  mlPredictions.risk.level === 'medium' ? 'text-yellow-400' :
-                                  mlPredictions.risk.level === 'high' ? 'text-orange-400' :
-                                  'text-red-400'
+                                <span className="text-xs font-medium text-slate-400">Risk Score</span>
+                                <span className={`text-xs px-2 py-1 rounded font-bold ${
+                                  mlPredictions.risk.level === 'low' ? 'bg-green-500/20 text-green-400' :
+                                  mlPredictions.risk.level === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  mlPredictions.risk.level === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                                  'bg-red-500/20 text-red-400'
                                 }`}>
-                                  {mlPredictions.risk.score}/100
+                                  {mlPredictions.risk.level.toUpperCase()}
                                 </span>
                               </div>
-                              <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden mb-2">
+                              <div className="relative w-full h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
                                 <div
-                                  className={`h-full rounded-full transition-all ${
-                                    mlPredictions.risk.level === 'low' ? 'bg-green-400' :
-                                    mlPredictions.risk.level === 'medium' ? 'bg-yellow-400' :
-                                    mlPredictions.risk.level === 'high' ? 'bg-orange-400' :
-                                    'bg-red-400'
+                                  className={`absolute inset-y-0 left-0 transition-all ${
+                                    mlPredictions.risk.score < 25 ? 'bg-green-500' :
+                                    mlPredictions.risk.score < 50 ? 'bg-yellow-500' :
+                                    mlPredictions.risk.score < 75 ? 'bg-orange-500' :
+                                    'bg-red-500'
                                   }`}
                                   style={{ width: `${mlPredictions.risk.score}%` }}
                                 />
                               </div>
-                              <div className="space-y-1">
-                                {mlPredictions.risk.factors.slice(0, 2).map((factor, i) => (
-                                  <div key={i} className="text-xs text-slate-400 flex items-start">
-                                    <span className="mr-1">•</span>
-                                    <span>{factor}</span>
-                                  </div>
-                                ))}
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs text-slate-500">Score:</span>
+                                <span className="text-sm font-bold text-white">{mlPredictions.risk.score}/100</span>
                               </div>
+                              {mlPredictions.risk.factors.slice(0, 2).map((factor, i) => (
+                                <div key={i} className="text-xs text-slate-400 flex items-start gap-1 mt-1">
+                                  <span className="text-orange-400">•</span>
+                                  <span>{factor}</span>
+                                </div>
+                              ))}
                             </div>
 
-                            {/* Model Info */}
-                            <div className="text-xs text-center text-slate-500 pt-2 border-t border-slate-700/50">
-                              4 ML models • Updated every 45s
-                            </div>
+                            {/* Holding Period Card */}
+                            {mlPredictions.holdingPeriod && (
+                              <div className="bg-slate-900/40 rounded-lg p-3 border border-purple-500/30">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-medium text-slate-400">Optimal Hold Time</span>
+                                  <Clock className="w-3 h-3 text-purple-400" />
+                                </div>
+                                <div className="text-center mb-2">
+                                  <div className="text-2xl font-bold text-purple-400">
+                                    {mlPredictions.holdingPeriod.days > 0
+                                      ? `${mlPredictions.holdingPeriod.days}d`
+                                      : `${mlPredictions.holdingPeriod.hours}h`
+                                    }
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-1">
+                                    ({mlPredictions.holdingPeriod.candles} candles)
+                                  </div>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Confidence:</span>
+                                    <span className="text-purple-400 font-mono">
+                                      {(mlPredictions.holdingPeriod.confidence * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="relative w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className="absolute inset-y-0 left-0 bg-purple-500 transition-all"
+                                      style={{ width: `${mlPredictions.holdingPeriod.confidence * 100}%` }}
+                                    />
+                                  </div>
+                                  <div className="mt-2 text-xs text-slate-400 italic">
+                                    "{mlPredictions.holdingPeriod.reason}"
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-center py-4">
@@ -2209,8 +2253,8 @@ export default function TradingTerminal() {
                           {isGatewayConnected ? 'Connected to Scanner' : 'Connecting to Scanner...'}
                         </div>
                         <div className="text-sm text-gray-500 mb-4">
-                          {isGatewayConnected 
-                            ? `Waiting for ${selectedSymbol} data from ${selectedExchange}` 
+                          {isGatewayConnected
+                            ? `Waiting for ${selectedSymbol} data from ${selectedExchange}`
                             : 'Establishing WebSocket connection...'
                           }
                         </div>
@@ -2229,7 +2273,7 @@ export default function TradingTerminal() {
         {/* Right Sidebar - Portfolio Summary (Overlay Mode) */}
         {showRightSidebar && (
           <ErrorBoundary FallbackComponent={ErrorFallback}>
-            <div 
+            <div
               className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-md border-l border-slate-700/50 flex flex-col z-40 shadow-2xl animate-in slide-in-from-right duration-300"
               aria-label="Portfolio Sidebar"
               onMouseEnter={() => {

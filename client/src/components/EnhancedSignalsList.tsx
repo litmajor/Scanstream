@@ -310,6 +310,27 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
                     )}
                   </div>
                 )}
+
+                {/* ML Holding Period */}
+                {(signal as any).holdingPeriod && (
+                  <div className="mt-2 pt-2 border-t border-slate-700/50">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-purple-400">
+                        <Clock className="w-3 h-3" />
+                        <span>Optimal Hold:</span>
+                        <span className="font-bold">
+                          {(signal as any).holdingPeriod.days > 0 
+                            ? `${(signal as any).holdingPeriod.days}d`
+                            : `${(signal as any).holdingPeriod.hours}h`
+                          }
+                        </span>
+                      </div>
+                      <span className="text-slate-400 italic">
+                        {(signal as any).holdingPeriod.reason}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
