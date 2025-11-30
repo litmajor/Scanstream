@@ -1567,8 +1567,19 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
               // Add delay between requests to prevent throttler overflow
               await new Promise(resolve => setTimeout(resolve, 300));
 
-            } catch (symbolError) {
-              console.error(`Error processing symbol ${symbol}:`, symbolError);
+            } catch (symbolError: any) {
+              // Suppress geo-restriction errors (451/403) - they're expected and handled gracefully
+              const errorMsg = symbolError?.message || '';
+              const statusCode = symbolError?.status || symbolError?.statusCode || 0;
+              const isGeoRestricted = statusCode === 403 || statusCode === 451 || 
+                                    errorMsg.includes('403') || errorMsg.includes('451') ||
+                                    errorMsg.includes('Forbidden') || errorMsg.includes('geo') ||
+                                    errorMsg.includes('restricted') || errorMsg.includes('CloudFront') ||
+                                    errorMsg.includes('Service unavailable');
+              
+              if (!isGeoRestricted) {
+                console.error(`Error processing symbol ${symbol}:`, symbolError);
+              }
               results.push(null);
               // Continue processing other symbols even if one fails
             }

@@ -1,0 +1,109 @@
+
+[normalizeSymbol] Using cached mapping: LINK/USDT -> LINK/USDT (kraken)
+[WebSocket] Fetching market data for binance: BTC/USDT
+[normalizeSymbol] Using cached mapping: BTC/USDT -> BTC/USDT (binance)
+Error processing symbol BTC/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=BTCUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[normalizeSymbol] Using cached mapping: ETH/USDT -> ETH/USDT (binance)
+Error processing symbol ETH/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=ETHUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[normalizeSymbol] Using cached mapping: SOL/USDT -> SOL/USDT (binance)
+Error processing symbol SOL/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=SOLUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[WS] Broadcasted new signal for DOT/USDT: BUY (0.6256783923712333%)
+[MarketDataFetcher] Signal generated for DOT/USDT: BUY (strength: 0.6%)
+[normalizeSymbol] Using cached mapping: DOGE/USDT -> DOGE/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: DOGE/USDT -> DOGE/USDT (coinbase)
+[normalizeSymbol] Using cached mapping: DOGE/USDT -> DOGE/USDT (okx)
+[normalizeSymbol] Using cached mapping: DOGE/USDT -> DOGE/USDT (kraken)
+[DEBUG] app.get path: env
+[DEBUG] app.get path: trust proxy fn
+[DEBUG] app.get path: trust proxy fn
+[DEBUG] app.get path: json escape
+[DEBUG] app.get path: json replacer
+[DEBUG] app.get path: json spaces
+[DEBUG] app.get path: etag fn
+10:48:26 AM [express] GET /api/portfolio-summary 200 in 4ms :: {"totalTrades":0,"openTrades":0,"close…
+[WebSocket] Fetching market data for binance: BTC/USDT
+[normalizeSymbol] Using cached mapping: BTC/USDT -> BTC/USDT (binance)
+Error processing symbol BTC/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=BTCUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[normalizeSymbol] Using cached mapping: ETH/USDT -> ETH/USDT (binance)
+[normalizeSymbol] Using cached mapping: XRP/USDT -> XRP/USDT:USDT (kucoinfutures)
+Error processing symbol ETH/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=ETHUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[normalizeSymbol] Using cached mapping: SOL/USDT -> SOL/USDT (binance)
+Error processing symbol SOL/USDT: ExchangeNotAvailable: binance GET https://api.binance.com/api/v3/klines?interval=1m&limit=500&symbol=SOLUSDT 451  {
+  "code": 0,
+  "msg": "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error."
+}
+    at binance.handleHttpStatusCode (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:930:19)
+    at <anonymous> (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:796:22)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async binance.fetch2 (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:4801:24)
+    at async binance.request (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:12331:26)
+    at async binance.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/binance.js:4771:24)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:888:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1072:21)
+    at async Timeout._onTimeout (/home/runner/workspace/server/routes.ts:1519:32)
+[DEBUG] app.get path: env
+[DEBUG] app.get path: trust proxy fn
+[DEBUG] app.get path: trust proxy fn
+[DEBUG] app.get path: query parser fn
+[DEBUG] app.get path: json escape
+[DEBUG] app.get path: json replacer
