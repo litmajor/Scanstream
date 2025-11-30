@@ -105,7 +105,7 @@ export class ExchangeAggregator {
             });
           }
         } catch (error: any) {
-          this.updateExchangeHealth(exchange, false);
+          this.updateExchangeHealth(exchange, false, 0, error);
           errors.push(`${exchange}: ${error.message}`);
         }
       });
@@ -201,8 +201,11 @@ export class ExchangeAggregator {
 
         return ohlcv;
       } catch (error: any) {
-        this.updateExchangeHealth(exchange, false);
-        console.warn(`[Gateway] Failed to fetch from ${exchange}: ${error.message}`);
+        this.updateExchangeHealth(exchange, false, 0, error);
+        // Only log if not a geo-restriction error
+        if (!this.isGeoRestrictionError(error)) {
+          console.warn(`[Gateway] Failed to fetch from ${exchange}: ${error.message}`);
+        }
         continue;
       }
     }
@@ -242,7 +245,11 @@ export class ExchangeAggregator {
         return frames;
       } catch (error: any) {
         this.rateLimiter.recordFailure(exchange);
-        console.warn(`[Gateway] Failed to fetch market frames from ${exchange}: ${error.message}`);
+        this.updateExchangeHealth(exchange, false, 0, error);
+        // Only log if not a geo-restriction error
+        if (!this.isGeoRestrictionError(error)) {
+          console.warn(`[Gateway] Failed to fetch market frames from ${exchange}: ${error.message}`);
+        }
         continue;
       }
     }

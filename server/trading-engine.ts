@@ -1131,8 +1131,18 @@ class ExchangeDataFeed {
           }
         } as MarketFrame & { id: string; timestamp: Date };
       });
-    } catch (error) {
-      console.error('Failed to fetch market data:', error);
+    } catch (error: any) {
+      // Only log if not a geo-restriction error (403/451)
+      const statusCode = error?.status || error?.statusCode || 0;
+      const message = error?.message || '';
+      const isGeoRestricted = statusCode === 403 || statusCode === 451 || 
+                            message.includes('403') || message.includes('451') ||
+                            message.includes('Forbidden') || message.includes('geo') ||
+                            message.includes('restricted') || message.includes('CloudFront');
+      
+      if (!isGeoRestricted) {
+        console.error('Failed to fetch market data:', error);
+      }
       throw error;
     }
   }
