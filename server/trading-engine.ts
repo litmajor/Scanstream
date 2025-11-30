@@ -1,5 +1,10 @@
+// Smart symbol mapper - learns which formats work per exchange
+import symbolMapper from './services/symbol-mapper';
+
 // Normalize a symbol for the given exchange, so only valid symbols are used
 function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
+  const exchangeName = exchange.id || 'unknown';
+
   // Check if exchange and symbols are available
   if (!exchange || !exchange.markets || Object.keys(exchange.markets).length === 0) {
     console.warn('[normalizeSymbol] Exchange markets not loaded, returning symbol as-is:', symbol);
@@ -8,8 +13,22 @@ function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
 
   const symbols = Object.keys(exchange.markets);
 
-  // If symbol is already valid, return it
+  // 1. Check cache first - if we've already mapped this, use cached result
+  const cachedMapping = symbolMapper.getCachedMapping(symbol, exchangeName);
+  if (cachedMapping) {
+    console.log(`[normalizeSymbol] Using cached mapping: ${symbol} -> ${cachedMapping} (${exchangeName})`);
+    return cachedMapping;
+  }
+
+  // 2. If previously failed on this exchange, don't retry
+  if (symbolMapper.hasFailedBefore(symbol, exchangeName)) {
+    console.log(`[normalizeSymbol] Skipping ${symbol} on ${exchangeName} - previously failed`);
+    return symbol; // Return as-is
+  }
+
+  // If symbol is already valid, cache and return it
   if (symbols.includes(symbol)) {
+    symbolMapper.cacheSuccessfulMapping(symbol, exchangeName, symbol);
     return symbol;
   }
 
@@ -22,7 +41,8 @@ function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
   
   for (const variant of futuresVariants) {
     if (symbols.includes(variant)) {
-      console.log(`[normalizeSymbol] Mapped ${symbol} -> ${variant}`);
+      symbolMapper.cacheSuccessfulMapping(symbol, exchangeName, variant);
+      console.log(`[normalizeSymbol] Mapped ${symbol} -> ${variant} (${exchangeName})`);
       return variant;
     }
   }
@@ -30,12 +50,15 @@ function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
   // Try spot mapping (e.g. BTCUSDT -> BTC/USDT)
   const spot = symbol.includes("/") ? symbol : symbol.replace("USDT", "/USDT");
   if (symbols.includes(spot)) {
-    console.log(`[normalizeSymbol] Mapped ${symbol} -> ${spot}`);
+    symbolMapper.cacheSuccessfulMapping(symbol, exchangeName, spot);
+    console.log(`[normalizeSymbol] Mapped ${symbol} -> ${spot} (${exchangeName})`);
     return spot;
   }
 
-  console.warn(`[normalizeSymbol] No valid market symbol found for ${symbol}, returning as-is`);
-  return symbol; // Return as-is instead of throwing
+  // Mark this symbol/exchange combo as failed - don't retry again
+  symbolMapper.markAsFailed(symbol, exchangeName);
+  console.warn(`[normalizeSymbol] No valid market symbol found for ${symbol} on ${exchangeName}, won't retry`);
+  return symbol; // Return as-is
 }
 // Helper to guarantee a string (never null/undefined)
 function safeString(val: any): string {
