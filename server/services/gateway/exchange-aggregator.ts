@@ -255,16 +255,43 @@ export class ExchangeAggregator {
    */
   private isExchangeHealthy(exchange: string): boolean {
     const health = this.healthStatus.get(exchange);
-    return health ? health.healthy && health.consecutiveFailures < 5 : false;
+    if (!health) return false;
+    
+    // If temporarily disabled due to geo-restriction, check if recovery time has passed (5 minutes)
+    if (!health.healthy && health.isGeoRestricted) {
+      const timeSinceError = Date.now() - (health.lastErrorTime?.getTime() || 0);
+      if (timeSinceError > 5 * 60 * 1000) { // 5 minute recovery window
+        health.healthy = true;
+        health.consecutiveFailures = 0;
+        health.isGeoRestricted = false;
+        this.healthStatus.set(exchange, health);
+        console.log(`[Gateway] Retrying geo-restricted exchange: ${exchange}`);
+      }
+    }
+    
+    return health.healthy && health.consecutiveFailures < 10;
   }
 
   /**
-   * Update exchange health status
+   * Check if error is a geo-restriction (403/451)
+   */
+  private isGeoRestrictionError(error: any): boolean {
+    const message = error?.message || '';
+    const statusCode = error?.status || error?.statusCode || 0;
+    return statusCode === 403 || statusCode === 451 || 
+           message.includes('403') || message.includes('451') ||
+           message.includes('Forbidden') || message.includes('geo') ||
+           message.includes('restricted') || message.includes('CloudFront');
+  }
+
+  /**
+   * Update exchange health status with intelligent error handling
    */
   private updateExchangeHealth(
     exchange: string, 
     success: boolean, 
-    latency: number = 0
+    latency: number = 0,
+    error?: any
   ): void {
     const health = this.healthStatus.get(exchange);
     if (!health) return;
@@ -275,13 +302,35 @@ export class ExchangeAggregator {
       health.consecutiveFailures = 0;
       health.lastError = undefined;
       health.lastErrorTime = undefined;
+      health.isGeoRestricted = false;
     } else {
-      health.consecutiveFailures++;
-      health.lastErrorTime = new Date();
+      const isGeoRestricted = this.isGeoRestrictionError(error);
       
-      if (health.consecutiveFailures >= 5) {
-        health.healthy = false;
-        console.warn(`[Gateway] Exchange ${exchange} marked as unhealthy after ${health.consecutiveFailures} failures`);
+      if (isGeoRestricted) {
+        // Geo-restricted exchanges get more patience
+        health.isGeoRestricted = true;
+        health.consecutiveFailures = Math.min(health.consecutiveFailures + 1, 3); // Cap at 3 before disabling
+        health.lastErrorTime = new Date();
+        
+        if (health.consecutiveFailures >= 3) {
+          health.healthy = false;
+          // Log once when disabled, then quiet
+          if (health.consecutiveFailures === 3) {
+            console.warn(`[Gateway] Exchange ${exchange} temporarily disabled (geo-restricted). Will retry in 5 minutes.`);
+          }
+        }
+        // Don't log individual geo-restriction errors - they're expected
+      } else {
+        // Regular errors count more heavily
+        health.consecutiveFailures++;
+        health.lastErrorTime = new Date();
+        
+        if (health.consecutiveFailures >= 5) {
+          health.healthy = false;
+          if (health.consecutiveFailures === 5) {
+            console.warn(`[Gateway] Exchange ${exchange} marked as unhealthy after ${health.consecutiveFailures} failures: ${error?.message}`);
+          }
+        }
       }
     }
 
