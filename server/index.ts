@@ -11,6 +11,7 @@ import mlTrainingRouter from './routes/ml-training';
 import analyticsRouter from './routes/analytics';
 import mlSignalsRouter from './routes/ml-signals';
 import rlSignalsRouter from './routes/rl-signals';
+import paperTradingRouter from './routes/paper-trading';
 // Removed fastScanner service import
 
 
@@ -78,6 +79,10 @@ app.use('/api/ml-engine', mlSignalsRouter);
 console.log('[express] ML Signals API registered at /api/ml-engine');
 app.use('/api/rl-agent', rlSignalsRouter);
 console.log('[express] RL Signals API registered at /api/rl-agent');
+
+// Register paper trading routes
+app.use('/api/paper-trading', paperTradingRouter);
+console.log('[express] Paper Trading API registered at /api/paper-trading');
 
 // Register Optimization routes
 import optimizationRouter from './routes/optimization';
