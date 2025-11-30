@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Brain, Target, Zap, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Brain, Target, Zap, BarChart3, AlertCircle, Heart, Flame } from 'lucide-react';
 
 interface Strategy {
   id: string;

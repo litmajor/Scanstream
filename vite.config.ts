@@ -31,8 +31,7 @@ export default defineConfig({
     jsxImportSource: 'react',
   },
   optimizeDeps: {
-    noDiscovery: true,
-    include: [],
+    include: ['react', 'react-dom', 'use-sync-external-store/shim'],
   },
   server: {
     fs: {
