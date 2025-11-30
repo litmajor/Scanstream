@@ -155,26 +155,7 @@ export class MarketDataFetcher {
 
       if (hourlyData && hourlyData.length > 0) {
         const latest = hourlyData[hourlyData.length - 1];
-
-        // Create market data message for WebSocket
-        const marketDataMessage = {
-          type: 'market_data',
-          symbol,
-          data: {
-            timestamp: latest[0],
-            open: latest[1],
-            high: latest[2],
-            low: latest[3],
-            close: latest[4],
-            volume: latest[5],
-          },
-          source: 'auto-fetcher',
-          timeframe: '1h',
-          fetchedAt: Date.now(),
-        };
-
-        // Broadcast market data to WebSocket clients
-        signalWebSocketService.broadcastSignal(marketDataMessage, 'update');
+        const currentPrice = latest[4]; // close price
 
         // Cache the OHLCV data
         const cacheKey = `ohlcv:${symbol}:1h`;
@@ -187,17 +168,24 @@ export class MarketDataFetcher {
             if (signal) {
               this.latestSignals.set(symbol, signal);
               
-              // Broadcast signal to WebSocket clients
-              const signalMessage = {
-                type: 'signal_generated',
-                symbol,
-                signal,
-                generatedAt: Date.now(),
-              };
-              signalWebSocketService.broadcastSignal(signalMessage, 'new');
+              // Extract signal properties
+              const action = (signal as any).action || (signal as any).type || (signal as any).signal || 'HOLD';
+              const confidence = (signal as any).confidence || 0;
               
-              const action = (signal as any).action || (signal as any).type || 'generated';
-              console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${action} (confidence: ${(signal.confidence || 0).toFixed(1)}%)`);
+              // Broadcast signal to WebSocket clients with proper SignalData structure
+              const signalData = {
+                symbol,
+                signal: action as 'BUY' | 'SELL' | 'HOLD',
+                strength: confidence,
+                price: currentPrice,
+                change24h: (signal as any).change24h,
+                volume: latest[5], // volume
+                timestamp: Date.now(),
+                exchange: (signal as any).exchange || 'aggregated'
+              };
+              signalWebSocketService.broadcastSignal(signalData, 'new');
+              
+              console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${action} (strength: ${confidence.toFixed(1)}%)`);
             }
           } catch (signalError: any) {
             console.warn(`[MarketDataFetcher] Signal generation failed for ${symbol}:`, signalError.message);
