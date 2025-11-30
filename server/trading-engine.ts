@@ -55,8 +55,14 @@ function normalizeSymbol(symbol: string, exchange: ccxt.Exchange): string {
     return spot;
   }
 
-  // Mark this symbol/exchange combo as failed - don't retry again
-  symbolMapper.markAsFailed(symbol, exchangeName);
+  // Try intelligent alternative formats (e.g. BNB/USDT -> BNB-USDT or BNB-USD)
+  const altSymbol = symbolMapper.tryAlternativeFormats(symbol, exchange, exchangeName);
+  if (altSymbol) {
+    console.log(`[normalizeSymbol] Mapped ${symbol} -> ${altSymbol} using alternative format (${exchangeName})`);
+    return altSymbol;
+  }
+
+  // If all mapping strategies failed, log and return as-is
   console.warn(`[normalizeSymbol] No valid market symbol found for ${symbol} on ${exchangeName}, won't retry`);
   return symbol; // Return as-is
 }

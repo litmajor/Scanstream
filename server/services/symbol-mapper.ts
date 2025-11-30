@@ -14,6 +14,7 @@ export class SymbolMapper {
   private static instance: SymbolMapper;
   private mappings: SymbolMapping = {};
   private failedExchanges: Map<string, Set<string>> = new Map(); // symbol -> set of failed exchanges
+  private alternativeFormats: Map<string, string[]> = new Map(); // base symbol -> tried formats
 
   private constructor() {}
 
@@ -106,11 +107,79 @@ export class SymbolMapper {
   }
 
   /**
+   * Generate alternative symbol formats to try when the standard format fails
+   * Example: BNB/USDT -> [BNB-USDT, BNB-USD, BNBUSDT, BNB/USD]
+   */
+  getAlternativeFormats(symbol: string): string[] {
+    const cached = this.alternativeFormats.get(symbol);
+    if (cached) return cached;
+
+    const [base, quote] = symbol.split('/');
+    if (!base || !quote) return [];
+
+    const alternatives: string[] = [];
+    
+    // Try common format variations
+    alternatives.push(`${base}-${quote}`);        // BNB-USDT
+    alternatives.push(`${base}${quote}`);         // BNBUSDT
+    
+    // For USD pairs, also try USD variants
+    if (quote === 'USDT' || quote === 'USDT') {
+      alternatives.push(`${base}-USD`);           // BNB-USD
+      alternatives.push(`${base}USD`);            // BNBUSD
+    }
+    
+    // Try uppercase/lowercase variations
+    const lower = symbol.toLowerCase();
+    if (lower !== symbol) {
+      alternatives.push(lower);
+      alternatives.push(`${base.toLowerCase()}-${quote.toLowerCase()}`);
+      alternatives.push(`${base.toLowerCase()}${quote.toLowerCase()}`);
+    }
+
+    this.alternativeFormats.set(symbol, alternatives);
+    return alternatives;
+  }
+
+  /**
+   * Try to find a working symbol format for an exchange
+   * Returns the working format or undefined if all alternatives fail
+   */
+  tryAlternativeFormats(
+    symbol: string,
+    exchange: any,
+    exchangeName: string
+  ): string | undefined {
+    // First check if we already have a cached mapping
+    const cached = this.getCachedMapping(symbol, exchangeName);
+    if (cached) return cached;
+    if (this.hasFailedBefore(symbol, exchangeName)) return undefined;
+
+    // Try alternative formats
+    const alternatives = this.getAlternativeFormats(symbol);
+    for (const altSymbol of alternatives) {
+      try {
+        if (exchange.markets && exchange.markets[altSymbol]) {
+          this.cacheSuccessfulMapping(symbol, exchangeName, altSymbol);
+          return altSymbol;
+        }
+      } catch (error) {
+        // Continue trying other formats
+      }
+    }
+
+    // If no alternative worked, mark as failed
+    this.markAsFailed(symbol, exchangeName);
+    return undefined;
+  }
+
+  /**
    * Reset all cached mappings (useful for testing)
    */
   reset(): void {
     this.mappings = {};
     this.failedExchanges.clear();
+    this.alternativeFormats.clear();
   }
 }
 
