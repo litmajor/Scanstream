@@ -568,12 +568,36 @@ router.post('/liquidity/batch', async (req: Request, res: Response) => {
 /**
  * Get gas prices
  */
-router.get('/gas/:chain?', async (req: Request, res: Response) => {
+router.get('/gas/:chain', async (req: Request, res: Response) => {
   try {
-    const { chain = 'ethereum' } = req.params;
+    const { chain } = req.params;
+    const gasPrice = await gasProvider.getGasPrice(chain || 'ethereum');
     
-    const gasPrice = await gasProvider.getGasPrice(chain);
+    res.json({
+      success: true,
+      chain: chain || 'ethereum',
+      gasPrice,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
+router.get('/gas', async (_req: Request, res: Response) => {
+  try {
+    const gasPrice = await gasProvider.getGasPrice('ethereum');
+    
+    res.json({
+      success: true,
+      chain: 'ethereum',
+      gasPrice,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 /**
  * Get all alerts
@@ -633,21 +657,6 @@ router.post('/alerts/thresholds', (req: Request, res: Response) => {
     res.json({ success: true, message: 'Thresholds updated' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-    
-    res.json({
-      success: true,
-      gasPrice,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    console.error('[Gateway] Gas price error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
 });
 
