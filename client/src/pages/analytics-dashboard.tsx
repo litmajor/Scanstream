@@ -262,6 +262,143 @@ export default function AnalyticsDashboard() {
           </select>
         </div>
 
+        {/* Market Intelligence Section */}
+        {marketIntel && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              <Heart className="w-6 h-6 text-red-400" />
+              Market Intelligence
+            </h2>
+            
+            {/* Fear & Greed & Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <div className="text-center">
+                  <p className="text-slate-400 text-sm mb-2">Fear & Greed Index</p>
+                  <div className={`text-4xl font-bold mb-2 ${
+                    marketIntel.fearGreedIndex < 25 ? 'text-red-400' :
+                    marketIntel.fearGreedIndex < 45 ? 'text-orange-400' :
+                    marketIntel.fearGreedIndex < 55 ? 'text-yellow-400' :
+                    marketIntel.fearGreedIndex < 75 ? 'text-blue-400' :
+                    'text-green-400'
+                  }`}>
+                    {marketIntel.fearGreedIndex}
+                  </div>
+                  <Badge className="w-full justify-center bg-slate-700/50">{marketIntel.fearGreedClassification}</Badge>
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <p className="text-slate-400 text-sm mb-3">BTC Dominance</p>
+                <p className="text-3xl font-bold text-blue-400 mb-2">{marketIntel.btcDominance.toFixed(2)}%</p>
+                <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500" style={{ width: `${marketIntel.btcDominance}%` }} />
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <p className="text-slate-400 text-sm mb-3">24h Volume</p>
+                <p className="text-2xl font-bold text-green-400">${(marketIntel.volume24h / 1e9).toFixed(1)}B</p>
+                <p className={`text-sm mt-2 ${marketIntel.marketCapChange24hPercent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {marketIntel.marketCapChange24hPercent > 0 ? '+' : ''}{marketIntel.marketCapChange24hPercent.toFixed(2)}% (24h)
+                </p>
+              </Card>
+
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <p className="text-slate-400 text-sm mb-3">Market Cap</p>
+                <p className="text-2xl font-bold text-purple-400">${(marketIntel.totalMarketCap / 1e12).toFixed(2)}T</p>
+                <p className="text-slate-400 text-xs mt-2">ETH: {marketIntel.ethDominance.toFixed(2)}%</p>
+              </Card>
+            </div>
+
+            {/* Market Regime */}
+            <Card className="p-6 bg-slate-800/50 border-slate-700 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">{marketIntel.marketRegime.description}</h3>
+                  <p className="text-slate-400 text-sm mt-1">Status: {marketIntel.marketRegime.status.toUpperCase()}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-amber-400">{marketIntel.marketRegime.score}/100</div>
+                  <div className="h-2 w-32 bg-slate-700 rounded-full overflow-hidden mt-2">
+                    <div className="h-full bg-amber-500" style={{ width: `${marketIntel.marketRegime.score}%` }} />
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Top Gainers & Losers */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+              {/* Top Gainers */}
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <h3 className="text-lg font-bold text-green-400 mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Top 5 Gainers
+                </h3>
+                <div className="space-y-3">
+                  {marketIntel.topGainers?.slice(0, 5).map((coin, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-slate-700/30 rounded">
+                      <div>
+                        <p className="font-semibold text-white">{coin.symbol}</p>
+                        <p className="text-xs text-slate-400">{coin.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-400 font-bold">{coin.priceChange24h.toFixed(2)}%</p>
+                        <p className="text-xs text-slate-400">${coin.currentPrice.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Top Losers */}
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
+                  <TrendingDown className="w-5 h-5" />
+                  Top 5 Losers
+                </h3>
+                <div className="space-y-3">
+                  {marketIntel.topLosers?.slice(0, 5).map((coin, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 bg-slate-700/30 rounded">
+                      <div>
+                        <p className="font-semibold text-white">{coin.symbol}</p>
+                        <p className="text-xs text-slate-400">{coin.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-red-400 font-bold">{coin.priceChange24h.toFixed(2)}%</p>
+                        <p className="text-xs text-slate-400">${coin.currentPrice.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            {/* Trending Coins */}
+            {marketIntel.trending && marketIntel.trending.length > 0 && (
+              <Card className="p-6 bg-slate-800/50 border-slate-700">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-400" />
+                  Trending Coins (by Sentiment)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {marketIntel.trending.slice(0, 6).map((coin, idx) => (
+                    <div key={idx} className="p-3 bg-slate-700/30 rounded flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-white">{coin.symbol}</p>
+                        <p className="text-xs text-slate-400">{coin.name}</p>
+                      </div>
+                      <p className={`font-bold ${coin.priceChange24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {coin.priceChange24h.toFixed(2)}%
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* Market Regime Card */}
         <Card className="mb-8 p-6 bg-slate-800/50 border-slate-700">
           <div className="flex items-center justify-between mb-4">
