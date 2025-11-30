@@ -43,9 +43,54 @@ interface MarketRegime {
   trend: string;
 }
 
+interface MarketIntelligence {
+  fearGreedIndex: number;
+  fearGreedClassification: string;
+  btcDominance: number;
+  ethDominance: number;
+  totalMarketCap: number;
+  volume24h: number;
+  marketCapChange24hPercent: number;
+  topGainers: Array<{
+    symbol: string;
+    name: string;
+    currentPrice: number;
+    priceChange24h: number;
+    marketCapRank: number;
+  }>;
+  topLosers: Array<{
+    symbol: string;
+    name: string;
+    currentPrice: number;
+    priceChange24h: number;
+    marketCapRank: number;
+  }>;
+  trending: Array<{
+    id: string;
+    name: string;
+    symbol: string;
+    priceChange24h: number;
+  }>;
+  marketRegime: {
+    status: string;
+    score: number;
+    description: string;
+  };
+}
+
 export default function AnalyticsDashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
   const [timeframe, setTimeframe] = useState('1h');
+
+  // Fetch market intelligence data
+  const { data: marketIntel, isLoading: loadingMarketIntel } = useQuery({
+    queryKey: ['market-intelligence'],
+    queryFn: async () => {
+      const response = await fetch('/api/market-intelligence');
+      if (!response.ok) throw new Error('Failed to fetch market intelligence');
+      return response.json() as Promise<MarketIntelligence>;
+    },
+  });
 
   // Fetch strategies data
   const { data: strategiesData, isLoading: loadingStrategies } = useQuery({
