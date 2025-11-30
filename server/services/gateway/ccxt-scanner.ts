@@ -144,9 +144,9 @@ export class CCXTScanner {
         dataQuality: this.assessDataQuality(frames, priceData)
       };
 
-      // Cache result for 30 seconds
+      // Cache result for 3 minutes (180 seconds)
       if (useCache) {
-        this.cache.set(cacheKey, result, 30000);
+        this.cache.set(cacheKey, result, 180000);
       }
 
       this.scanResults.set(symbol, result);

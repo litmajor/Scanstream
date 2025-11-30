@@ -159,7 +159,7 @@ export class MarketDataFetcher {
 
         // Cache the OHLCV data
         const cacheKey = `ohlcv:${symbol}:1h`;
-        this.cacheManager.set(cacheKey, hourlyData, 60000); // 60s cache
+        this.cacheManager.set(cacheKey, hourlyData, 180000); // 3 minute cache
 
         // Step 2: Generate trading signal from the market data
         if (this.signalPipeline) {

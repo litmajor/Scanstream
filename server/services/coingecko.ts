@@ -13,7 +13,9 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 const API_BASE = 'https://api.coingecko.com/api/v3';
-const CACHE_DURATION_MS = 300000; // 5 minutes cache to respect rate limits (increased from 1 min)
+const CACHE_DURATION_MS = 180000; // 3 minutes default cache
+const SENTIMENT_CACHE_MS = 900000; // 15 minutes for sentiment (Fear & Greed Index)
+const MARKET_DATA_CACHE_MS = 600000; // 10 minutes for market data
 
 interface CacheEntry<T> {
   data: T;

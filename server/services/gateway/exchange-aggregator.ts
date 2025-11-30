@@ -139,8 +139,8 @@ export class ExchangeAggregator {
       timestamp: new Date()
     };
 
-    // Cache for 10 seconds
-    this.cache.set(cacheKey, result, 10000);
+    // Cache for 3 minutes (180 seconds)
+    this.cache.set(cacheKey, result, 180000);
 
     return result;
   }
@@ -196,8 +196,8 @@ export class ExchangeAggregator {
           exchange
         }));
 
-        // Cache for 1 minute
-        this.cache.set(cacheKey, ohlcv, 60000);
+        // Cache for 3 minutes (OHLCV - scanner prices)
+        this.cache.set(cacheKey, ohlcv, 180000);
 
         return ohlcv;
       } catch (error: any) {
