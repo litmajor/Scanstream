@@ -60,7 +60,9 @@ const navItems: NavItem[] = [
   { name: 'Paper Trading', path: '/paper-trading', icon: DollarSign, section: 'advanced' },
   { name: 'Multi-Timeframe', path: '/multi-timeframe', icon: Layers, section: 'advanced' },
   { name: 'Flow Field', path: '/flow-field', icon: Activity, section: 'advanced' },
-  { name: 'Optimize', path: '/optimize', icon: Sparkles, section: 'advanced' },
+  { path: '/ml-engine', name: 'ML Engine', icon: Brain },
+  { path: '/ml-training', name: 'ML Training Hub', icon: Target },
+  { path: '/optimize', name: 'Optimize', icon: Zap },
   { name: 'Market Intelligence', path: '/market-intelligence', icon: TrendingUp, section: 'advanced' },
   // Added Signal Performance and Flow Field Backtesting to navItems
   { name: 'Signal Performance', path: '/signal-performance', icon: Award, section: 'advanced' },

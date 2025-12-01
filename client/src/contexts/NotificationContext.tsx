@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react';
 import type { Notification, NotificationCategory, NotificationPriority, NotificationSettings } from '../types/notification';
 
 interface NotificationContextType {
@@ -40,11 +40,37 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+// Sound helper function defined outside component to avoid initialization issues
+const playNotificationSoundInternal = (soundEnabled: boolean) => {
+  if (!soundEnabled) return;
+
+  // Create a simple beep sound using Web Audio API
+  try {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+  } catch (error) {
+    console.error('Error playing notification sound:', error);
+  }
+};
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings>(() => {
     const saved = localStorage.getItem('notificationSettings');
-    return saved ? JSON.parse(saved) : {
+    return saved ? JSON.JSON.parse(saved) : {
       soundEnabled: true,
       desktopEnabled: false,
       categories: {
@@ -71,7 +97,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
       // Play sound for medium+ priority
       if (notification.priority !== 'low') {
-        playNotificationSound();
+        playNotificationSoundInternal(settings.soundEnabled);
       }
 
       // Show desktop notification for high+ priority
@@ -85,36 +111,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     return () => {
       window.removeEventListener('ws-notification', handleWebSocketNotification as EventListener);
     };
-  }, [playNotificationSound, showDesktopNotification]);
+  }, [settings.soundEnabled, showDesktopNotification]); // Added settings.soundEnabled as dependency
 
   // Unread count
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
-
-  // Play notification sound
-  const playNotificationSound = useCallback(() => {
-    if (!settings.soundEnabled) return;
-
-    // Create a simple beep sound using Web Audio API
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.error('Error playing notification sound:', error);
-    }
-  }, [settings.soundEnabled]);
 
   // Show desktop notification
   const showDesktopNotification = useCallback((title: string, message: string, priority: NotificationPriority) => {

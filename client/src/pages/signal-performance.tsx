@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,9 +53,14 @@ export default function SignalPerformance() {
     refetchInterval: 30000,
   });
 
-  const filteredSignals = Array.isArray(recentPerformance) 
-    ? recentPerformance.filter(s => selectedStatus === 'all' || s.status === selectedStatus)
-    : [];
+  const filteredSignals = useMemo(() => {
+    if (!recentPerformance) return [];
+    // Handle both array and object responses
+    const data = Array.isArray(recentPerformance) ? recentPerformance : [];
+    return data.filter(s => 
+      selectedStatus === 'all' || s.status === selectedStatus
+    );
+  }, [recentPerformance, selectedStatus]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

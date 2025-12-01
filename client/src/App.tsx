@@ -12,10 +12,11 @@ import ScannerPage from "@/pages/scanner";
 import GatewayScannerPage from "@/pages/gateway-scanner";
 import BacktestPage from "@/pages/backtest";
 import MLEnginePage from "@/pages/ml-engine";
+import OptimizePage from "@/pages/optimize";
+import MLTrainingHub from "@/pages/ml-training-hub";
 import MultiTimeframePage from "@/pages/multi-timeframe";
 import FlowFieldPage from "@/pages/flow-field";
 import FlowEnginePage from './pages/flow-engine';
-import OptimizePage from "@/pages/optimize";
 import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
 import StrategySynthesisPage from './pages/strategy-synthesis';
@@ -48,9 +49,7 @@ function AuthenticatedRouter({ isDark, toggleTheme }: { isDark: boolean; toggleT
         <Route path="/gateway-scanner" component={GatewayScannerPage} />
         <Route path="/backtest" component={BacktestPage} />
         <Route path="/ml-engine" component={MLEnginePage} />
-        <Route path="/multi-timeframe" component={MultiTimeframePage} />
-        <Route path="/flow-field" component={FlowFieldPage} />
-        <Route path="/flow-engine" component={FlowEnginePage} />
+        <Route path="/ml-training" component={MLTrainingHub} />
         <Route path="/optimize" component={OptimizePage} />
         <Route path="/strategies" component={StrategiesPage} />
         <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
