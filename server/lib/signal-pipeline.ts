@@ -110,6 +110,10 @@ export interface AggregatedSignal {
     '4h': number;
     '1d': number;
   };
+  
+  // Position sizing
+  agreementScore?: number; // 0-100, how much sources agree
+  positionSize?: number; // 0-1 scale, position sizing multiplier
 }
 
 // ============================================================================
