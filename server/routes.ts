@@ -29,6 +29,8 @@ import portfolioRouter from './routes/portfolio';
 
 // Import signal quality and watchlist routes
 import signalQualityRouter from './routes/signal-quality';
+// Import flow field analytics routes
+import flowFieldRouter from './routes/flow-field';
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -1693,6 +1695,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/ml/advanced', mlAdvancedRoutes);
   app.use('/api/ml-advanced', mlAdvancedModelsRouter);
   app.use('/api/portfolio', portfolioRouter);
+
+  // Mount flow field analytics routes
+  app.use('/api/analytics', flowFieldRouter);
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
