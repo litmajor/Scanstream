@@ -3,83 +3,6 @@ import { useLocation } from 'wouter';
 import { ArrowLeft, BarChart3, TrendingUp, TrendingDown, Clock, Target, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
-// Mock multi-timeframe data - replace with real data from API
-const mockMultiTimeframeData = {
-  symbol: 'BTC/USDT',
-  analysis: {
-    overallTrend: 'bullish',
-    confluenceScore: 0.78,
-    timeframeAnalysis: [
-      {
-        timeframe: '1m',
-        trend: 'neutral',
-        strength: 0.45,
-        signals: ['RSI oversold', 'Volume spike'],
-        price: 45000,
-        change: 0.2
-      },
-      {
-        timeframe: '5m',
-        trend: 'bullish',
-        strength: 0.62,
-        signals: ['MACD bullish crossover', 'EMA support'],
-        price: 45050,
-        change: 0.5
-      },
-      {
-        timeframe: '15m',
-        trend: 'bullish',
-        strength: 0.71,
-        signals: ['Breakout pattern', 'Volume confirmation'],
-        price: 45120,
-        change: 1.2
-      },
-      {
-        timeframe: '1h',
-        trend: 'bullish',
-        strength: 0.85,
-        signals: ['Strong uptrend', 'Higher highs'],
-        price: 45200,
-        change: 2.1
-      },
-      {
-        timeframe: '4h',
-        trend: 'bullish',
-        strength: 0.78,
-        signals: ['Channel breakout', 'RSI momentum'],
-        price: 45300,
-        change: 3.2
-      },
-      {
-        timeframe: '1d',
-        trend: 'bullish',
-        strength: 0.82,
-        signals: ['Weekly support', 'Long-term uptrend'],
-        price: 45500,
-        change: 5.8
-      }
-    ]
-  },
-  recommendations: [
-    {
-      action: 'BUY',
-      confidence: 0.85,
-      timeframe: '1h',
-      reason: 'Strong confluence across multiple timeframes',
-      target: 46500,
-      stopLoss: 44500
-    },
-    {
-      action: 'HOLD',
-      confidence: 0.72,
-      timeframe: '4h',
-      reason: 'Waiting for better entry point',
-      target: null,
-      stopLoss: null
-    }
-  ]
-};
-
 export default function MultiTimeframePage() {
   const [, setLocation] = useLocation();
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
@@ -286,7 +209,7 @@ export default function MultiTimeframePage() {
           <h2 className="text-lg font-semibold text-white">Timeframe Analysis</h2>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {multiTimeframeData?.analysis.timeframeAnalysis.map((tf, index) => (
+            {multiTimeframeData?.analysis.timeframeAnalysis.map((tf: any, index: number) => (
               <div key={tf.timeframe} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
                 {/* Timeframe Header */}
                 <div className="flex items-center justify-between mb-4">
@@ -338,7 +261,7 @@ export default function MultiTimeframePage() {
                 <div className="mb-4">
                   <h4 className="text-sm font-medium text-slate-300 mb-2">Signals</h4>
                   <div className="space-y-1">
-                    {tf.signals.map((signal, signalIndex) => (
+                    {tf.signals.map((signal: string, signalIndex: number) => (
                       <div key={signalIndex} className="flex items-center text-sm">
                         <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
                         <span className="text-slate-400">{signal}</span>
@@ -366,7 +289,7 @@ export default function MultiTimeframePage() {
           <h2 className="text-lg font-semibold text-white mb-4">Trading Recommendations</h2>
           
           <div className="space-y-4">
-            {multiTimeframeData?.recommendations.map((rec, index) => (
+            {multiTimeframeData?.recommendations.map((rec: any, index: number) => (
               <div key={index} className="border border-slate-700/30 bg-slate-800/30 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">

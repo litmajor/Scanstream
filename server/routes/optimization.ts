@@ -92,7 +92,17 @@ router.get('/status', (_req: Request, res: Response) => {
   if (!optimizer) {
     return res.json({
       initialized: false,
-
+      message: 'Optimizer not initialized'
+    });
+  }
+  
+  const report = optimizer.getOptimizationReport();
+  res.json({
+    initialized: true,
+    status: 'active',
+    report
+  });
+});
 
 /**
  * GET /api/optimize/strategies
@@ -133,19 +143,6 @@ router.get('/strategies', async (_req: Request, res: Response) => {
   res.json({
     strategies,
     totalStrategies: strategies.length,
-    timestamp: new Date().toISOString()
-  });
-});
-
-      message: 'Optimizer not initialized. Run optimization first.'
-    });
-  }
-  
-  const report = optimizer.getOptimizationReport();
-  
-  res.json({
-    initialized: true,
-    report,
     timestamp: new Date().toISOString()
   });
 });
