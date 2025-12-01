@@ -76,6 +76,16 @@ export default function SettingsPage() {
     enabled: isAuthenticated,
     retry: 1,
     staleTime: 5000,
+    initialData: {
+      theme: "dark",
+      defaultTimeframe: "1h",
+      defaultExchange: "binance",
+      notificationsEnabled: true,
+      emailAlerts: false,
+      priceAlerts: true,
+      signalAlerts: true,
+      soundEnabled: true,
+    },
   });
 
   const { data: apiKeys, isLoading: keysLoading } = useQuery<ApiKey[]>({
@@ -83,6 +93,7 @@ export default function SettingsPage() {
     enabled: isAuthenticated,
     retry: 1,
     staleTime: 5000,
+    initialData: [],
   });
 
   const updatePreferencesMutation = useMutation({

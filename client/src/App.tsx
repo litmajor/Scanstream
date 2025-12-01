@@ -32,6 +32,7 @@ import SignalPerformance from './pages/signal-performance';
 import LandingPage from "@/pages/landing";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
+import GatewayAlertsPage from "@/pages/gateway-alerts";
 import { useState, useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 
@@ -63,7 +64,7 @@ function AuthenticatedRouter({ isDark, toggleTheme }: { isDark: boolean; toggleT
         <Route path="/signal-performance" component={SignalPerformance} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/profile" component={ProfilePage} />
-        <Route path="/gateway-alerts" component={() => import('./pages/gateway-alerts').then(m => m.default)} />
+        <Route path="/gateway-alerts" component={GatewayAlertsPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
