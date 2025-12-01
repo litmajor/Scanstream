@@ -27,6 +27,9 @@ import mlAdvancedRoutes from './routes/ml-advanced';
 import mlAdvancedModelsRouter from './routes/ml-advanced-models';
 import portfolioRouter from './routes/portfolio';
 
+// Import signal quality and watchlist routes
+import signalQualityRouter from './routes/signal-quality';
+
 // Create prisma instance
 const prisma = new PrismaClient();
 
@@ -193,6 +196,51 @@ try {
         res.status(500).json({ message: "Failed to delete API key" });
       }
     });
+
+    // Watchlist routes
+    app.get('/api/user/watchlist', isAuthenticated, async (req: any, res: Response) => {
+      try {
+        const userId = req.user.claims.sub;
+        const watchlist = await prisma.watchlist.findMany({
+          where: { userId },
+          orderBy: { addedAt: 'desc' }
+        });
+        res.json(watchlist);
+      } catch (error) {
+        console.error("Error fetching watchlist:", error);
+        res.status(500).json({ message: "Failed to fetch watchlist" });
+      }
+    });
+
+    app.post('/api/user/watchlist', isAuthenticated, async (req: any, res: Response) => {
+      try {
+        const userId = req.user.claims.sub;
+        const { symbol, notes } = req.body;
+        const item = await prisma.watchlist.create({
+          data: { userId, symbol: symbol.toUpperCase(), notes }
+        });
+        res.json(item);
+      } catch (error: any) {
+        console.error("Error adding to watchlist:", error);
+        res.status(500).json({ message: error.message || "Failed to add to watchlist" });
+      }
+    });
+
+    app.delete('/api/user/watchlist/:id', isAuthenticated, async (req: any, res: Response) => {
+      try {
+        const userId = req.user.claims.sub;
+        await prisma.watchlist.deleteMany({
+          where: { id: req.params.id, userId }
+        });
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error removing from watchlist:", error);
+        res.status(500).json({ message: "Failed to remove from watchlist" });
+      }
+    });
+
+    // Register signal quality routes
+    app.use('/api/signals', signalQualityRouter);
 
     // --- Advanced Volume Profile & Composite Analytics API ---
   console.log('Registering POST /api/analytics/volume-profile');
