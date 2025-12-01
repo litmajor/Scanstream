@@ -39,13 +39,13 @@ const navItems: NavItem[] = [
   { name: 'Signals', path: '/signals', icon: Zap, section: 'main' },
   { name: 'Positions', path: '/positions', icon: Activity, section: 'main' },
   { name: 'Portfolio', path: '/portfolio', icon: Wallet, section: 'main' },
-  
+
   // Trading Section - Active trading tools
   { name: 'Scanner', path: '/scanner', icon: Search, section: 'trading' },
   { name: 'Gateway Scanner', path: '/gateway-scanner', icon: Zap, section: 'trading' },
   { name: 'Strategies', path: '/strategies', icon: Target, section: 'trading' },
   { name: 'Backtest', path: '/backtest', icon: BarChart3, section: 'trading' },
-  
+
   // Advanced Section - ML, optimization, and intelligence
   { name: 'ML Engine', path: '/ml-engine', icon: Brain, section: 'advanced' },
   { name: 'Paper Trading', path: '/paper-trading', icon: DollarSign, section: 'advanced' },
@@ -201,6 +201,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </Link>
                   );
                 })}
+                {/* Flow Engine addition to sidebar */}
+                {isSidebarOpen && (
+                  <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                    Flow Engine
+                  </h3>
+                )}
+                <div className="space-y-1">
+                  <Link href="/flow-engine">
+                    <span
+                      className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                      style={{
+                        backgroundColor: location === '/flow-engine' ? colors.accent : 'transparent',
+                        color: location === '/flow-engine' ? colors.background : colors.textSecondary,
+                      }}
+                      title={!isSidebarOpen ? 'Flow Engine' : undefined}
+                    >
+                      <Zap className="h-5 w-5 flex-shrink-0" />
+                      {isSidebarOpen && <span className="font-medium">Flow Engine</span>}
+                    </span>
+                  </Link>
+                </div>
               </div>
             </div>
 
@@ -286,4 +307,3 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
   );
 }
-

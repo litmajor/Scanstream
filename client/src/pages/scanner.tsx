@@ -466,24 +466,18 @@ export default function ScannerPage() {
           exchange: selectedExchange,
           signal: selectedFilters.signal,
           minStrength: selectedFilters.minStrength,
-          fullAnalysis: true // This might trigger deeper analysis or custom reports
+          fullAnalysis: true
         }),
       });
 
-      // Handle 202 Accepted - scan is queued in background
       if (response.status === 202) {
         const data = await response.json();
         console.log('✅ Scan queued in background:', data);
-        
-        // Show success message with polling info
         alert(`✅ Scan Accepted!\n\n${data.message}\n\nMode: ${data.mode}\nExchanges: ${data.exchanges.join(', ')}\n\nThe scan is running in the background. Results will appear in the data grid as they complete.`);
         
-        // Start polling for results
         let pollCount = 0;
         const pollInterval = setInterval(async () => {
           pollCount++;
-          
-          // Stop polling after 5 minutes
           if (pollCount > 60) {
             clearInterval(pollInterval);
             setIsScanning(false);
@@ -492,13 +486,10 @@ export default function ScannerPage() {
           }
           
           try {
-            // Check scanner status
             const statusResponse = await fetch('/api/scanner/status');
             const status = await statusResponse.json();
-            
             console.log(`[Scan Poll ${pollCount}] Status:`, status);
             
-            // If we have new results, refetch them
             if (status.last_scan) {
               console.log('📊 Scan results available, refreshing data...');
               await refetch();
@@ -509,7 +500,7 @@ export default function ScannerPage() {
           } catch (pollErr) {
             console.error('Poll error:', pollErr);
           }
-        }, 5000); // Poll every 5 seconds
+        }, 5000);
         
         return;
       }
@@ -520,15 +511,11 @@ export default function ScannerPage() {
       }
 
       const data = await response.json();
-
-      // Store signals for this exchange
       setAllExchangeSignals(prev => {
         const updated = new Map(prev);
         updated.set(selectedExchange, data.signals || []);
         return updated;
       });
-
-      // After successful scan, refetch the data
       await refetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -536,6 +523,111 @@ export default function ScannerPage() {
       alert(`❌ Failed to trigger scan: ${errorMessage}`);
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  // NEW: Parallel scan multiple exchanges
+  const handleParallelScan = async () => {
+    const exchanges = ['binance', 'okx', 'bybit', 'kucoinfutures'];
+    setIsScanning(true);
+
+    try {
+      const response = await fetch('/api/scanner/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exchange: exchanges, // Array = parallel mode
+          timeframe: selectedFilters.timeframe === 'all' ? 'medium' : selectedFilters.timeframe,
+          signal: selectedFilters.signal,
+          minStrength: selectedFilters.minStrength,
+          fullAnalysis: true
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Parallel scan complete:', data);
+        
+        const perf = data.metadata?.performance;
+        if (perf) {
+          alert(`✅ Parallel Scan Complete!\n\nFound ${data.metadata.count} signals\nTime: ${perf.parallel_duration}s\nSpeedup: ${perf.speedup}x faster\nTime saved: ${perf.time_saved_seconds}s`);
+        }
+        
+        await refetch();
+      } else {
+        throw new Error('Parallel scan failed');
+      }
+    } catch (err) {
+      console.error('Parallel scan error:', err);
+      alert(`❌ Parallel scan failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // NEW: Start continuous scanner
+  const handleStartContinuous = async () => {
+    try {
+      const response = await fetch('/api/scanner/continuous/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT'],
+          exchanges: ['binance', 'kucoinfutures']
+        }),
+      });
+
+      if (response.ok) {
+        alert('✅ Continuous scanner started!\n\nMonitoring market every 5 seconds.\nGenerating signals every 30 seconds.');
+      }
+    } catch (err) {
+      console.error('Failed to start continuous scanner:', err);
+    }
+  };
+
+  // NEW: Stop continuous scanner
+  const handleStopContinuous = async () => {
+    try {
+      await fetch('/api/scanner/continuous/stop', { method: 'POST' });
+      alert('⏹️ Continuous scanner stopped');
+    } catch (err) {
+      console.error('Failed to stop continuous scanner:', err);
+    }
+  };
+
+  // NEW: Download training data
+  const handleDownloadTrainingData = async () => {
+    try {
+      const symbol = 'BTC/USDT';
+      const response = await fetch(`/api/scanner/training-data/${symbol.replace('/', '%2F')}?days=30`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `training-data-${symbol.replace('/', '_')}-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Failed to download training data:', err);
+    }
+  };
+
+  // NEW: Check confluence
+  const handleCheckConfluence = async () => {
+    try {
+      const symbol = 'BTC/USDT';
+      const response = await fetch(`/api/scanner/continuous/confluence/${symbol.replace('/', '%2F')}?min_score=60`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        alert(`📊 Multi-Timeframe Confluence: ${symbol}\n\nConfluence: ${data.confluence ? '✅ Yes' : '❌ No'}\nTimeframes: ${data.timeframes_analyzed}\nAvg Score: ${data.average_score?.toFixed(1)}\nBullish: ${data.bullish_timeframes}\nBearish: ${data.bearish_timeframes}\nRecommendation: ${data.recommendation}`);
+      }
+    } catch (err) {
+      console.error('Failed to check confluence:', err);
     }
   };
 
@@ -830,23 +922,84 @@ export default function ScannerPage() {
               {/* Removed Quick Scan Button */}
               {/* <QuickScanButton onScanComplete={handleQuickScan} /> */}
 
-              <button
-                onClick={handleScan}
-                disabled={isScanning}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Search className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
-                <span>{isScanning ? 'Queuing scan...' : 'Scan ' + selectedExchange.toUpperCase()}</span>
-              </button>
-
-              <button
-                onClick={handleScanAllExchanges}
-                disabled={isScanning}
-                className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Activity className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
-                <span>Scan All Exchanges</span>
-              </button>
+              {/* Scanner Controls Dropdown */}
+              <div className="relative group">
+                <button
+                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-blue-500/20"
+                >
+                  <Search className="w-4 h-4" />
+                  <span>Scanner Tools</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={handleScan}
+                      disabled={isScanning}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2 disabled:opacity-50"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>Single Exchange ({selectedExchange})</span>
+                    </button>
+                    
+                    <button
+                      onClick={handleParallelScan}
+                      disabled={isScanning}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2 disabled:opacity-50"
+                    >
+                      <Zap className="w-4 h-4" />
+                      <span>Parallel Scan (4 exchanges)</span>
+                    </button>
+                    
+                    <button
+                      onClick={handleScanAllExchanges}
+                      disabled={isScanning}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2 disabled:opacity-50"
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span>Scan All Exchanges (Sequential)</span>
+                    </button>
+                    
+                    <div className="border-t border-slate-700 my-1"></div>
+                    
+                    <button
+                      onClick={handleStartContinuous}
+                      className="w-full px-4 py-2 text-left text-sm text-green-400 hover:bg-slate-700 rounded flex items-center space-x-2"
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span>Start Continuous (5s)</span>
+                    </button>
+                    
+                    <button
+                      onClick={handleStopContinuous}
+                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 rounded flex items-center space-x-2"
+                    >
+                      <Activity className="w-4 h-4" />
+                      <span>Stop Continuous</span>
+                    </button>
+                    
+                    <div className="border-t border-slate-700 my-1"></div>
+                    
+                    <button
+                      onClick={handleCheckConfluence}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2"
+                    >
+                      <Target className="w-4 h-4" />
+                      <span>Check Confluence (BTC)</span>
+                    </button>
+                    
+                    <button
+                      onClick={handleDownloadTrainingData}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Training Data</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               {allExchangeSignals.size >= 2 && (
                 <button
