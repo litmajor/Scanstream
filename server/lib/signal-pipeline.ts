@@ -12,6 +12,8 @@
 
 import { SignalAccuracyEngine } from './signal-accuracy';
 import { assetCorrelationAnalyzer } from '../services/asset-correlation-analyzer';
+import { getAssetBySymbol, getAssetsByCategory } from '@shared/tracked-assets';
+import { getAssetThresholds, meetsQualityThreshold, getMaxPositionForCategory } from '../config/asset-thresholds';
 import memoize from 'memoizee';
 
 // ============================================================================
@@ -244,8 +246,10 @@ export class SignalPipeline {
     
     const agreementScore = Math.round(Math.min(100, agreementBase * avgSourceConfidence));
 
-    // Step 8: Calculate position size based on quality and agreement
-    const positionSize = this.calculatePositionSize(quality.score, agreementScore);
+    // Step 8: Calculate position size based on quality, agreement, and asset category
+    const asset = getAssetBySymbol(symbol);
+    const assetCategory = asset?.category || 'fundamental';
+    const positionSize = this.calculatePositionSize(symbol, quality.score, agreementScore, assetCategory);
 
     // Step 8.5: Apply correlation boost if correlated assets show aligned signals
     const correlationBoost = await assetCorrelationAnalyzer.getCorrelationBoost(
@@ -651,12 +655,17 @@ export class SignalPipeline {
   }
 
   /**
-   * Calculate position size based on quality and agreement
+   * Calculate position size based on quality, agreement, and asset category
    * Position = maxPosition × (quality_score / 100) × agreement_multiplier
-   * Max position = 1%
+   * maxPosition varies by asset class:
+   * - Tier-1: 1.0% (most liquid)
+   * - Fundamental: 0.8% (strong fundamentals)
+   * - Meme: 0.5% (high volatility)
+   * - AI/ML: 0.6% (emerging, moderate liquidity)
+   * - RWA: 0.6% (emerging, moderate liquidity)
    */
-  private calculatePositionSize(qualityScore: number, agreementScore: number): number {
-    const MAX_POSITION = 1.0; // 1% maximum position
+  private calculatePositionSize(symbol: string, qualityScore: number, agreementScore: number, category: string): number {
+    const MAX_POSITION = getMaxPositionForCategory(category);
     
     // Agreement multiplier: 3/3 = 1.0x, 2/3 = 0.7x, 1/3 = 0.3x
     let agreementMultiplier = 0.3; // Default: low agreement
@@ -675,7 +684,7 @@ export class SignalPipeline {
     const positionSize = (MAX_POSITION * qualityMultiplier * agreementMultiplier) / 100;
 
     // Return as percentage (0-1 scale)
-    return Math.min(MAX_POSITION, Math.max(0.1, positionSize * 100)) / 100;
+    return Math.min(MAX_POSITION, Math.max(0.001, positionSize * 100)) / 100;
   }
 
   /**
