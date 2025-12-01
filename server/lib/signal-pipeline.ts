@@ -223,8 +223,8 @@ export class SignalPipeline {
     // Get recent pattern win rates for performance weighting
     const patternWinRates = signalPerformanceTracker.getPatternWinRates(50);
 
-    // Calculate weighted confidence based on regime and performance
-    const weightedResult = smartPatternCombination.calculateWeightedConfidence(
+    // Calculate weighted confidence using ADAPTIVE weighting (regime + performance)
+    const weightedResult = smartPatternCombination.calculateAdaptiveConfidence(
       patternSignals,
       {
         regime: regimeData.regime === 'TRENDING' ? 'TRENDING'
@@ -233,7 +233,8 @@ export class SignalPipeline {
         adx: regimeData.indicators.adx,
         volatility: regimeData.indicators.volatility,
         volumeRatio: regimeData.indicators.volumeProfile === 'HEAVY' ? 1.5 : 1.0
-      }
+      },
+      patternWinRates // Pass performance data for adaptive weighting
     );
 
     const overallConfidence = weightedResult.finalConfidence / 100; // Normalize to 0-1
@@ -364,6 +365,13 @@ export class SignalPipeline {
       };
     });
 
+    // Step 12.5: Track signal for performance analysis
+    const dominantSource = sources.scanner.confidence > sources.ml.confidence && sources.scanner.confidence > sources.rl.confidence
+      ? 'scanner'
+      : sources.ml.confidence > sources.rl.confidence
+      ? 'ml'
+      : 'rl';
+
     // Step 13: Assemble aggregated signal with adaptive trade classification
     const signal: AggregatedSignal = {
       id: `${symbol}-${Date.now()}`,
@@ -401,7 +409,14 @@ export class SignalPipeline {
           adjustedTakeProfit
         }
       })
-    };
+    } as AggregatedSignal;
+
+    // Add metadata for performance tracking
+    (signal as any).dominantSource = dominantSource;
+    (signal as any).primaryPattern = primaryClassification;
+
+    // Track signal for future performance weighting
+    signalPerformanceTracker.trackSignal(signal);
 
     // Cache result
     this.cache.set(cacheKey, { data: signal, timestamp: Date.now() });

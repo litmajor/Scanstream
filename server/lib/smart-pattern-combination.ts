@@ -173,11 +173,68 @@ export class SmartPatternCombination {
       const regimeWeight = regimeWeights[pattern] || 1.0;
       const perfWeight = performanceWeights[pattern] || 1.0;
       
-      // Average the two weights
-      combined[pattern] = (regimeWeight + perfWeight) / 2;
+      // Weighted average: 60% regime, 40% performance
+      // This gives more weight to market conditions over past performance
+      combined[pattern] = (regimeWeight * 0.6) + (perfWeight * 0.4);
     }
 
     return combined;
+  }
+
+  /**
+   * Calculate adaptive confidence with both regime and performance weighting
+   */
+  calculateAdaptiveConfidence(
+    signals: PatternSignals,
+    marketState: MarketState,
+    patternWinRates: Map<string, number>
+  ): WeightedConfidence {
+    const combinedWeights = this.getCombinedWeights(marketState.regime, patternWinRates);
+    const reasoning: string[] = [];
+
+    let totalScore = 0;
+    let totalWeight = 0;
+
+    // Calculate weighted score using combined weights
+    for (const [pattern, signalStrength] of Object.entries(signals)) {
+      const weight = combinedWeights[pattern] || 1.0;
+      totalScore += signalStrength * weight;
+      totalWeight += weight;
+
+      // Add reasoning for significant weight adjustments
+      if (weight > 1.2) {
+        reasoning.push(`${pattern} heavily weighted (${weight.toFixed(2)}x) - favorable regime + strong historical performance`);
+      } else if (weight < 0.8) {
+        reasoning.push(`${pattern} downweighted (${weight.toFixed(2)}x) - unfavorable regime or weak historical performance`);
+      }
+    }
+
+    // Normalize
+    let finalConfidence = totalWeight > 0 ? (totalScore / totalWeight) : 50;
+
+    // Alignment boost: Check pattern confluence
+    const strongPatterns = Object.values(signals).filter(s => s > 70).length;
+    let alignmentBoost = 0;
+
+    if (strongPatterns >= 3) {
+      alignmentBoost = 0.15;
+      finalConfidence *= (1 + alignmentBoost);
+      reasoning.push(`${strongPatterns} strong patterns aligned (+15% confluence boost)`);
+    } else if (strongPatterns >= 2) {
+      alignmentBoost = 0.08;
+      finalConfidence *= (1 + alignmentBoost);
+      reasoning.push(`${strongPatterns} patterns aligned (+8% confluence boost)`);
+    }
+
+    // Cap at 95%
+    finalConfidence = Math.min(finalConfidence, 95);
+
+    return {
+      finalConfidence,
+      weights: combinedWeights,
+      alignmentBoost,
+      reasoning
+    };
   }
 }
 
