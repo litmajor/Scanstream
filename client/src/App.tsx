@@ -19,6 +19,8 @@ import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
 import StrategySynthesisPage from './pages/strategy-synthesis';
 import AnalyticsDashboard from '@/pages/analytics-dashboard';
+import AdvancedAnalytics from '@/pages/advanced-analytics';
+import RLPositionAgent from '@/pages/rl-position-agent';
 import PaperTradingPage from "@/pages/paper-trading";
 import PositionsPage from "@/pages/positions";
 import SignalsPage from "@/pages/signals";
@@ -47,6 +49,8 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/strategies" component={StrategiesPage} />
         <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
         <Route path="/analytics" component={AnalyticsDashboard} />
+        <Route path="/advanced-analytics" component={AdvancedAnalytics} />
+        <Route path="/rl-position-agent" component={RLPositionAgent} />
         <Route path="/market-intelligence" component={MarketIntelligence} />
         <Route path="/paper-trading" component={PaperTradingPage} />
         <Route path="/card-showcase" component={CardShowcase} />

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import express, { type Request, type Response } from 'express';
 import { storage } from '../storage';
 import { paperTradingEngine } from '../paper-trading-engine';
-import { db } from '../db'; // Assuming db is imported from a config file
+import { db } from '../db-storage'; // Assuming db is imported from a config file
 
 const router = express.Router();
 

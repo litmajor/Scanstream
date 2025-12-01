@@ -48,6 +48,8 @@ const navItems: NavItem[] = [
 
   // Advanced Section - ML, optimization, and intelligence
   { name: 'ML Engine', path: '/ml-engine', icon: Brain, section: 'advanced' },
+  { name: 'Advanced Analytics', path: '/advanced-analytics', icon: BarChart3, section: 'advanced' },
+  { name: 'RL Position Agent', path: '/rl-position-agent', icon: Brain, section: 'advanced' },
   { name: 'Paper Trading', path: '/paper-trading', icon: DollarSign, section: 'advanced' },
   { name: 'Multi-Timeframe', path: '/multi-timeframe', icon: Layers, section: 'advanced' },
   { name: 'Flow Field', path: '/flow-field', icon: Activity, section: 'advanced' },
