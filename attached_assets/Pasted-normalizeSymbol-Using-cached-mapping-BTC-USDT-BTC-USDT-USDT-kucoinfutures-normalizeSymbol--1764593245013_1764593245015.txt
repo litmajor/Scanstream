@@ -1,0 +1,46 @@
+normalizeSymbol] Using cached mapping: BTC/USDT -> BTC/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: ETH/USDT -> ETH/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: SOL/USDT -> SOL/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: AVAX/USDT -> AVAX/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: ADA/USDT -> ADA/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: DOT/USDT -> DOT/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: LINK/USDT -> LINK/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: XRP/USDT -> XRP/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: DOGE/USDT -> DOGE/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: ATOM/USDT -> ATOM/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: ARB/USDT -> ARB/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: OP/USDT -> OP/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: AAVE/USDT -> AAVE/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: UNI/USDT -> UNI/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Using cached mapping: NEAR/USDT -> NEAR/USDT:USDT (kucoinfutures)
+[SymbolMapper] Cached mapping: ETC/USDT -> ETC/USDT:USDT (kucoinfutures)
+[normalizeSymbol] Mapped ETC/USDT -> ETC/USDT:USDT (kucoinfutures)
+[SymbolMapper] Marked as failed: ETC/USDT (coinbase) - will not retry
+[normalizeSymbol] No valid market symbol found for ETC/USDT on coinbase, won't retry
+Failed to fetch market data: BadSymbol: coinbase does not have market symbol ETC/USDT
+    at coinbase.market (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:6119:15)
+    at coinbase.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/coinbase.js:3786:29)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:894:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1078:21)
+    at async <anonymous> (/home/runner/workspace/server/services/gateway/exchange-aggregator.ts:89:26)
+    at async Promise.allSettled (index 1)
+    at async ExchangeAggregator.getAggregatedPrice (/home/runner/workspace/server/services/gateway/exchange-aggregator.ts:113:5)
+    at async CacheWarmer.warmCache (/home/runner/workspace/server/services/gateway/cache-warmer.ts:28:9)
+    at async <anonymous> (/home/runner/workspace/server/routes/gateway.ts:40:3)
+[SymbolMapper] Cached mapping: ETC/USDT -> ETC/USDT (okx)
+[SymbolMapper] Marked as failed: ETC/USDT (kraken) - will not retry
+[normalizeSymbol] No valid market symbol found for ETC/USDT on kraken, won't retry
+Failed to fetch market data: BadSymbol: kraken does not have market symbol ETC/USDT
+    at kraken.market (/home/runner/workspace/node_modules/ccxt/js/src/base/Exchange.js:6119:15)
+    at kraken.fetchOHLCV (file:///home/runner/workspace/node_modules/ccxt/js/src/kraken.js:1159:29)
+    at async ExchangeDataFeed.rateLimitedFetch (/home/runner/workspace/server/trading-engine.ts:894:16)
+    at async ExchangeDataFeed.fetchMarketData (/home/runner/workspace/server/trading-engine.ts:1078:21)
+    at async <anonymous> (/home/runner/workspace/server/services/gateway/exchange-aggregator.ts:89:26)
+    at async Promise.allSettled (index 3)
+    at async ExchangeAggregator.getAggregatedPrice (/home/runner/workspace/server/services/gateway/exchange-aggregator.ts:113:5)
+    at async CacheWarmer.warmCache (/home/runner/workspace/server/services/gateway/cache-warmer.ts:28:9)
+    at async <anonymous> (/home/runner/workspace/server/routes/gateway.ts:40:3)
+12:46:57 PM [vite] (client) hmr update /src/index.css
+[MarketDataFetcher] Fetch completed: 15/15 symbols (6331ms)
+[CacheWarmer] Warmed 14/15 symbols in 51677ms
+[CacheWarmer] Starting continuous warming (every 60000ms)

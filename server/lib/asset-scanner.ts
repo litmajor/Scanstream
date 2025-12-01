@@ -1,8 +1,8 @@
 /**
- * Asset Scanner - Multi-asset signal generation across 30 tracked assets
+ * Asset Scanner - Multi-asset signal generation across 50 tracked assets
  */
 
-import { ALL_TRACKED_ASSETS, getTrackedCoinGeckoIds, getCoinGeckoId } from '@shared/tracked-assets';
+import { ALL_TRACKED_ASSETS, getTrackedCoinGeckoIds, getCoinGeckoId, ASSET_CATEGORIES } from '@shared/tracked-assets';
 
 export interface AssetScannerResult {
   symbol: string;
@@ -32,7 +32,7 @@ export class AssetScanner {
   }
 
   /**
-   * Initialize scan for all 30 assets
+   * Initialize scan for all 50 assets
    */
   static async initializeAssetScan(): Promise<AssetScannerResult[]> {
     return ALL_TRACKED_ASSETS.map(asset => ({
@@ -46,8 +46,15 @@ export class AssetScanner {
   /**
    * Get assets by category
    */
-  static getAssetsByCategory(category: 'tier-1' | 'fundamental') {
+  static getAssetsByCategory(category: 'tier-1' | 'fundamental' | 'meme' | 'ai' | 'rwa') {
     return ALL_TRACKED_ASSETS.filter(a => a.category === category);
+  }
+
+  /**
+   * Get asset count statistics
+   */
+  static getAssetCounts() {
+    return ASSET_CATEGORIES;
   }
 
   /**
