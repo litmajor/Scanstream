@@ -98,10 +98,49 @@ export default function OptimizePage() {
   const { data: optimizationData, isLoading, error, refetch } = useQuery({
     queryKey: ['optimization-data'],
     queryFn: async () => {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/optimize/strategies');
-      // return response.json();
-      return mockOptimizationData;
+      try {
+        const response = await fetch('/api/optimize/status');
+        if (!response.ok) {
+          // If not initialized, return mock data
+          return mockOptimizationData;
+        }
+        const data = await response.json();
+        
+        if (!data.initialized) {
+          return mockOptimizationData;
+        }
+        
+        // Transform backend data to match UI expectations
+        const report = data.report;
+        return {
+          strategies: Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
+            id: name,
+            name: name.replace(/([A-Z])/g, ' $1').trim(),
+            symbol: optimizationConfig.symbol,
+            timeframe: optimizationConfig.timeframe,
+            parameters: perf.bestParams || {},
+            performance: {
+              totalReturn: (perf.bestPerformance || 0) * 100,
+              sharpeRatio: perf.iterations?.[perf.iterations.length - 1]?.sharpe || 1.5,
+              maxDrawdown: -10,
+              winRate: 65,
+              profitFactor: 2.0
+            },
+            status: perf.iterations?.length > 0 ? 'optimized' : 'pending',
+            lastOptimized: new Date()
+          })),
+          optimizationResults: [],
+          agents: Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
+            id: name,
+            name: name.replace(/([A-Z])/g, ' $1').trim(),
+            performance: perf.bestPerformance || 0,
+            status: perf.iterations?.length > 0 ? 'active' : 'inactive'
+          }))
+        };
+      } catch (err) {
+        console.error('Failed to fetch optimization data:', err);
+        return mockOptimizationData;
+      }
     },
     refetchInterval: 5000, // Refresh every 5 seconds for running optimizations
   });

@@ -89,10 +89,41 @@ export default function MultiTimeframePage() {
   const { data: multiTimeframeData, isLoading, error, refetch } = useQuery({
     queryKey: ['multi-timeframe-data', selectedSymbol],
     queryFn: async () => {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/analysis/multi-timeframe?symbol=${selectedSymbol}`);
-      // return response.json();
-      return mockMultiTimeframeData;
+      const response = await fetch(`/api/analysis/multi-timeframe?symbol=${selectedSymbol}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch multi-timeframe analysis');
+      }
+      const data = await response.json();
+      
+      // Transform backend data to match UI expectations
+      return {
+        symbol: data.symbol,
+        analysis: {
+          overallTrend: data.overallTrend.toLowerCase(),
+          confluenceScore: data.multiTimeframeAnalysis?.confluenceScore || 0,
+          timeframeAnalysis: data.multiTimeframeAnalysis?.timeframeAnalysis?.map((tf: any) => ({
+            timeframe: tf.timeframe,
+            trend: tf.trend.toLowerCase(),
+            strength: tf.strength,
+            signals: tf.signals.map((s: any) => s.type),
+            price: tf.signals[0]?.price || 0,
+            change: ((tf.signals[0]?.price || 0) / (tf.signals[0]?.stopLoss || 1) - 1) * 100
+          })) || []
+        },
+        recommendations: data.multiTimeframeAnalysis?.timeframeAnalysis
+          ?.filter((tf: any) => tf.signals.length > 0)
+          .map((tf: any) => {
+            const signal = tf.signals[0];
+            return {
+              action: signal.type,
+              confidence: signal.confidence,
+              timeframe: tf.timeframe,
+              reason: signal.reasoning?.join(', ') || 'Multi-timeframe confluence detected',
+              target: signal.takeProfit,
+              stopLoss: signal.stopLoss
+            };
+          }) || []
+      };
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
@@ -189,9 +220,26 @@ export default function MultiTimeframePage() {
                 <option value="BTC/USDT">BTC/USDT</option>
                 <option value="ETH/USDT">ETH/USDT</option>
                 <option value="SOL/USDT">SOL/USDT</option>
+                <option value="AVAX/USDT">AVAX/USDT</option>
                 <option value="ADA/USDT">ADA/USDT</option>
                 <option value="DOT/USDT">DOT/USDT</option>
+                <option value="LINK/USDT">LINK/USDT</option>
+                <option value="XRP/USDT">XRP/USDT</option>
+                <option value="DOGE/USDT">DOGE/USDT</option>
+                <option value="ATOM/USDT">ATOM/USDT</option>
+                <option value="ARB/USDT">ARB/USDT</option>
+                <option value="OP/USDT">OP/USDT</option>
+                <option value="AAVE/USDT">AAVE/USDT</option>
+                <option value="UNI/USDT">UNI/USDT</option>
+                <option value="NEAR/USDT">NEAR/USDT</option>
               </select>
+              <button
+                onClick={() => refetch()}
+                className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
+                title="Refresh Analysis"
+              >
+                🔄
+              </button>
             </div>
           </div>
         </div>

@@ -92,6 +92,51 @@ router.get('/status', (_req: Request, res: Response) => {
   if (!optimizer) {
     return res.json({
       initialized: false,
+
+
+/**
+ * GET /api/optimize/strategies
+ * Get optimized strategies summary
+ */
+router.get('/strategies', async (_req: Request, res: Response) => {
+  if (!optimizer) {
+    return res.json({
+      strategies: [],
+      message: 'No optimization run yet'
+    });
+  }
+  
+  const report = optimizer.getOptimizationReport();
+  const history = optimizer.getOptimizationHistory();
+  
+  const strategies = Object.entries(report.agentPerformance || {}).map(([agentName, perf]: [string, any]) => {
+    const agentHistory = history[agentName] || [];
+    const iterations = perf.iterations || [];
+    
+    return {
+      id: agentName,
+      name: agentName.replace(/([A-Z])/g, ' $1').trim(),
+      agent: agentName,
+      performance: {
+        bestPerformance: perf.bestPerformance || 0,
+        currentPerformance: iterations[iterations.length - 1]?.performance || 0,
+        improvement: perf.improvement || 0,
+        totalIterations: iterations.length,
+        convergence: iterations.length > 5 ? 'converged' : 'optimizing'
+      },
+      parameters: perf.bestParams || {},
+      history: agentHistory.slice(-20), // Last 20 iterations
+      timestamp: new Date().toISOString()
+    };
+  });
+  
+  res.json({
+    strategies,
+    totalStrategies: strategies.length,
+    timestamp: new Date().toISOString()
+  });
+});
+
       message: 'Optimizer not initialized. Run optimization first.'
     });
   }

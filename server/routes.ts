@@ -24,7 +24,7 @@ let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
 let calculate_volume_profile: any, calculate_anchored_volume_profile: any, calculate_fixed_range_volume_profile: any;
 let calculate_composite_score: any, calculate_volume_composite_score: any, calculate_confidence_score: any;
 let calculate_value_area: any, calculate_poc: any;
-let runBacktest, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
+let runBacktest, ExchangeDataFeed: any, SignalEngine, defaultTradingConfig;
 let MLSignalEnhancer: any, EnhancedMultiTimeframeAnalyzer: any;
 let registerChartApi: any, registerAdvancedIndicatorApi: any;
 let StrategyIntegrationEngine: any;
@@ -1631,7 +1631,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
           // Use correct symbols for kucoinfutures, fallback to spot symbols for others
           let symbols: string[];
           if (clientExchange === 'kucoinfutures') {
-            symbols = ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT'];
+            symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
           } else {
             symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
           }
@@ -1940,45 +1940,38 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Multi-Timeframe Analysis endpoint under /api/analysis path
   app.get('/api/analysis/multi-timeframe', async (req: Request, res: Response) => {
     try {
-      const { symbol } = req.query;
-      const targetSymbol = symbol || 'BTC/USDT';
-      const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
+      const targetSymbol = (req.query.symbol as string) || 'BTC/USDT';
 
-      const analysis: Record<string, any> = {};
+      console.log(`[Multi-Timeframe] Analyzing ${targetSymbol}...`);
 
-      for (const timeframe of timeframes) {
-        analysis[timeframe] = {
-          timeframe,
-          symbol: targetSymbol,
-          trend: ['bullish', 'bearish', 'neutral'][Math.floor(Math.random() * 3)],
-          strength: (Math.random() * 100).toFixed(2),
-          rsi: (30 + Math.random() * 40).toFixed(2),
-          macd: {
-            value: (Math.random() * 2 - 1).toFixed(4),
-            signal: (Math.random() * 2 - 1).toFixed(4),
-            histogram: (Math.random() * 2 - 1).toFixed(4)
-          },
-          movingAverages: {
-            sma20: (Math.random() * 50000).toFixed(2),
-            sma50: (Math.random() * 50000).toFixed(2),
-            ema12: (Math.random() * 50000).toFixed(2),
-            ema26: (Math.random() * 50000).toFixed(2)
-          },
-          support: (Math.random() * 50000).toFixed(2),
-          resistance: (50000 + Math.random() * 10000).toFixed(2),
-          pivotPoint: (Math.random() * 50000).toFixed(2)
-        };
+      // Get multi-timeframe analyzer
+      const { EnhancedMultiTimeframeAnalyzer } = await import('./multi-timeframe');
+      const { SignalEngine } = await import('./trading-engine');
+
+      // Initialize signal engine
+      const signalEngine = new SignalEngine();
+      const analyzer = new EnhancedMultiTimeframeAnalyzer(signalEngine);
+
+      // Run analysis
+      const analysis = await analyzer.analyzeMultiTimeframe(targetSymbol);
+
+      if (!analysis) {
+        return res.status(404).json({
+          error: 'Analysis failed',
+          message: `Could not generate multi-timeframe analysis for ${targetSymbol}`
+        });
       }
 
       res.json({
         symbol: targetSymbol,
         multiTimeframeAnalysis: analysis,
-        overallTrend: 'bullish',
-        confluenceLevel: 4,
+        overallTrend: analysis.overallTrend,
+        confluenceLevel: Math.round(analysis.confluenceScore * 5),
         timestamp: new Date().toISOString(),
-        recommendation: 'Strong confluence detected across multiple timeframes - bullish bias'
+        recommendation: analysis.reasoning?.[0] || 'Multi-timeframe analysis complete'
       });
     } catch (error: any) {
+      console.error('[Multi-Timeframe] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
