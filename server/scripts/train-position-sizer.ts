@@ -302,8 +302,8 @@ export class PositionSizerTrainer {
 // Export singleton
 export const positionSizerTrainer = new PositionSizerTrainer();
 
-// CLI execution
-if (require.main === module) {
+// CLI execution (ES module check)
+if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
     try {
       await positionSizerTrainer.trainOnHistoricalData();
