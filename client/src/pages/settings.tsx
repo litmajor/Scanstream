@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -19,11 +20,8 @@ import {
   Palette, 
   Trash2, 
   Plus,
-  Eye,
-  EyeOff,
-  Shield,
-  Clock,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
 
 interface ApiKey {
@@ -76,11 +74,15 @@ export default function SettingsPage() {
   const { data: preferences, isLoading: prefsLoading } = useQuery<Preferences>({
     queryKey: ["/api/user/preferences"],
     enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
   });
 
   const { data: apiKeys, isLoading: keysLoading } = useQuery<ApiKey[]>({
     queryKey: ["/api/user/api-keys"],
     enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
   });
 
   const updatePreferencesMutation = useMutation({
@@ -91,8 +93,12 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/user/preferences"] });
       toast({ title: "Preferences updated", description: "Your settings have been saved." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update preferences.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to update preferences.", 
+        variant: "destructive" 
+      });
     },
   });
 
@@ -106,8 +112,12 @@ export default function SettingsPage() {
       setNewKeyForm({ exchange: "binance", name: "", apiKey: "", apiSecret: "", isTestnet: false });
       toast({ title: "API key added", description: "Your exchange connection has been saved." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add API key.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to add API key.", 
+        variant: "destructive" 
+      });
     },
   });
 
@@ -119,15 +129,22 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/user/api-keys"] });
       toast({ title: "API key deleted", description: "The exchange connection has been removed." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to delete API key.", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to delete API key.", 
+        variant: "destructive" 
+      });
     },
   });
 
   if (authLoading || !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="flex items-center justify-center h-full min-h-screen">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading...</span>
+        </div>
       </div>
     );
   }
@@ -167,80 +184,86 @@ export default function SettingsPage() {
               <CardDescription>Customize how Scanstream looks and behaves.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="theme">Theme</Label>
-                    <p className="text-sm text-muted-foreground">Choose your preferred color scheme.</p>
-                  </div>
-                  <Select
-                    value={preferences?.theme || "dark"}
-                    onValueChange={(value) => updatePreferencesMutation.mutate({ theme: value })}
-                    data-testid="select-theme"
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {prefsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="timeframe">Default Timeframe</Label>
-                    <p className="text-sm text-muted-foreground">Default chart timeframe.</p>
+              ) : (
+                <div className="grid gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="theme">Theme</Label>
+                      <p className="text-sm text-muted-foreground">Choose your preferred color scheme.</p>
+                    </div>
+                    <Select
+                      value={preferences?.theme || "dark"}
+                      onValueChange={(value) => updatePreferencesMutation.mutate({ theme: value })}
+                      data-testid="select-theme"
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dark">Dark</SelectItem>
+                        <SelectItem value="light">Light</SelectItem>
+                        <SelectItem value="system">System</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select
-                    value={preferences?.defaultTimeframe || "1h"}
-                    onValueChange={(value) => updatePreferencesMutation.mutate({ defaultTimeframe: value })}
-                    data-testid="select-timeframe"
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1m">1 Minute</SelectItem>
-                      <SelectItem value="5m">5 Minutes</SelectItem>
-                      <SelectItem value="15m">15 Minutes</SelectItem>
-                      <SelectItem value="1h">1 Hour</SelectItem>
-                      <SelectItem value="4h">4 Hours</SelectItem>
-                      <SelectItem value="1d">1 Day</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="exchange">Default Exchange</Label>
-                    <p className="text-sm text-muted-foreground">Preferred exchange for trading.</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="timeframe">Default Timeframe</Label>
+                      <p className="text-sm text-muted-foreground">Default chart timeframe.</p>
+                    </div>
+                    <Select
+                      value={preferences?.defaultTimeframe || "1h"}
+                      onValueChange={(value) => updatePreferencesMutation.mutate({ defaultTimeframe: value })}
+                      data-testid="select-timeframe"
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1m">1 Minute</SelectItem>
+                        <SelectItem value="5m">5 Minutes</SelectItem>
+                        <SelectItem value="15m">15 Minutes</SelectItem>
+                        <SelectItem value="1h">1 Hour</SelectItem>
+                        <SelectItem value="4h">4 Hours</SelectItem>
+                        <SelectItem value="1d">1 Day</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select
-                    value={preferences?.defaultExchange || "binance"}
-                    onValueChange={(value) => updatePreferencesMutation.mutate({ defaultExchange: value })}
-                    data-testid="select-exchange"
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="binance">Binance</SelectItem>
-                      <SelectItem value="coinbase">Coinbase</SelectItem>
-                      <SelectItem value="kraken">Kraken</SelectItem>
-                      <SelectItem value="kucoin">KuCoin</SelectItem>
-                      <SelectItem value="okx">OKX</SelectItem>
-                      <SelectItem value="bybit">Bybit</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="exchange">Default Exchange</Label>
+                      <p className="text-sm text-muted-foreground">Preferred exchange for trading.</p>
+                    </div>
+                    <Select
+                      value={preferences?.defaultExchange || "binance"}
+                      onValueChange={(value) => updatePreferencesMutation.mutate({ defaultExchange: value })}
+                      data-testid="select-exchange"
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="binance">Binance</SelectItem>
+                        <SelectItem value="coinbase">Coinbase</SelectItem>
+                        <SelectItem value="kraken">Kraken</SelectItem>
+                        <SelectItem value="kucoin">KuCoin</SelectItem>
+                        <SelectItem value="okx">OKX</SelectItem>
+                        <SelectItem value="bybit">Bybit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -252,73 +275,81 @@ export default function SettingsPage() {
               <CardDescription>Control how and when you receive alerts.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Enable Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Receive in-app notifications.</p>
+              {prefsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-                <Switch
-                  checked={preferences?.notificationsEnabled ?? true}
-                  onCheckedChange={(checked) => updatePreferencesMutation.mutate({ notificationsEnabled: checked })}
-                  data-testid="switch-notifications"
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Enable Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Receive in-app notifications.</p>
+                    </div>
+                    <Switch
+                      checked={preferences?.notificationsEnabled ?? true}
+                      onCheckedChange={(checked) => updatePreferencesMutation.mutate({ notificationsEnabled: checked })}
+                      data-testid="switch-notifications"
+                    />
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Email Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Receive important alerts via email.</p>
-                </div>
-                <Switch
-                  checked={preferences?.emailAlerts ?? false}
-                  onCheckedChange={(checked) => updatePreferencesMutation.mutate({ emailAlerts: checked })}
-                  data-testid="switch-email-alerts"
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Email Alerts</Label>
+                      <p className="text-sm text-muted-foreground">Receive important alerts via email.</p>
+                    </div>
+                    <Switch
+                      checked={preferences?.emailAlerts ?? false}
+                      onCheckedChange={(checked) => updatePreferencesMutation.mutate({ emailAlerts: checked })}
+                      data-testid="switch-email-alerts"
+                    />
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Price Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Get notified on significant price movements.</p>
-                </div>
-                <Switch
-                  checked={preferences?.priceAlerts ?? true}
-                  onCheckedChange={(checked) => updatePreferencesMutation.mutate({ priceAlerts: checked })}
-                  data-testid="switch-price-alerts"
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Price Alerts</Label>
+                      <p className="text-sm text-muted-foreground">Get notified on significant price movements.</p>
+                    </div>
+                    <Switch
+                      checked={preferences?.priceAlerts ?? true}
+                      onCheckedChange={(checked) => updatePreferencesMutation.mutate({ priceAlerts: checked })}
+                      data-testid="switch-price-alerts"
+                    />
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Signal Alerts</Label>
-                  <p className="text-sm text-muted-foreground">Get notified on new trading signals.</p>
-                </div>
-                <Switch
-                  checked={preferences?.signalAlerts ?? true}
-                  onCheckedChange={(checked) => updatePreferencesMutation.mutate({ signalAlerts: checked })}
-                  data-testid="switch-signal-alerts"
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Signal Alerts</Label>
+                      <p className="text-sm text-muted-foreground">Get notified on new trading signals.</p>
+                    </div>
+                    <Switch
+                      checked={preferences?.signalAlerts ?? true}
+                      onCheckedChange={(checked) => updatePreferencesMutation.mutate({ signalAlerts: checked })}
+                      data-testid="switch-signal-alerts"
+                    />
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Sound Effects</Label>
-                  <p className="text-sm text-muted-foreground">Play sounds for notifications.</p>
-                </div>
-                <Switch
-                  checked={preferences?.soundEnabled ?? true}
-                  onCheckedChange={(checked) => updatePreferencesMutation.mutate({ soundEnabled: checked })}
-                  data-testid="switch-sound"
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Sound Effects</Label>
+                      <p className="text-sm text-muted-foreground">Play sounds for notifications.</p>
+                    </div>
+                    <Switch
+                      checked={preferences?.soundEnabled ?? true}
+                      onCheckedChange={(checked) => updatePreferencesMutation.mutate({ soundEnabled: checked })}
+                      data-testid="switch-sound"
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -410,10 +441,17 @@ export default function SettingsPage() {
                       </Button>
                       <Button 
                         onClick={() => addApiKeyMutation.mutate(newKeyForm)}
-                        disabled={!newKeyForm.name || !newKeyForm.apiKey || !newKeyForm.apiSecret}
+                        disabled={!newKeyForm.name || !newKeyForm.apiKey || !newKeyForm.apiSecret || addApiKeyMutation.isPending}
                         data-testid="button-save-key"
                       >
-                        Save API Key
+                        {addApiKeyMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save API Key'
+                        )}
                       </Button>
                     </div>
                   </CardContent>
@@ -421,7 +459,10 @@ export default function SettingsPage() {
               )}
 
               {keysLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Loading API keys...</div>
+                <div className="text-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                  <p className="text-muted-foreground mt-2">Loading API keys...</p>
+                </div>
               ) : apiKeys?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -431,7 +472,7 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-4">
                   {apiKeys?.map((key) => (
-                    <div key={key.id} className="flex items-center justify-between p-4 border rounded-lg" data-testid={`api-key-${key.id}`}>
+                    <div key={key.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors" data-testid={`api-key-${key.id}`}>
                       <div className="flex items-center gap-4">
                         <Globe className="h-8 w-8 text-muted-foreground" />
                         <div>
@@ -449,9 +490,14 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => deleteApiKeyMutation.mutate(key.id)}
+                        disabled={deleteApiKeyMutation.isPending}
                         data-testid={`button-delete-key-${key.id}`}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        {deleteApiKeyMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        )}
                       </Button>
                     </div>
                   ))}
