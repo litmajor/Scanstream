@@ -42,7 +42,7 @@ export default defineConfig({
     port: 5000,
     strictPort: true,
     hmr: false,
-    allowedHosts: 'all',
+    allowedHosts: true,
     proxy: {
       '/api/scanner': {
         target: 'http://localhost:5001',
