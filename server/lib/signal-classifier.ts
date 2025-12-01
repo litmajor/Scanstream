@@ -97,14 +97,45 @@ export class SignalClassifier {
       });
     }
 
-    // Check SUPPORT_BOUNCE
+    // Check SUPPORT_BOUNCE (v2 - Enhanced with volume & price action confirmation)
     if (indicators.support && indicators.price > indicators.support && indicators.prevPrice <= indicators.support) {
-      patterns.push({
-        pattern: "SUPPORT_BOUNCE",
-        confidence: 0.75,
-        strength: 75,
-        reasoning: "Price bounced from support level"
-      });
+      let confidence = 0.75; // Base confidence
+      let strength = 75;
+      let volumeConfirmed = false;
+      let priceActionConfirmed = false;
+      let reasoning = "Price bounced from support level";
+      
+      // VOLUME CONFIRMATION: Volume spike validates institutional buying at support
+      if (indicators.volume && indicators.prevVolume && indicators.volume > indicators.prevVolume * 1.5) {
+        confidence += 0.05; // Boost to 0.80
+        strength += 5;
+        volumeConfirmed = true;
+        reasoning += " + volume confirmation";
+      }
+      
+      // PRICE ACTION REVERSAL: Price moves meaningfully away from support (strong recovery)
+      const priceStrength = (indicators.price - indicators.support) / indicators.support;
+      if (priceStrength > 0.02) { // Price moved >2% above support = strong recovery
+        confidence += 0.05; // Boost to 0.85 (or 0.80 if no volume)
+        strength += 5;
+        priceActionConfirmed = true;
+        reasoning += " + strong price action recovery";
+      }
+      
+      // Cap confidence at 0.90 (excellent quality)
+      confidence = Math.min(0.90, confidence);
+      strength = Math.min(100, strength);
+      
+      // Only add if at least one confirmation present (volume OR price action)
+      // This filters out weak bounces without institutional support
+      if (volumeConfirmed || priceActionConfirmed) {
+        patterns.push({
+          pattern: "SUPPORT_BOUNCE",
+          confidence,
+          strength,
+          reasoning
+        });
+      }
     }
 
     // Check RESISTANCE_BREAK
