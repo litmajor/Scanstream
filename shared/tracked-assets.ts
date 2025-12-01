@@ -1,8 +1,11 @@
 /**
- * SCANSTREAM Tracked Assets (30 Cryptocurrencies)
- * Divided into two categories:
- * - Top 15: Largest, most liquid, highest quality projects
- * - Fundamental 15: Strong fundamentals, growing ecosystems, consistent performers
+ * SCANSTREAM Tracked Assets (50 Cryptocurrencies)
+ * Divided into five categories:
+ * - Tier-1 (15): Largest cap, most liquid, most established
+ * - Fundamental (15): Strong fundamentals, growing ecosystems
+ * - Meme (6): Community-driven, high volatility, meme culture
+ * - AI/ML (6): Artificial intelligence and machine learning
+ * - RWA (8): Real-world asset tokenization
  */
 
 export interface TrackedAsset {
@@ -10,7 +13,7 @@ export interface TrackedAsset {
   symbol: string;
   name: string;
   coingeckoId: string;
-  category: 'tier-1' | 'fundamental';
+  category: 'tier-1' | 'fundamental' | 'meme' | 'ai' | 'rwa';
   description: string;
   marketCap?: number;
   volume24h?: number;
@@ -74,7 +77,7 @@ export const TOP_15_ASSETS: TrackedAsset[] = [
     name: 'Dogecoin',
     coingeckoId: 'dogecoin',
     category: 'tier-1',
-    description: 'Leading meme coin with strong community and merchant adoption'
+    description: 'Bitcoin-derived cryptocurrency with strong community'
   },
   {
     id: 'avax',
@@ -143,7 +146,7 @@ export const TOP_15_ASSETS: TrackedAsset[] = [
 ];
 
 /**
- * FUNDAMENTAL 15: Strong fundamentals, consistent performers, undervalued gems
+ * FUNDAMENTAL 15: Strong fundamentals, consistent performers, growing ecosystems
  */
 export const FUNDAMENTAL_15_ASSETS: TrackedAsset[] = [
   {
@@ -269,11 +272,192 @@ export const FUNDAMENTAL_15_ASSETS: TrackedAsset[] = [
 ];
 
 /**
- * All 30 tracked assets combined
+ * MEME 6: Community-driven, high volatility, meme culture assets
+ */
+export const MEME_6_ASSETS: TrackedAsset[] = [
+  {
+    id: 'shib',
+    symbol: 'SHIB',
+    name: 'Shiba Inu',
+    coingeckoId: 'shiba-inu',
+    category: 'meme',
+    description: 'Most successful meme token with active ecosystem and DEX'
+  },
+  {
+    id: 'pepe',
+    symbol: 'PEPE',
+    name: 'Pepe',
+    coingeckoId: 'pepe',
+    category: 'meme',
+    description: 'Ethereum-based meme token with strong trading activity'
+  },
+  {
+    id: 'bonk',
+    symbol: 'BONK',
+    name: 'Bonk',
+    coingeckoId: 'bonk',
+    category: 'meme',
+    description: 'Native Solana meme coin with compressed token support'
+  },
+  {
+    id: 'floki',
+    symbol: 'FLOKI',
+    name: 'Floki Inu',
+    coingeckoId: 'floki',
+    category: 'meme',
+    description: 'Meme token with gaming and NFT ecosystem development'
+  },
+  {
+    id: 'wif',
+    symbol: 'WIF',
+    name: 'Dogwifhat',
+    coingeckoId: 'dogwifhat',
+    category: 'meme',
+    description: 'Popular Solana meme coin with viral social appeal'
+  },
+  {
+    id: 'mog',
+    symbol: 'MOG',
+    name: 'Mog Coin',
+    coingeckoId: 'mog-coin',
+    category: 'meme',
+    description: 'Ethereum-based meme token in gaming ecosystem'
+  }
+];
+
+/**
+ * AI/ML 6: Artificial intelligence and machine learning tokens
+ */
+export const AI_6_ASSETS: TrackedAsset[] = [
+  {
+    id: 'agix',
+    symbol: 'AGIX',
+    name: 'SingularityNET',
+    coingeckoId: 'singularitynet',
+    category: 'ai',
+    description: 'Decentralized AI services marketplace and infrastructure'
+  },
+  {
+    id: 'fet',
+    symbol: 'FET',
+    name: 'Fetch.ai',
+    coingeckoId: 'fetch-ai',
+    category: 'ai',
+    description: 'AI and machine learning platform for autonomous agents'
+  },
+  {
+    id: 'render',
+    symbol: 'RENDER',
+    name: 'Render Network',
+    coingeckoId: 'render-token',
+    category: 'ai',
+    description: 'GPU compute network for AI, rendering, and ML workloads'
+  },
+  {
+    id: 'tao',
+    symbol: 'TAO',
+    name: 'Bittensor',
+    coingeckoId: 'bittensor',
+    category: 'ai',
+    description: 'Decentralized machine learning network with incentive mechanisms'
+  },
+  {
+    id: 'arkm',
+    symbol: 'ARKM',
+    name: 'Arkham Intelligence',
+    coingeckoId: 'arkham-intelligence',
+    category: 'ai',
+    description: 'AI-powered on-chain analytics and intelligence platform'
+  },
+  {
+    id: 'aia',
+    symbol: 'AIA',
+    name: 'AI Avatar',
+    coingeckoId: 'ai-avatar',
+    category: 'ai',
+    description: 'AI-driven avatar and metaverse interaction protocol'
+  }
+];
+
+/**
+ * RWA 8: Real-world asset tokenization and bridges
+ */
+export const RWA_8_ASSETS: TrackedAsset[] = [
+  {
+    id: 'ondo',
+    symbol: 'ONDO',
+    name: 'Ondo Finance',
+    coingeckoId: 'ondo-finance',
+    category: 'rwa',
+    description: 'Real estate and real-world asset tokenization protocol'
+  },
+  {
+    id: 'frax',
+    symbol: 'FRAX',
+    name: 'Frax Share',
+    coingeckoId: 'frax-share',
+    category: 'rwa',
+    description: 'Fractional reserve stablecoin and real-asset backing'
+  },
+  {
+    id: 'usde',
+    symbol: 'USDe',
+    name: 'Ethena USD',
+    coingeckoId: 'ethena',
+    category: 'rwa',
+    description: 'Synthetic USD stablecoin backed by real-world collateral'
+  },
+  {
+    id: 'mx',
+    symbol: 'MX',
+    name: 'Mixin',
+    coingeckoId: 'mixin',
+    category: 'rwa',
+    description: 'Asset bridge and cross-chain messaging for RWA trading'
+  },
+  {
+    id: 'ggm',
+    symbol: 'GGM',
+    name: 'Goldfinch',
+    coingeckoId: 'goldfinch',
+    category: 'rwa',
+    description: 'Decentralized credit protocol for real-world lending'
+  },
+  {
+    id: 'ape',
+    symbol: 'APE',
+    name: 'ApeCoin',
+    coingeckoId: 'apecoin',
+    category: 'rwa',
+    description: 'Community governance token for digital communities and IP'
+  },
+  {
+    id: 'sand',
+    symbol: 'SAND',
+    name: 'The Sandbox',
+    coingeckoId: 'the-sandbox',
+    category: 'rwa',
+    description: 'Virtual world token with real-estate ownership and commerce'
+  },
+  {
+    id: 'blur',
+    symbol: 'BLUR',
+    name: 'Blur',
+    coingeckoId: 'blur',
+    category: 'rwa',
+    description: 'NFT marketplace and collection protocol with governance'
+  }
+];
+
+/**
+ * All 50 tracked assets combined
  */
 export const ALL_TRACKED_ASSETS: TrackedAsset[] = [
   ...TOP_15_ASSETS,
-  ...FUNDAMENTAL_15_ASSETS
+  ...FUNDAMENTAL_15_ASSETS,
+  ...MEME_6_ASSETS,
+  ...AI_6_ASSETS,
+  ...RWA_8_ASSETS
 ];
 
 /**
@@ -310,5 +494,26 @@ export function getTrackedCoinGeckoIds(): string {
 export const ASSET_CATEGORIES = {
   tier1: TOP_15_ASSETS.length,
   fundamental: FUNDAMENTAL_15_ASSETS.length,
+  meme: MEME_6_ASSETS.length,
+  ai: AI_6_ASSETS.length,
+  rwa: RWA_8_ASSETS.length,
   total: ALL_TRACKED_ASSETS.length
+};
+
+/**
+ * Get assets by category
+ */
+export function getAssetsByCategory(category: 'tier-1' | 'fundamental' | 'meme' | 'ai' | 'rwa'): TrackedAsset[] {
+  return ALL_TRACKED_ASSETS.filter(a => a.category === category);
+}
+
+/**
+ * All category names
+ */
+export const CATEGORY_NAMES = {
+  'tier-1': 'Tier-1 (Top 15)',
+  'fundamental': 'Fundamental (15)',
+  'meme': 'Meme Coins (6)',
+  'ai': 'AI & ML (6)',
+  'rwa': 'RWA & Social (8)'
 };

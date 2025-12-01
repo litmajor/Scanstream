@@ -1,9 +1,12 @@
-# SCANSTREAM Tracked Assets (30 Cryptocurrencies)
+# SCANSTREAM Tracked Assets (50 Cryptocurrencies)
 
 ## Overview
-Scanstream monitors **30 cryptocurrencies** across two tiers:
+Scanstream monitors **50 cryptocurrencies** across five categories:
 - **Tier-1 (15)**: Largest cap, most liquid, most established
 - **Fundamental (15)**: Strong fundamentals, consistent performers, growing ecosystems
+- **Meme (6)**: Community-driven, high volatility, meme culture
+- **AI/ML (6)**: Artificial intelligence and machine learning tokens
+- **RWA (8)**: Real-world asset tokenization and social tokens
 
 ## Tier-1 Assets (15) - Largest & Most Established
 
