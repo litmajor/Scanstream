@@ -163,13 +163,23 @@ export class SignalPipeline {
     );
 
     // Step 4.5: VOLATILITY NORMALIZATION - Adjust confidence by asset volatility
-    // High volatility assets get downgraded, low volatility get upgraded
     const volatilityMultiplier = this.calculateVolatilityMultiplier(marketData);
     const volatilityAdjustedConfidence = accuracy.adjustedConfidence * (1 + volatilityMultiplier);
+    
+    // Step 4.6: MARKET REGIME DETECTION - Detect trending vs ranging vs volatile markets
+    // This uses scanner patterns to build frame data for regime analysis
+    const regimeAnalysis = this.detectMarketRegime(
+      Array.isArray(scannerOutput.patterns) && scannerOutput.patterns.length > 0 
+        ? [marketData] // Use market data as frame
+        : []
+    );
+
     const volatilityAdjustedAccuracy = {
       ...accuracy,
       adjustedConfidence: Math.min(1, Math.max(0, volatilityAdjustedConfidence)),
-      volatilityMultiplier
+      volatilityMultiplier,
+      marketRegime: regimeAnalysis.regime,
+      regimeStrength: regimeAnalysis.strength
     };
 
     // Step 5: Calculate quality score
@@ -360,6 +370,20 @@ export class SignalPipeline {
       reasons.push(`High volatility penalty: ${(volMult * 100).toFixed(1)}%`);
     }
 
+    // Market regime contribution
+    const regime = (accuracy as any).marketRegime;
+    const regimeStrength = (accuracy as any).regimeStrength || 0;
+    if (regime === 'TRENDING' && regimeStrength > 0.6) {
+      score += 12;
+      reasons.push(`Trending market regime boost: +${(regimeStrength * 10).toFixed(0)} points`);
+    } else if (regime === 'CONSOLIDATING') {
+      score -= 5;
+      reasons.push(`Consolidation period: reduced confidence`);
+    } else if (regime === 'VOLATILE') {
+      score = Math.round(score * 0.85);
+      reasons.push(`High volatility regime: confidence scaled down 15%`);
+    }
+
     // RL convergence (10 points max)
     if (Math.abs(rl.qValue) > 0.7) {
       score += 10;
@@ -384,14 +408,178 @@ export class SignalPipeline {
    * Range: -0.3 (downgrade high vol) to +0.2 (upgrade low vol)
    */
   private calculateVolatilityMultiplier(market: RawMarketData): number {
-    // Calculate volatility as percentage of price
     const range = market.high - market.low;
-    const volatility = range / market.price; // 0-1 scale
+    const volatility = range / market.price;
+    const multiplier = (0.05 - volatility) * 2;
+    return Math.max(-0.3, Math.min(0.2, multiplier));
+  }
+
+  /**
+   * MARKET REGIME DETECTION - Advanced multi-factor analysis
+   * Determines TRENDING, RANGING, VOLATILE, or CONSOLIDATING regimes
+   * Returns regime-specific pattern weights for adaptive signal generation
+   */
+  private detectMarketRegime(frames: any[]): {
+    regime: 'TRENDING' | 'RANGING' | 'VOLATILE' | 'CONSOLIDATING';
+    strength: number; // 0-1 confidence in regime classification
+    indicators: {
+      adx: number; // Trend strength
+      trendDirection: 'UP' | 'DOWN' | 'SIDEWAYS';
+      volatility: number; // Annualized volatility estimate
+      rangeWidth: number; // Current range vs historical
+      momentumScore: number; // -1 to +1, momentum direction/strength
+      volumeProfile: 'HEAVY' | 'NORMAL' | 'LIGHT';
+    };
+    patternWeights: Record<string, number>; // Regime-specific pattern adjustments
+  } {
+    if (frames.length < 50) {
+      return {
+        regime: 'CONSOLIDATING',
+        strength: 0.3,
+        indicators: {
+          adx: 20,
+          trendDirection: 'SIDEWAYS',
+          volatility: 0.02,
+          rangeWidth: 1,
+          momentumScore: 0,
+          volumeProfile: 'NORMAL'
+        },
+        patternWeights: {
+          BREAKOUT: 1.0,
+          REVERSAL: 1.0,
+          TREND_CONFIRMATION: 0.8,
+          SUPPORT_BOUNCE: 0.9
+        }
+      };
+    }
+
+    const prices = frames.map((f: any) => (f.price?.close || f.close) as number).filter(p => !isNaN(p));
+    const volumes = frames.map((f: any) => (f.volume || 0) as number);
+    const highs = frames.map((f: any) => (f.price?.high || f.high) as number).filter(h => !isNaN(h));
+    const lows = frames.map((f: any) => (f.price?.low || f.low) as number).filter(l => !isNaN(l));
+
+    // 1. TREND STRENGTH (ADX-like calculation)
+    const ema14 = this.calculateEMA(prices, 14);
+    const ema30 = this.calculateEMA(prices, 30);
+    const trendAlignment = Math.abs(ema14 - ema30) / ema30; // Higher = stronger trend
+    const adx = Math.min(100, trendAlignment * 200); // Normalize to 0-100 scale
+
+    // 2. TREND DIRECTION
+    const priceVsEma14 = prices[prices.length - 1] > ema14 ? 1 : -1;
+    const ema14VsEma30 = ema14 > ema30 ? 1 : -1;
+    const trendDirection = (priceVsEma14 + ema14VsEma30) > 0 ? 'UP' : (priceVsEma14 + ema14VsEma30) < 0 ? 'DOWN' : 'SIDEWAYS';
+
+    // 3. VOLATILITY ANALYSIS
+    const returns = prices.slice(1).map((p, i) => Math.log(p / prices[i]));
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const annualizedVolatility = stdDev * Math.sqrt(252); // 252 trading days
+
+    // 4. RANGE WIDTH (consolidation detection)
+    const last20High = Math.max(...highs.slice(-20));
+    const last20Low = Math.min(...lows.slice(-20));
+    const last50High = Math.max(...highs.slice(-50));
+    const last50Low = Math.min(...lows.slice(-50));
+    const rangeWidth = (last20High - last20Low) / (last50High - last50Low + 0.001);
+
+    // 5. MOMENTUM SCORE (RSI-based)
+    const gains = returns.filter(r => r > 0).reduce((sum, r) => sum + r, 0);
+    const losses = Math.abs(returns.filter(r => r < 0).reduce((sum, r) => sum + r, 0));
+    const rs = gains / (losses + 0.001);
+    const rsi = 100 - (100 / (1 + rs));
+    const momentumScore = (rsi - 50) / 50; // -1 to +1 scale
+
+    // 6. VOLUME PROFILE
+    const avgVolume = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const currentVolume = volumes[volumes.length - 1];
+    const volumeRatio = currentVolume / (avgVolume + 0.001);
+    const volumeProfile: 'HEAVY' | 'NORMAL' | 'LIGHT' = volumeRatio > 1.3 ? 'HEAVY' : volumeRatio < 0.7 ? 'LIGHT' : 'NORMAL';
+
+    // REGIME CLASSIFICATION LOGIC
+    let regime: 'TRENDING' | 'RANGING' | 'VOLATILE' | 'CONSOLIDATING';
+    let strength = 0;
+
+    if (adx > 40 && rangeWidth > 0.7) {
+      // Strong trend with wide range
+      regime = 'TRENDING';
+      strength = Math.min(1, (adx - 40) / 40);
+    } else if (adx < 25 && rangeWidth < 0.5) {
+      // Weak trend, tight range = consolidation
+      regime = 'CONSOLIDATING';
+      strength = 1 - (adx / 25);
+    } else if (annualizedVolatility > 0.03 && adx < 35) {
+      // High volatility without strong trend
+      regime = 'VOLATILE';
+      strength = Math.min(1, annualizedVolatility / 0.05);
+    } else {
+      // Range-bound market
+      regime = 'RANGING';
+      strength = 1 - (adx / 50);
+    }
+
+    // REGIME-SPECIFIC PATTERN WEIGHTS
+    const patternWeights: Record<string, number> = {};
     
-    // Map volatility to multiplier: high vol gets negative, low vol gets positive
-    // Baseline (normal): ~5% volatility → 0 multiplier
-    const multiplier = (0.05 - volatility) * 2; // Scale: -0.3 to +0.2
-    return Math.max(-0.3, Math.min(0.2, multiplier)); // Clamp to safe range
+    if (regime === 'TRENDING') {
+      patternWeights.BREAKOUT = 1.3;
+      patternWeights.TREND_CONFIRMATION = 1.2;
+      patternWeights.TREND_ESTABLISHMENT = 1.3;
+      patternWeights.MA_CROSSOVER = 1.2;
+      patternWeights.CONTINUATION = 1.1;
+      patternWeights.REVERSAL = 0.6;
+      patternWeights.SUPPORT_BOUNCE = 0.8;
+      patternWeights.RANGING = 0.3;
+    } else if (regime === 'RANGING') {
+      patternWeights.BREAKOUT = 0.7;
+      patternWeights.REVERSAL = 1.3;
+      patternWeights.SUPPORT_BOUNCE = 1.2;
+      patternWeights.RESISTANCE_BREAK = 1.1;
+      patternWeights.TREND_CONFIRMATION = 0.6;
+      patternWeights.MA_CROSSOVER = 0.8;
+      patternWeights.RANGING = 1.2;
+    } else if (regime === 'VOLATILE') {
+      patternWeights.BREAKOUT = 0.8;
+      patternWeights.REVERSAL = 0.9;
+      patternWeights.SPIKE = 1.4;
+      patternWeights.CONSOLIDATION_BREAK = 1.2;
+      patternWeights.TREND_CONFIRMATION = 0.7;
+      patternWeights.SUPPORT_BOUNCE = 0.7;
+    } else {
+      // CONSOLIDATING
+      patternWeights.CONSOLIDATION_BREAK = 1.3;
+      patternWeights.BREAKOUT = 1.1;
+      patternWeights.REVERSAL = 1.0;
+      patternWeights.RANGING = 1.2;
+      patternWeights.TREND_CONFIRMATION = 0.5;
+      patternWeights.MA_CROSSOVER = 0.7;
+    }
+
+    return {
+      regime,
+      strength,
+      indicators: {
+        adx: Math.round(adx),
+        trendDirection,
+        volatility: Math.round(annualizedVolatility * 10000) / 10000,
+        rangeWidth: Math.round(rangeWidth * 100) / 100,
+        momentumScore: Math.round(momentumScore * 100) / 100,
+        volumeProfile
+      },
+      patternWeights
+    };
+  }
+
+  /**
+   * Helper: Calculate Exponential Moving Average
+   */
+  private calculateEMA(prices: number[], period: number): number {
+    const multiplier = 2 / (period + 1);
+    let ema = prices[0];
+    for (let i = 1; i < prices.length; i++) {
+      ema = prices[i] * multiplier + ema * (1 - multiplier);
+    }
+    return ema;
   }
 
   /**

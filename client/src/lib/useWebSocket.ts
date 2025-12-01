@@ -23,43 +23,11 @@ export function useWebSocket(url: string): UseWebSocketReturn {
 
   const connect = () => {
     try {
-      const ws = new WebSocket(url);
-
-      ws.onopen = () => {
-        console.log('[WebSocket] Connected');
-        setIsConnected(true);
-        reconnectAttempts.current = 0;
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          setLastMessage(message);
-        } catch (error) {
-          console.error('[WebSocket] Failed to parse message:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('[WebSocket] Disconnected');
-        setIsConnected(false);
-        wsRef.current = null;
-
-        // Exponential backoff reconnection
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-        console.log(`[WebSocket] Reconnecting in ${delay}ms...`);
-
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttempts.current++;
-          connect();
-        }, delay);
-      };
-
-      ws.onerror = (error) => {
-        console.error('[WebSocket] Error:', error);
-      };
-
-      wsRef.current = ws;
+      // Disable WebSocket for now in Replit environment - use polling instead
+      // WebSocket will be re-enabled after proper endpoint configuration
+      console.log('[WebSocket] WebSocket temporarily disabled - using polling mode');
+      setIsConnected(false);
+      return;
     } catch (error) {
       console.error('[WebSocket] Connection failed:', error);
     }
