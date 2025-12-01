@@ -92,13 +92,13 @@ export default function SignalsPage() {
       const data = await response.json();
       return (data.predictions || []).map((p: any) => ({
         symbol: p.symbol,
-        signal: p.direction,
-        strength: p.confidence * 100,
-        price: p.price,
-        timestamp: p.timestamp,
+        signal: p.type || p.direction,
+        strength: (p.confidence || 0) * 100,
+        price: p.price?.predicted || p.price || 0,
+        timestamp: new Date(p.timestamp).getTime(),
         source: 'ml' as const,
         sourceLabel: '🤖 ML Model',
-        confidence: p.confidence,
+        confidence: p.confidence || 0,
         holdingPeriod: p.holdingPeriod,
         strategyName: `ML: ${p.holdingPeriod?.reason || 'Auto'}`,
       }));
@@ -113,7 +113,13 @@ export default function SignalsPage() {
       const response = await fetch('/api/rl-agent/signals');
       if (!response.ok) return [];
       const data = await response.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'rl' as const, sourceLabel: '🧠 RL Agent' }));
+      return (data.signals || []).map((s: any) => ({
+        ...s,
+        price: s.price || s.entryPrice || 0,
+        timestamp: new Date(s.timestamp).getTime(),
+        source: 'rl' as const,
+        sourceLabel: '🧠 RL Agent'
+      }));
     },
     refetchInterval: 45000,
   });

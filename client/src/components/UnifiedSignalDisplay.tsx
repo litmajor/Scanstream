@@ -613,15 +613,21 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
                               takeProfit: unified.signals[0]?.takeProfit || unified.price * (unified.consensus === 'BUY' ? 1.05 : 0.95)
                             })
                           });
+
+                          if (!res.ok) {
+                            const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                            throw new Error(errorData.error || `HTTP ${res.status}`);
+                          }
+
                           const data = await res.json();
                           if (data.success) {
-                            alert(`Position executed! Order ID: ${data.trade?.id}`);
+                            alert(`✅ Position executed! Order ID: ${data.trade?.id}`);
                           } else {
-                            alert(`Failed: ${data.error}`);
+                            throw new Error(data.error || 'Execution failed');
                           }
-                        } catch (error) {
+                        } catch (error: any) {
                           console.error('Failed to execute position:', error);
-                          alert('Failed to execute position');
+                          alert(`❌ Failed to execute: ${error.message || 'Unknown error'}`);
                         }
                       }}
                       className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all text-white text-sm font-medium"
