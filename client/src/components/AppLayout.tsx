@@ -19,7 +19,9 @@ import {
   Sun,
   Zap,
   Activity,
-  Grid3x3
+  Grid3x3,
+  Wind, // Added Wind icon
+  Award // Added Award icon
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -55,6 +57,10 @@ const navItems: NavItem[] = [
   { name: 'Flow Field', path: '/flow-field', icon: Activity, section: 'advanced' },
   { name: 'Optimize', path: '/optimize', icon: Sparkles, section: 'advanced' },
   { name: 'Market Intelligence', path: '/market-intelligence', icon: TrendingUp, section: 'advanced' },
+  // Added Signal Performance and Flow Field Backtesting to navItems
+  { name: 'Signal Performance', path: '/signal-performance', icon: Award, section: 'advanced' },
+  { name: 'Flow Field Backtesting', path: '/flow-field-backtesting', icon: Wind, section: 'advanced' },
+
 
   // Dev Section - Component showcase
   { name: 'Dashboard Grid', path: '/dashboard-grid', icon: Grid3x3, section: 'dev' },

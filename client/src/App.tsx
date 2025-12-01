@@ -27,6 +27,7 @@ import SignalsPage from "@/pages/signals";
 import CardShowcase from "@/pages/card-showcase";
 import DashboardGridPage from "@/pages/dashboard-grid";
 import NotFound from "@/pages/not-found";
+import SignalPerformance from './pages/signal-performance';
 import { useState, useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 
@@ -55,6 +56,7 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/paper-trading" component={PaperTradingPage} />
         <Route path="/card-showcase" component={CardShowcase} />
         <Route path="/dashboard-grid" component={DashboardGridPage} />
+        <Route path="/signal-performance" component={SignalPerformance} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

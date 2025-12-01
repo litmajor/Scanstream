@@ -12,6 +12,9 @@ import axios from 'axios'; // Import axios for CoinGecko API calls
 // Import strategy routes and paper trading routes
 import strategyRoutes from './routes/strategies';
 import paperTradingRoutes from './routes/paper-trading';
+// Import signal performance routes
+import signalPerformanceRoutes from './routes/signal-performance';
+
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -327,7 +330,7 @@ try {
           weight: 0.20,
           baseWeight: 0.20,
           regimeMultiplier: 1.0,
-          volatilityMultiplier: 1.08,
+          volatilityMultiplier: 0.98,
           momentumAlignment: 0.98,
           temporalDecay: 0.97,
           finalWeight: 0.21,
@@ -1541,6 +1544,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Mount strategy routes and paper trading routes
   app.use('/api/strategies', strategyRoutes);
   app.use('/api/paper-trading', paperTradingRoutes);
+
+  // Mount signal performance routes
+  app.use('/api/gateway/signals/performance', signalPerformanceRoutes);
+
 
   // At the end, create and return the httpServer:
   const httpServer = createServer(app);
