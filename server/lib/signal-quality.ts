@@ -12,7 +12,8 @@ export interface SignalMetrics {
   id: string;
   symbol: string;
   type: string; // 'ma_crossover', 'rsi', 'macd', 'confluence', 'ml_prediction'
-  classification?: string; // BREAKOUT, REVERSAL, CONTINUATION, etc.
+  classifications?: string[]; // MULTIPLE: BREAKOUT, ACCUMULATION, BULL_EARLY, etc.
+  primaryClassification?: string; // Highest confidence pattern
   strength: number; // 0-100
   confidence: number; // 0-1
   direction: 'buy' | 'sell' | 'hold';
@@ -23,7 +24,7 @@ export interface SignalMetrics {
   convergenceScore?: number; // How many signals agree
   historicalAccuracy?: number; // Past win rate
   volatilityAdjusted?: boolean;
-  patternDetails?: Record<string, any>;
+  patternDetails?: Record<string, any>[];
   timeframeAlignment?: number;
 }
 

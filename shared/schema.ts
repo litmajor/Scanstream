@@ -36,7 +36,7 @@ export const signals = pgTable("signals", {
   timestamp: timestamp("timestamp").notNull().default(sql`now()`),
   symbol: text("symbol").notNull(),
   type: signalTypeEnum("type").notNull(),
-  classification: signalClassificationEnum("classification").notNull().default("CONFLUENCE"),
+  classifications: jsonb("classifications").notNull().default('[]'), // Array of classification types
   strength: real("strength").notNull(),
   confidence: real("confidence").notNull(),
   price: real("price").notNull(),
@@ -48,7 +48,7 @@ export const signals = pgTable("signals", {
   regimeState: text("regime_state"),
   legacyLabel: text("legacy_label"),
   signalStrengthScore: real("signal_strength_score"),
-  patternDetails: jsonb("pattern_details"), // { pattern, support, resistance, levels }
+  patternDetails: jsonb("pattern_details"), // Array of patterns with details
   timeframeAlignment: real("timeframe_alignment"), // 0-1 score
 });
 
