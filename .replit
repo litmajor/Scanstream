@@ -41,6 +41,10 @@ args = "npm run server"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 39083
+externalPort = 3000
+
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npm", "run", "start"]

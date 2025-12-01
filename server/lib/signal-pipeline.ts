@@ -12,6 +12,7 @@
 
 import { SignalAccuracyEngine } from './signal-accuracy';
 import { assetCorrelationAnalyzer } from '../services/asset-correlation-analyzer';
+import { executionOptimizer } from '../services/execution-optimizer';
 import { getAssetBySymbol, getAssetsByCategory } from '@shared/tracked-assets';
 import { getAssetThresholds, meetsQualityThreshold, getMaxPositionForCategory } from '../config/asset-thresholds';
 import memoize from 'memoizee';
@@ -121,6 +122,16 @@ export interface AggregatedSignal {
   // Correlation analysis
   correlationBoost?: number; // Confidence boost from correlated assets (-0.15 to +0.15)
   correlatedSignals?: string[]; // Which correlated assets show aligned signals
+  
+  // Execution optimization
+  executionMetrics?: {
+    slippagePercentage: number; // Expected slippage
+    totalFeesPercentage: number; // Slippage + exchange fee
+    realExecutionPrice: number; // Actual price including slippage
+    profitLeakage: number; // % loss from fees/slippage
+    recommendedStrategy: 'all-at-once' | 'pyramid-3' | 'pyramid-5';
+    executionRecommendation: string;
+  };
 }
 
 // ============================================================================
@@ -264,6 +275,16 @@ export class SignalPipeline {
     // Use boosted confidence if available
     const finalConfidence = correlationBoost.boostedConfidence;
 
+    // Step 8.7: Optimize execution (model slippage, fees, entry timing)
+    const executionOpt = executionOptimizer.optimizeExecution({
+      symbol,
+      entryPrice: marketData.price,
+      positionSize,
+      marketVolume24h: marketData.volume * 24, // Estimate 24h from current candle
+      orderType: 'all-at-once', // Can be overridden by user
+      exchangeFeePercentage: 0.1 // Standard exchange fee
+    });
+
     // Step 9: Build pattern details for frontend
     const patternDetails = scannerOutput.patterns.map(p => {
       const stats = this.accuracyEngine.getPatternStats(p.type as any);
@@ -298,7 +319,15 @@ export class SignalPipeline {
       agreementScore,
       positionSize,
       correlationBoost: correlationBoost.correlationBoost,
-      correlatedSignals: correlationBoost.alignedAssets
+      correlatedSignals: correlationBoost.alignedAssets,
+      executionMetrics: {
+        slippagePercentage: executionOpt.slippagePercentage,
+        totalFeesPercentage: executionOpt.totalFeesPercentage,
+        realExecutionPrice: executionOpt.realExecutionPrice,
+        profitLeakage: executionOpt.profitLeakage,
+        recommendedStrategy: executionOpt.recommendedStrategy,
+        executionRecommendation: executionOpt.recommendation
+      }
     };
 
     // Cache result
