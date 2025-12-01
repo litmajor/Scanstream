@@ -146,16 +146,34 @@ export class DynamicPositionSizer {
   }
 
   /**
-   * Train RL agent on historical position sizing outcomes
+   * Train RL agent on historical position sizing outcomes (TradeRecord format)
    */
   async trainOnHistoricalTrades(trades: any[]): Promise<void> {
     console.log('[DynamicPositionSizer] Training RL Agent on historical trades...');
     
+    let validTradesProcessed = 0;
+    
     for (const trade of trades) {
-      // Calculate reward based on actual outcome
-      const pnlPercent = (trade.exitPrice - trade.entryPrice) / trade.entryPrice;
-      const riskReward = Math.abs(trade.takeProfit - trade.entryPrice) / Math.abs(trade.stopLoss - trade.entryPrice);
-      const maxDrawdown = trade.maxDrawdown || 0;
+      // Map TradeRecord fields to RL training format
+      const entryPrice = trade.entryPrice || 0;
+      const exitPrice = trade.exitPrice || 0;
+      if (!entryPrice || entryPrice === 0) continue;
+
+      // Calculate PnL from TradeRecord
+      const pnlPercent = trade.actualPnlPercent 
+        ? trade.actualPnlPercent / 100  // Convert percentage to decimal
+        : (exitPrice - entryPrice) / entryPrice;
+
+      // Calculate risk/reward from actual trade data
+      const stopLoss = entryPrice * (1 - (trade.stopLossPercent || 1.0) / 100);
+      const takeProfit = entryPrice * (1 + (trade.profitTargetPercent || 2.0) / 100);
+      const riskAmount = Math.abs(entryPrice - stopLoss);
+      const rewardAmount = Math.abs(takeProfit - entryPrice);
+      const riskReward = riskAmount > 0 ? rewardAmount / riskAmount : 2.0;
+
+      // Estimate max drawdown from trade outcome
+      const maxDrawdown = trade.hitStop ? (trade.stopLossPercent || 1.0) / 100 : 
+                         (pnlPercent < 0 ? Math.abs(pnlPercent) : 0);
       const timeInTrade = trade.holdingPeriodHours || 24;
 
       const reward = this.rlAgent.calculateReward(
@@ -165,38 +183,73 @@ export class DynamicPositionSizer {
         timeInTrade
       );
 
-      // Create experience
-      const state: RLState = {
-        volatility: trade.volatility || 0.5,
-        trend: trade.trend || 0,
-        momentum: trade.momentum || 0,
-        volumeRatio: trade.volumeRatio || 1,
-        rsi: trade.rsi || 50,
-        confidence: trade.confidence || 0.5,
-        regime: trade.regime || 'TRENDING',
-        drawdown: trade.drawdown || 0
+      // Map regime string to numeric value for RL state
+      const regimeMap: Record<string, 'TRENDING' | 'MEAN_REVERTING' | 'VOLATILE' | 'QUIET'> = {
+        'VOLATILE': 'VOLATILE',
+        'NORMAL': 'QUIET',
+        'TRENDING': 'TRENDING',
+        'MEAN_REVERTING': 'MEAN_REVERTING',
+        'QUIET': 'QUIET'
       };
 
-      const nextState = { ...state }; // Simplified for training
+      // Derive trend from RSI and volatility ratio
+      const rsiValue = trade.rsi ?? 50;
+      const trend = rsiValue > 60 ? 1 : (rsiValue < 40 ? -1 : 0);
+      
+      // Derive momentum from pattern type
+      const momentumPatterns = ['BREAKOUT', 'PARABOLIC', 'TREND_CONFIRMATION'];
+      const momentum = momentumPatterns.includes(trade.pattern) ? 0.7 :
+                      trade.pattern === 'RSI_EXTREME' ? -0.3 : 0.2;
+
+      // Create state from TradeRecord fields
+      const state: RLState = {
+        volatility: trade.volatilityRatio ?? 0.5,
+        trend,
+        momentum,
+        volumeRatio: trade.volumeRatio ?? 1.0,
+        rsi: rsiValue,
+        confidence: trade.confidence ?? 0.5,
+        regime: regimeMap[trade.regime] || 'QUIET',
+        drawdown: maxDrawdown
+      };
+
+      // Create next state with updated drawdown based on outcome
+      const nextState: RLState = {
+        ...state,
+        drawdown: pnlPercent < 0 ? Math.abs(pnlPercent) : 0
+      };
+
+      // Determine size multiplier from outcome (learn what size would have been optimal)
+      const optimalSizeMultiplier = pnlPercent > 0 
+        ? Math.min(2.0, 1.0 + pnlPercent * 2)  // Winners: could have sized bigger
+        : Math.max(0.5, 1.0 + pnlPercent);      // Losers: should have sized smaller
 
       this.rlAgent.addExperience({
         state,
         action: {
-          sizeMultiplier: trade.sizeMultiplier || 1.0,
-          stopLossMultiplier: 2.0,
-          takeProfitMultiplier: 3.0,
+          sizeMultiplier: optimalSizeMultiplier,
+          stopLossMultiplier: (trade.stopLossPercent || 1.0) / 0.5, // Normalize to base
+          takeProfitMultiplier: (trade.profitTargetPercent || 2.0) / 0.5,
           riskRewardRatio: riskReward
         },
         reward,
         nextState,
         done: true
       });
+      
+      validTradesProcessed++;
     }
 
-    // Run batch learning
-    this.rlAgent.replayExperience(32);
+    // Run batch learning with proper batch sizes
+    const batchSize = Math.min(64, Math.floor(validTradesProcessed / 10));
+    if (batchSize > 0) {
+      for (let i = 0; i < 3; i++) { // Multiple replay iterations for better learning
+        this.rlAgent.replayExperience(batchSize);
+      }
+    }
     
-    console.log('[DynamicPositionSizer] Training complete:', this.rlAgent.getStats());
+    console.log(`[DynamicPositionSizer] Training complete: processed ${validTradesProcessed} trades`);
+    console.log('[DynamicPositionSizer] Stats:', this.rlAgent.getStats());
   }
 
   /**

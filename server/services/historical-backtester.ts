@@ -2,6 +2,7 @@
  * Historical Data Backtester
  * Validates signals against 2+ years of REAL OHLCV data from Yahoo Finance
  * Calculates Sharpe/Sortino ratios and identifies underperforming patterns
+ * NOW CAPTURES INDIVIDUAL TRADES FOR RL TRAINING PIPELINE
  */
 
 import { SignalPipeline, AggregatedSignal } from '../lib/signal-pipeline';
@@ -10,6 +11,7 @@ import { getBacktester, BacktestSignal } from './signal-backtester';
 import { assetVelocityProfiler } from './asset-velocity-profile';
 import { tradeClassifier } from './trade-classifier';
 import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
+import { type TradeRecord } from '@shared/schema';
 import yahooFinance from 'yahoo-finance2';
 
 interface HistoricalBacktestConfig {
@@ -50,6 +52,7 @@ interface HistoricalBacktestResult {
   period: string;
   timestamp: string;
   dataSource: string;
+  tradeRecords?: TradeRecord[];
 }
 
 interface Candle {
@@ -67,10 +70,19 @@ export class HistoricalBacktester {
   private backtester = getBacktester();
   private readonly MINIMUM_SIGNALS_FOR_ANALYSIS = 50;
   private readonly YAHOO_TIMEOUT = 30000; // 30 second timeout per request
+  private collectedTrades: TradeRecord[] = [];
 
   constructor() {
     this.signalPipeline = new SignalPipeline();
     this.signalClassifier = new SignalClassifier();
+  }
+
+  getCollectedTrades(): TradeRecord[] {
+    return this.collectedTrades;
+  }
+
+  clearCollectedTrades(): void {
+    this.collectedTrades = [];
   }
 
   /**
@@ -189,6 +201,44 @@ export class HistoricalBacktester {
               const confidenceWeighting = (Math.abs(momentumScore) * 0.5 + tradeClass.confidence * 0.5);
               const weightedReturn = tradeReturn * confidenceWeighting;
 
+              // CAPTURE INDIVIDUAL TRADE RECORD FOR RL TRAINING
+              const exitIndex = Math.min(i + holdingDays, candles.length - 1);
+              const exitCandle = candles[exitIndex];
+              const exitPrice = hitTakeProfit 
+                ? currCandle.close * (1 + (tradeClass.profitTargetPercent || expectedMove) / 100)
+                : hitStopLoss 
+                  ? currCandle.close * (1 - (tradeClass.stopLossPercent || 1.0) / 100)
+                  : exitCandle.close;
+
+              const tradeRecord: TradeRecord = {
+                id: `trade-${symbol}-${currCandle.timestamp}`,
+                symbol,
+                pattern: detectedPattern,
+                regime: volatilityRatio > 1.5 ? 'VOLATILE' : 'NORMAL',
+                entryPrice: currCandle.close,
+                exitPrice,
+                entryTime: new Date(currCandle.timestamp),
+                exitTime: new Date(exitCandle.timestamp),
+                holdingPeriodHours: tradeClass.holdingPeriodHours,
+                stopLossPercent: tradeClass.stopLossPercent || 1.0,
+                profitTargetPercent: tradeClass.profitTargetPercent || expectedMove,
+                actualPnlPercent: tradeReturn,
+                hitTarget: hitTakeProfit,
+                hitStop: hitStopLoss,
+                confidence: tradeClass.confidence,
+                volatilityRatio,
+                adx,
+                volumeRatio,
+                rsi: rsiValue,
+                velocityData: velocityData && typeof velocityData === 'object' ? {
+                  expectedMovePercent: expectedMove,
+                  expectedMoveDollar: currCandle.close * expectedMove / 100,
+                  avgPercentMove: expectedMove,
+                  movePercentile: 0.5
+                } : undefined
+              };
+              this.collectedTrades.push(tradeRecord);
+
               // Track pattern performance
               if (!patternStats.has(detectedPattern)) {
                 patternStats.set(detectedPattern, { signals: 0, wins: 0, returns: [] });
@@ -254,6 +304,7 @@ export class HistoricalBacktester {
     console.log(`[HistoricalBacktest] Completed: ${historicalReturns.length} returns analyzed`);
     console.log(`[HistoricalBacktest] Sharpe Ratio: ${metrics.sharpeRatio.toFixed(2)}`);
     console.log(`[HistoricalBacktest] Max Drawdown: ${metrics.maxDrawdown.toFixed(2)}%`);
+    console.log(`[HistoricalBacktest] Trade Records captured for RL: ${this.collectedTrades.length}`);
 
     return {
       metrics,
@@ -261,7 +312,8 @@ export class HistoricalBacktester {
       underperformingPatterns,
       period: `${config.startDate.toISOString()} to ${config.endDate.toISOString()}`,
       timestamp: new Date().toISOString(),
-      dataSource: successCount > 0 ? `Yahoo Finance (${successCount} assets)` : 'Realistic simulation'
+      dataSource: successCount > 0 ? `Yahoo Finance (${successCount} assets)` : 'Realistic simulation',
+      tradeRecords: this.collectedTrades
     };
   }
 

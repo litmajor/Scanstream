@@ -210,6 +210,86 @@ export class SignalPerformanceTracker {
 
     return winRates;
   }
+
+  /**
+   * Get pattern statistics for Kelly Criterion position sizing
+   * Returns winRate, avgProfit, avgLoss for a specific pattern
+   */
+  getPatternStats(pattern: string): { winRate: number; avgProfit: number; avgLoss: number; totalTrades: number } | null {
+    const signals = Array.from(this.performances.values())
+      .filter(p => {
+        const primaryPattern = (p as any).primaryPattern;
+        return primaryPattern === pattern && p.correct !== undefined;
+      });
+
+    if (signals.length < 5) {
+      return null;
+    }
+
+    const wins = signals.filter(p => p.correct === true);
+    const losses = signals.filter(p => p.correct === false);
+
+    const winRate = wins.length / signals.length;
+    const avgProfit = wins.length > 0 
+      ? wins.reduce((sum, p) => sum + Math.abs(p.pnlPercent), 0) / wins.length / 100
+      : 0.025;
+    const avgLoss = losses.length > 0 
+      ? losses.reduce((sum, p) => sum + Math.abs(p.pnlPercent), 0) / losses.length / 100
+      : 0.015;
+
+    return {
+      winRate,
+      avgProfit,
+      avgLoss,
+      totalTrades: signals.length
+    };
+  }
+
+  /**
+   * Get all pattern statistics for Kelly validation
+   */
+  getAllPatternStats(): Map<string, { winRate: number; avgProfit: number; avgLoss: number; totalTrades: number }> {
+    const patternStats = new Map<string, { 
+      wins: number; 
+      losses: number; 
+      totalProfit: number; 
+      totalLoss: number;
+    }>();
+    
+    const signals = Array.from(this.performances.values())
+      .filter(p => p.correct !== undefined);
+
+    for (const signal of signals) {
+      const pattern = (signal as any).primaryPattern || 'UNKNOWN';
+      if (!patternStats.has(pattern)) {
+        patternStats.set(pattern, { wins: 0, losses: 0, totalProfit: 0, totalLoss: 0 });
+      }
+      
+      const stats = patternStats.get(pattern)!;
+      if (signal.correct) {
+        stats.wins++;
+        stats.totalProfit += Math.abs(signal.pnlPercent);
+      } else {
+        stats.losses++;
+        stats.totalLoss += Math.abs(signal.pnlPercent);
+      }
+    }
+
+    const result = new Map<string, { winRate: number; avgProfit: number; avgLoss: number; totalTrades: number }>();
+    for (const [pattern, stats] of patternStats.entries()) {
+      const total = stats.wins + stats.losses;
+      if (total >= 5) {
+        result.set(pattern, {
+          winRate: stats.wins / total,
+          avgProfit: stats.wins > 0 ? (stats.totalProfit / stats.wins) / 100 : 0.025,
+          avgLoss: stats.losses > 0 ? (stats.totalLoss / stats.losses) / 100 : 0.015,
+          totalTrades: total
+        });
+      }
+    }
+
+    return result;
+  }
 }
 
 export const signalPerformanceTracker = new SignalPerformanceTracker();

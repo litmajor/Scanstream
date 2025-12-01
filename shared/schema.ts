@@ -171,3 +171,96 @@ export interface PortfolioSummary {
   dayChange: number;
   dayChangePercent: number;
 }
+
+/**
+ * TradeRecord - Individual trade data for RL training pipeline
+ * Captured from historical backtests for reinforcement learning
+ */
+export interface TradeRecord {
+  id: string;
+  symbol: string;
+  pattern: string;
+  regime: string;
+  entryPrice: number;
+  exitPrice: number;
+  entryTime: Date;
+  exitTime: Date;
+  holdingPeriodHours: number;
+  stopLossPercent: number;
+  profitTargetPercent: number;
+  actualPnlPercent: number;
+  hitTarget: boolean;
+  hitStop: boolean;
+  confidence: number;
+  volatilityRatio: number;
+  adx: number;
+  volumeRatio: number;
+  rsi: number;
+  velocityData?: {
+    expectedMovePercent: number;
+    expectedMoveDollar: number;
+    avgPercentMove: number;
+    movePercentile: number;
+  };
+}
+
+/**
+ * PatternStats - Performance statistics per pattern type
+ * Used by Kelly Criterion and position sizing
+ */
+export interface PatternStats {
+  pattern: string;
+  winRate: number;
+  avgProfit: number;
+  avgLoss: number;
+  totalTrades: number;
+  expectancy: number;
+  kellyPercent: number;
+  sharpeRatio: number;
+}
+
+/**
+ * KellyValidation - Compare predicted vs actual edge
+ */
+export interface KellyValidation {
+  pattern: string;
+  predictedEdge: number;
+  actualEdge: number;
+  edgeError: number;
+  predictedKelly: number;
+  actualKelly: number;
+  kellyError: number;
+  sampleSize: number;
+  confidence95: { lower: number; upper: number };
+}
+
+/**
+ * ABTestResult - Compare flat vs dynamic sizing
+ */
+export interface ABTestResult {
+  testId: string;
+  startDate: Date;
+  endDate: Date;
+  signalCount: number;
+  flatSizing: {
+    totalReturn: number;
+    sharpeRatio: number;
+    sortinoRatio: number;
+    maxDrawdown: number;
+    winRate: number;
+  };
+  dynamicSizing: {
+    totalReturn: number;
+    sharpeRatio: number;
+    sortinoRatio: number;
+    maxDrawdown: number;
+    winRate: number;
+  };
+  improvement: {
+    returnDelta: number;
+    sharpeDelta: number;
+    drawdownReduction: number;
+  };
+  pValue: number;
+  isSignificant: boolean;
+}
