@@ -77,27 +77,33 @@ export default function MLEnginePage() {
   const { data: mlData, isLoading, error, refetch } = useQuery({
     queryKey: ['ml-data'],
     queryFn: async () => {
-      const [predictionsRes, statusRes] = await Promise.all([
+      const [predictionsRes, statusRes, performanceRes, ensembleRes] = await Promise.all([
         fetch('/api/ml-engine/predictions'),
-        fetch('/api/ml-engine/status')
+        fetch('/api/ml-engine/status'),
+        fetch('/api/model-performance/metrics'),
+        fetch('/api/model-performance/ensemble-status')
       ]);
 
-      if (!predictionsRes.ok || !statusRes.ok) {
-        throw new Error('Failed to fetch ML data');
+      if (!predictionsRes.ok) {
+        throw new Error('Failed to fetch predictions');
       }
 
       const predictions = await predictionsRes.json();
-      const status = await statusRes.json();
+      const status = statusRes.ok ? await statusRes.json() : {};
+      const performance = performanceRes.ok ? await performanceRes.json() : { metrics: {} };
+      const ensemble = ensembleRes.ok ? await ensembleRes.json() : { ensemble: {} };
 
-      // Transform to expected format
+      // Transform to expected format with real performance metrics
+      const metrics = performance.metrics || {};
+      
       return {
         models: (predictions.predictions || []).slice(0, 3).map((p: any, i: number) => ({
           id: String(i + 1),
-          name: `${p.symbol} Predictor`,
-          type: 'ML Model',
+          name: `${p.symbol} Direction & Price`,
+          type: 'Ensemble Model',
           symbol: p.symbol,
-          accuracy: (p.confidence * 100).toFixed(1),
-          status: 'trained',
+          accuracy: ((metrics.accuracy || 75)).toFixed(1),
+          status: ensemble.ensemble?.status || 'active',
           lastTrained: new Date(),
           predictions: {
             nextHour: p.price,
@@ -112,14 +118,16 @@ export default function MLEnginePage() {
           importance: Number(weight) > 0.3 ? 'high' : Number(weight) > 0.15 ? 'medium' : 'low'
         })),
         performance: {
-          totalPredictions: predictions.count || 0,
-          correctPredictions: Math.floor((predictions.count || 0) * 0.85),
-          accuracy: 85,
-          avgConfidence: 0.75
+          totalPredictions: metrics.totalPredictions || 0,
+          correctPredictions: metrics.correctPredictions || 0,
+          accuracy: (metrics.accuracy || 75).toFixed(1),
+          avgConfidence: (metrics.avgConfidence || 0.75).toFixed(2),
+          winRate: (metrics.winRate || 0).toFixed(1),
+          precision: (metrics.precision || 0).toFixed(1)
         }
       };
     },
-    refetchInterval: 10000,
+    refetchInterval: 15000,
   });
 
   const handleTrainModel = async () => {

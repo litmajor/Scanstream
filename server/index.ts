@@ -89,6 +89,11 @@ import optimizationRouter from './routes/optimization';
 app.use('/api/optimize', optimizationRouter);
 console.log('[express] Optimization API registered at /api/optimize');
 
+// Register Model Performance & Backtesting routes
+import modelPerformanceRouter from './routes/model-performance';
+app.use('/api/model-performance', modelPerformanceRouter);
+console.log('[express] Model Performance API registered at /api/model-performance');
+
 // Register Gateway routes
 import gatewayRouter, { getGatewayServices } from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
