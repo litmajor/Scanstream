@@ -12,6 +12,7 @@ import GatewayScannerPage from "@/pages/gateway-scanner";
 import BacktestPage from "@/pages/backtest";
 import MLEnginePage from "@/pages/ml-engine";
 import MultiTimeframePage from "@/pages/multi-timeframe";
+import FlowFieldPage from "@/pages/flow-field";
 import OptimizePage from "@/pages/optimize";
 import StrategiesPage from "@/pages/strategies";
 import MarketIntelligence from "@/pages/market-intelligence";
@@ -39,6 +40,7 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/backtest" component={BacktestPage} />
         <Route path="/ml-engine" component={MLEnginePage} />
         <Route path="/multi-timeframe" component={MultiTimeframePage} />
+        <Route path="/flow-field" component={FlowFieldPage} />
         <Route path="/optimize" component={OptimizePage} />
         <Route path="/strategies" component={StrategiesPage} />
         <Route path="/strategy-synthesis" component={StrategySynthesisPage} />

@@ -1,21 +1,23 @@
-
 import { Router } from 'express';
+import express, { type Request, type Response } from 'express';
 import { storage } from '../storage';
+import { paperTradingEngine } from '../paper-trading-engine';
+import { db } from '../db'; // Assuming db is imported from a config file
 
-const router = Router();
+const router = express.Router();
 
 // POST /api/paper-trading/execute - Execute a position from a signal
 router.post('/execute', async (req, res) => {
   try {
     const { symbol, side, quantity, price, stopLoss, takeProfit } = req.body;
-    
+
     if (!symbol || !side || !quantity || !price) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: symbol, side, quantity, price' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, side, quantity, price'
       });
     }
-    
+
     // Create trade record
     const trade = await storage.createTrade({
       symbol,
@@ -27,9 +29,9 @@ router.post('/execute', async (req, res) => {
       status: 'OPEN',
       entryTime: new Date(),
     });
-    
+
     console.log(`[Paper Trading] Executed ${side} ${quantity} ${symbol} @ $${price}`);
-    
+
     res.json({
       success: true,
       trade,
@@ -42,29 +44,18 @@ router.post('/execute', async (req, res) => {
 });
 
 // GET /api/paper-trading/positions - Get all open positions
-router.get('/positions', async (req, res) => {
+router.get('/positions', async (req: Request, res: Response) => {
   try {
-    const trades = await storage.getTrades();
-    const openPositions = trades.filter(t => t.status === 'OPEN');
-    
-    res.json({
-      success: true,
-      positions: openPositions,
-      total: openPositions.length
+    const positions = await db.query.paperTradingPositions.findMany({
+      orderBy: (positions, { desc }) => [desc(positions.openedAt)]
     });
+
+    res.json({ positions });
   } catch (error) {
-    console.error('Error fetching positions:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch positions' });
+    console.error('[Paper Trading] Error fetching positions:', error);
+    res.status(500).json({ error: 'Failed to fetch positions' });
   }
 });
-
-export default router;
-
-
-import express, { type Request, type Response } from 'express';
-import { paperTradingEngine } from '../paper-trading-engine';
-
-const router = express.Router();
 
 /**
  * GET /api/paper-trading/status
@@ -126,11 +117,11 @@ router.post('/config', (req: Request, res: Response) => {
 router.post('/trade', async (req: Request, res: Response) => {
   try {
     const { symbol, side, price, stopLoss, takeProfit } = req.body;
-    
+
     if (!symbol || !side || !price) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: symbol, side, price' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, side, price'
       });
     }
 
@@ -143,9 +134,9 @@ router.post('/trade', async (req: Request, res: Response) => {
     );
 
     if (!tradeId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Failed to execute trade (insufficient funds or position limit reached)' 
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to execute trade (insufficient funds or position limit reached)'
       });
     }
 
@@ -165,9 +156,9 @@ router.post('/close/:tradeId', async (req: Request, res: Response) => {
     const { exitPrice } = req.body;
 
     if (!exitPrice) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required field: exitPrice' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: exitPrice'
       });
     }
 

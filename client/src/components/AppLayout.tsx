@@ -50,6 +50,7 @@ const navItems: NavItem[] = [
   { name: 'ML Engine', path: '/ml-engine', icon: Brain, section: 'advanced' },
   { name: 'Paper Trading', path: '/paper-trading', icon: DollarSign, section: 'advanced' },
   { name: 'Multi-Timeframe', path: '/multi-timeframe', icon: Layers, section: 'advanced' },
+  { name: 'Flow Field', path: '/flow-field', icon: Activity, section: 'advanced' },
   { name: 'Optimize', path: '/optimize', icon: Sparkles, section: 'advanced' },
   { name: 'Market Intelligence', path: '/market-intelligence', icon: TrendingUp, section: 'advanced' },
 
