@@ -162,10 +162,20 @@ export class SignalPipeline {
       scannerOutput.timeframe
     );
 
+    // Step 4.5: VOLATILITY NORMALIZATION - Adjust confidence by asset volatility
+    // High volatility assets get downgraded, low volatility get upgraded
+    const volatilityMultiplier = this.calculateVolatilityMultiplier(marketData);
+    const volatilityAdjustedConfidence = accuracy.adjustedConfidence * (1 + volatilityMultiplier);
+    const volatilityAdjustedAccuracy = {
+      ...accuracy,
+      adjustedConfidence: Math.min(1, Math.max(0, volatilityAdjustedConfidence)),
+      volatilityMultiplier
+    };
+
     // Step 5: Calculate quality score
     const quality = this.calculateQualityScore(
       scannerOutput,
-      accuracy,
+      volatilityAdjustedAccuracy,
       mlPredictions,
       rlDecision
     );
@@ -210,7 +220,7 @@ export class SignalPipeline {
       type: signalType,
       classifications,
       primaryClassification,
-      confidence: accuracy.adjustedConfidence,
+      confidence: volatilityAdjustedAccuracy.adjustedConfidence,
       strength: scannerOutput.technicalScore,
       sources,
       quality,
@@ -340,6 +350,16 @@ export class SignalPipeline {
       score += 6;
     }
 
+    // Volatility contribution
+    const volMult = (accuracy as any).volatilityMultiplier || 0;
+    if (volMult > 0.05) {
+      score += 8;
+      reasons.push(`Low volatility boost: +${(volMult * 100).toFixed(1)}%`);
+    } else if (volMult < -0.1) {
+      score -= Math.round(Math.abs(volMult) * 5);
+      reasons.push(`High volatility penalty: ${(volMult * 100).toFixed(1)}%`);
+    }
+
     // RL convergence (10 points max)
     if (Math.abs(rl.qValue) > 0.7) {
       score += 10;
@@ -355,6 +375,23 @@ export class SignalPipeline {
       score >= 50 ? 'fair' : 'poor';
 
     return { score, rating, reasons };
+  }
+
+  /**
+   * VOLATILITY NORMALIZATION
+   * Calculate volatility multiplier: high volatility → negative multiplier (downgrade)
+   * Low volatility → positive multiplier (upgrade)
+   * Range: -0.3 (downgrade high vol) to +0.2 (upgrade low vol)
+   */
+  private calculateVolatilityMultiplier(market: RawMarketData): number {
+    // Calculate volatility as percentage of price
+    const range = market.high - market.low;
+    const volatility = range / market.price; // 0-1 scale
+    
+    // Map volatility to multiplier: high vol gets negative, low vol gets positive
+    // Baseline (normal): ~5% volatility → 0 multiplier
+    const multiplier = (0.05 - volatility) * 2; // Scale: -0.3 to +0.2
+    return Math.max(-0.3, Math.min(0.2, multiplier)); // Clamp to safe range
   }
 
   /**
