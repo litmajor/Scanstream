@@ -87,3 +87,56 @@ model PortfolioSummary {
   createdAt DateTime @default(now())
   data      Json
 }
+
+model User {
+  id              String   @id @default(uuid())
+  email           String?  @unique
+  firstName       String?
+  lastName        String?
+  profileImageUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  preferences     UserPreference?
+  apiKeys         ApiKey[]
+}
+
+model Session {
+  sid    String   @id
+  sess   Json
+  expire DateTime
+
+  @@index([expire])
+}
+
+model UserPreference {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme                 String   @default("dark")
+  defaultTimeframe      String   @default("1h")
+  defaultExchange       String   @default("binance")
+  notificationsEnabled  Boolean  @default(true)
+  emailAlerts           Boolean  @default(false)
+  priceAlerts           Boolean  @default(true)
+  signalAlerts          Boolean  @default(true)
+  soundEnabled          Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exchange    String
+  name        String
+  apiKey      String
+  apiSecret   String
+  isTestnet   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([userId])
+}

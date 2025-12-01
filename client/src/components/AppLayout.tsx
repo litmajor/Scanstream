@@ -22,8 +22,12 @@ import {
   Grid3x3,
   Wind,
   Award,
-  Bell
+  Bell,
+  Settings,
+  User,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -73,6 +77,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { preset, setPreset, colors } = useTheme();
+  const { user } = useAuth();
 
   const mainItems = navItems.filter(item => item.section === 'main');
   const tradingItems = navItems.filter(item => item.section === 'trading');
@@ -266,11 +271,83 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
           </nav>
 
-          {/* Theme Toggle at Bottom */}
+          {/* User Section at Bottom */}
           <div 
             className="border-t p-3 space-y-2"
             style={{ borderTopColor: colors.border }}
           >
+            {/* User Profile */}
+            {user && (
+              <div className={`flex items-center space-x-3 mb-3 ${!isSidebarOpen && 'justify-center'}`}>
+                {user.profileImageUrl ? (
+                  <img 
+                    src={user.profileImageUrl} 
+                    alt="Profile" 
+                    className="h-8 w-8 rounded-full"
+                  />
+                ) : (
+                  <div 
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium"
+                    style={{ backgroundColor: colors.accent, color: colors.background }}
+                  >
+                    {user.firstName?.[0] || user.email?.[0] || 'U'}
+                  </div>
+                )}
+                {isSidebarOpen && (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: colors.text }}>
+                      {user.firstName || user.email?.split('@')[0] || 'User'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Settings Link */}
+            <Link href="/settings">
+              <span
+                className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                style={{
+                  backgroundColor: location === '/settings' ? colors.accent : 'transparent',
+                  color: location === '/settings' ? colors.background : colors.textSecondary,
+                }}
+                title={!isSidebarOpen ? 'Settings' : undefined}
+                data-testid="link-settings"
+              >
+                <Settings className="h-5 w-5 flex-shrink-0" />
+                {isSidebarOpen && <span className="font-medium">Settings</span>}
+              </span>
+            </Link>
+
+            {/* Profile Link */}
+            <Link href="/profile">
+              <span
+                className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                style={{
+                  backgroundColor: location === '/profile' ? colors.accent : 'transparent',
+                  color: location === '/profile' ? colors.background : colors.textSecondary,
+                }}
+                title={!isSidebarOpen ? 'Profile' : undefined}
+                data-testid="link-profile"
+              >
+                <User className="h-5 w-5 flex-shrink-0" />
+                {isSidebarOpen && <span className="font-medium">Profile</span>}
+              </span>
+            </Link>
+
+            {/* Logout Link */}
+            <a href="/api/logout">
+              <span
+                className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                style={{ color: colors.textSecondary }}
+                title={!isSidebarOpen ? 'Sign Out' : undefined}
+                data-testid="link-logout"
+              >
+                <LogOut className="h-5 w-5 flex-shrink-0" />
+                {isSidebarOpen && <span className="font-medium">Sign Out</span>}
+              </span>
+            </a>
+
             {/* Modern theme toggle */}
             <button
               onClick={() => setPreset(preset === 'dark' ? 'light' : 'dark')}

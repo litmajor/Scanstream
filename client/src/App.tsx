@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { useAuth } from "./hooks/useAuth";
 import TradingTerminal from "@/pages/trading-terminal";
 import PortfolioPage from "@/pages/portfolio";
 import ScannerPage from "@/pages/scanner";
@@ -28,10 +29,13 @@ import CardShowcase from "@/pages/card-showcase";
 import DashboardGridPage from "@/pages/dashboard-grid";
 import NotFound from "@/pages/not-found";
 import SignalPerformance from './pages/signal-performance';
+import LandingPage from "@/pages/landing";
+import SettingsPage from "@/pages/settings";
+import ProfilePage from "@/pages/profile";
 import { useState, useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 
-function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => void }) {
+function AuthenticatedRouter({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => void }) {
   return (
     <AppLayout isDark={isDark} toggleTheme={toggleTheme}>
       <Switch>
@@ -57,6 +61,8 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/card-showcase" component={CardShowcase} />
         <Route path="/dashboard-grid" component={DashboardGridPage} />
         <Route path="/signal-performance" component={SignalPerformance} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/profile" component={ProfilePage} />
         <Route path="/gateway-alerts" component={() => import('./pages/gateway-alerts').then(m => m.default)} />
         <Route component={NotFound} />
       </Switch>
@@ -64,34 +70,56 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
   );
 }
 
+function UnauthenticatedRouter() {
+  return (
+    <Switch>
+      <Route path="/" component={LandingPage} />
+      <Route component={LandingPage} />
+    </Switch>
+  );
+}
+
+function AppRouter({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => void }) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <UnauthenticatedRouter />;
+  }
+
+  return <AuthenticatedRouter isDark={isDark} toggleTheme={toggleTheme} />;
+}
+
 function App() {
-  // Initialize theme from localStorage or system preference
   const [isDark, setIsDark] = useState(() => {
-    // First, check localStorage for saved preference
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       return savedTheme === 'dark';
     }
-
-    // Then check system preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return true;
     }
-
-    // Default to light mode
     return false;
   });
 
   const toggleTheme = () => {
     setIsDark(prev => {
       const newTheme = !prev;
-      // Save preference to localStorage
       localStorage.setItem('theme', newTheme ? 'dark' : 'light');
       return newTheme;
     });
   };
 
-  // Apply theme to document root for Tailwind dark mode
   useEffect(() => {
     const htmlElement = document.documentElement;
     if (isDark) {
@@ -101,7 +129,6 @@ function App() {
     }
   }, [isDark]);
 
-  // Add keyboard shortcut for theme toggle (Ctrl+Shift+T)
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'T') {
@@ -111,7 +138,6 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -120,7 +146,7 @@ function App() {
         <NotificationProvider>
           <TooltipProvider>
             <Toaster />
-            <Router isDark={isDark} toggleTheme={toggleTheme} />
+            <AppRouter isDark={isDark} toggleTheme={toggleTheme} />
           </TooltipProvider>
         </NotificationProvider>
       </ThemeProvider>
