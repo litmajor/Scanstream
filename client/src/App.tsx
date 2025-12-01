@@ -57,6 +57,7 @@ function Router({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => v
         <Route path="/card-showcase" component={CardShowcase} />
         <Route path="/dashboard-grid" component={DashboardGridPage} />
         <Route path="/signal-performance" component={SignalPerformance} />
+        <Route path="/gateway-alerts" component={() => import('./pages/gateway-alerts').then(m => m.default)} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

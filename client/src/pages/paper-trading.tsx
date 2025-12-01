@@ -1,8 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Play, Pause, RotateCcw, TrendingUp, TrendingDown, DollarSign, Settings, Download } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RotateCcw, TrendingUp, TrendingDown, DollarSign, Settings, Download, X, RefreshCw } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PaperTrade {
   id: string;
@@ -44,6 +45,7 @@ interface PaperTradingStatus {
     positionSizing: {
       type: string;
       value: number;
+      maxRisk: number;
     };
     riskManagement: {
       useStopLoss: boolean;
@@ -57,6 +59,14 @@ interface PaperTradingStatus {
 export default function PaperTradingPage() {
   const [, setLocation] = useLocation();
   const [showSettings, setShowSettings] = useState(false);
+  const [showManualTrade, setShowManualTrade] = useState(false);
+  const [manualTrade, setManualTrade] = useState({
+    symbol: 'BTC/USDT',
+    side: 'BUY' as 'BUY' | 'SELL',
+    price: '',
+    stopLoss: '',
+    takeProfit: ''
+  });
   const queryClient = useQueryClient();
 
   // Fetch paper trading status
@@ -67,8 +77,22 @@ export default function PaperTradingPage() {
       if (!res.ok) throw new Error('Failed to fetch status');
       return res.json();
     },
-    refetchInterval: 5000 // Refresh every 5 seconds
+    refetchInterval: 2000
   });
+
+  // Fetch equity curve
+  const { data: exportData } = useQuery({
+    queryKey: ['paperTradingExport'],
+    queryFn: async () => {
+      const res = await fetch('/api/paper-trading/export');
+      if (!res.ok) throw new Error('Failed to fetch export');
+      const json = await res.json();
+      return json.data;
+    },
+    refetchInterval: 5000
+  });
+
+  const equityCurve = exportData?.equityCurve || [];
 
   // Start/Stop mutations
   const startMutation = useMutation({
@@ -97,6 +121,45 @@ export default function PaperTradingPage() {
         body: JSON.stringify({ initialBalance: 10000 })
       });
       if (!res.ok) throw new Error('Failed to reset');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['paperTradingStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['paperTradingExport'] });
+    }
+  });
+
+  const manualTradeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/paper-trading/trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: manualTrade.symbol,
+          side: manualTrade.side,
+          price: parseFloat(manualTrade.price),
+          stopLoss: manualTrade.stopLoss ? parseFloat(manualTrade.stopLoss) : undefined,
+          takeProfit: manualTrade.takeProfit ? parseFloat(manualTrade.takeProfit) : undefined
+        })
+      });
+      if (!res.ok) throw new Error('Failed to execute trade');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['paperTradingStatus'] });
+      setShowManualTrade(false);
+      setManualTrade({ symbol: 'BTC/USDT', side: 'BUY', price: '', stopLoss: '', takeProfit: '' });
+    }
+  });
+
+  const closeTradeMutation = useMutation({
+    mutationFn: async ({ tradeId, exitPrice }: { tradeId: string; exitPrice: number }) => {
+      const res = await fetch(`/api/paper-trading/close/${tradeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ exitPrice })
+      });
+      if (!res.ok) throw new Error('Failed to close trade');
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['paperTradingStatus'] })
@@ -141,6 +204,7 @@ export default function PaperTradingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Header */}
       <div className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -149,37 +213,42 @@ export default function PaperTradingPage() {
               Dashboard
             </button>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Paper Trading {status.isRunning && '(AUTO)'}
+              Paper Trading {status.isRunning && <span className="text-green-400 text-sm">(AUTO)</span>}
             </h1>
             <div className="flex gap-2">
               <button
+                onClick={() => setShowManualTrade(true)}
+                className="px-4 py-2 bg-blue-600 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+              >
+                <DollarSign className="w-4 h-4" />
+                Manual Trade
+              </button>
+              <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2"
+                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2 hover:bg-slate-600"
               >
                 <Settings className="w-4 h-4" />
-                Settings
               </button>
               <button
                 onClick={handleToggle}
                 disabled={startMutation.isPending || stopMutation.isPending}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${status.isRunning ? 'bg-red-600' : 'bg-green-600'}`}
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${status.isRunning ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
                 {status.isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {status.isRunning ? 'Stop Auto' : 'Start Auto'}
+                {status.isRunning ? 'Stop' : 'Start'}
               </button>
               <button 
                 onClick={handleExport}
-                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2"
+                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2 hover:bg-slate-600"
               >
                 <Download className="w-4 h-4" />
               </button>
               <button 
                 onClick={handleReset}
                 disabled={resetMutation.isPending}
-                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2"
+                className="px-4 py-2 bg-slate-700 rounded-lg flex items-center gap-2 hover:bg-slate-600"
               >
                 <RotateCcw className="w-4 h-4" />
-                Reset
               </button>
             </div>
           </div>
@@ -213,6 +282,29 @@ export default function PaperTradingPage() {
           </div>
         </div>
 
+        {/* Equity Curve Chart */}
+        <div className="bg-slate-800/40 p-6 rounded-xl border border-slate-700/50 mb-6">
+          <h2 className="text-lg font-semibold text-white mb-4">Equity Curve</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={equityCurve}>
+              <defs>
+                <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="timestamp" stroke="#94a3b8" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                labelStyle={{ color: '#94a3b8' }}
+              />
+              <Area type="monotone" dataKey="balance" stroke="#3b82f6" fill="url(#equityGradient)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
         {/* Settings Panel */}
         {showSettings && (
           <div className="bg-slate-800/40 p-6 rounded-xl border border-slate-700/50 mb-6">
@@ -234,7 +326,10 @@ export default function PaperTradingPage() {
               </div>
               <div>
                 <div className="text-sm text-slate-400 mb-2">Position Sizing</div>
-                <div className="text-white">{status.config.positionSizing.type}: {status.config.positionSizing.value}%</div>
+                <div className="text-white">
+                  {status.config.positionSizing.type}: {status.config.positionSizing.value}%
+                  {' '}(Max Risk: {status.config.positionSizing.maxRisk}%)
+                </div>
               </div>
               <div>
                 <div className="text-sm text-slate-400 mb-2">Risk Management</div>
@@ -246,9 +341,81 @@ export default function PaperTradingPage() {
                     <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">Take Profit</span>
                   )}
                   {status.config.riskManagement.trailingStop && (
-                    <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">Trailing</span>
+                    <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">
+                      Trailing ({status.config.riskManagement.trailingStopPercent}%)
+                    </span>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manual Trade Modal */}
+        {showManualTrade && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-96">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-white">Manual Trade</h3>
+                <button onClick={() => setShowManualTrade(false)}>
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-slate-400 mb-2 block">Symbol</label>
+                  <input
+                    type="text"
+                    value={manualTrade.symbol}
+                    onChange={(e) => setManualTrade({ ...manualTrade, symbol: e.target.value })}
+                    className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 mb-2 block">Side</label>
+                  <select
+                    value={manualTrade.side}
+                    onChange={(e) => setManualTrade({ ...manualTrade, side: e.target.value as any })}
+                    className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    <option value="BUY">BUY</option>
+                    <option value="SELL">SELL</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 mb-2 block">Entry Price</label>
+                  <input
+                    type="number"
+                    value={manualTrade.price}
+                    onChange={(e) => setManualTrade({ ...manualTrade, price: e.target.value })}
+                    className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 mb-2 block">Stop Loss (optional)</label>
+                  <input
+                    type="number"
+                    value={manualTrade.stopLoss}
+                    onChange={(e) => setManualTrade({ ...manualTrade, stopLoss: e.target.value })}
+                    className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-400 mb-2 block">Take Profit (optional)</label>
+                  <input
+                    type="number"
+                    value={manualTrade.takeProfit}
+                    onChange={(e) => setManualTrade({ ...manualTrade, takeProfit: e.target.value })}
+                    className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg"
+                  />
+                </div>
+                <button
+                  onClick={() => manualTradeMutation.mutate()}
+                  disabled={manualTradeMutation.isPending || !manualTrade.price}
+                  className="w-full px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Execute Trade
+                </button>
               </div>
             </div>
           </div>
@@ -266,8 +433,8 @@ export default function PaperTradingPage() {
               {status.activeTrades.map((trade) => (
                 <div key={trade.id} className="p-4 bg-slate-900/50 rounded-lg border border-slate-700/30">
                   <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
                         <div className="font-semibold text-white">{trade.symbol}</div>
                         <span className={`px-2 py-1 rounded text-xs ${trade.side === 'BUY' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
                           {trade.side}
@@ -276,17 +443,33 @@ export default function PaperTradingPage() {
                           {trade.source}
                         </span>
                       </div>
-                      <div className="text-sm text-slate-400 mt-1">
+                      <div className="text-sm text-slate-400">
                         Entry: ${trade.entryPrice.toFixed(2)} | Size: {trade.quantity.toFixed(4)}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         SL: ${trade.stopLoss.toFixed(2)} | TP: ${trade.takeProfit.toFixed(2)}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-slate-400">
-                        {new Date(trade.entryTime).toLocaleTimeString()}
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-2">
+                        <div className="text-sm text-slate-400">
+                          {new Date(trade.entryTime).toLocaleTimeString()}
+                        </div>
                       </div>
+                      <button
+                        onClick={() => {
+                          const currentPrice = prompt('Enter exit price:');
+                          if (currentPrice) {
+                            closeTradeMutation.mutate({
+                              tradeId: trade.id,
+                              exitPrice: parseFloat(currentPrice)
+                            });
+                          }
+                        }}
+                        className="px-3 py-1 bg-red-600 rounded text-sm hover:bg-red-700"
+                      >
+                        Close
+                      </button>
                     </div>
                   </div>
                 </div>

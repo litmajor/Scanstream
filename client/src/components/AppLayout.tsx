@@ -20,8 +20,9 @@ import {
   Zap,
   Activity,
   Grid3x3,
-  Wind, // Added Wind icon
-  Award // Added Award icon
+  Wind,
+  Award,
+  Bell
 } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -60,6 +61,7 @@ const navItems: NavItem[] = [
   // Added Signal Performance and Flow Field Backtesting to navItems
   { name: 'Signal Performance', path: '/signal-performance', icon: Award, section: 'advanced' },
   { name: 'Flow Field Backtesting', path: '/flow-field-backtesting', icon: Wind, section: 'advanced' },
+  { name: 'Gateway Alerts', path: '/gateway-alerts', icon: Bell, section: 'advanced' },
 
 
   // Dev Section - Component showcase
