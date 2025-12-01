@@ -458,6 +458,30 @@ export class SignalPipeline {
       mtfRecommendation
     );
 
+    // Step 4.5: Apply Intelligent Exit Manager
+    const { IntelligentExitManager } = await import('../services/intelligent-exit-manager');
+    const exitManager = new IntelligentExitManager(
+      marketData.price,
+      atr,
+      signalType
+    );
+
+    // Get intelligent exit levels
+    const exitState = exitManager.getState();
+    
+    // Override stop/target with intelligent levels
+    mtfEnhancedSignal.stopLoss = exitState.currentStop;
+    mtfEnhancedSignal.takeProfit = exitState.currentTarget;
+    
+    // Add exit manager metadata
+    mtfEnhancedSignal.reasoning.push(
+      `Intelligent Exit: ${exitState.stage} stage`,
+      `Dynamic stop: ${exitState.currentStop.toFixed(2)}`,
+      `Initial target: ${exitState.currentTarget.toFixed(2)}`
+    );
+
+    console.log(`[Pipeline] ${symbol} - Intelligent Exit: ${exitState.stage} | Stop: ${exitState.currentStop.toFixed(2)} | Target: ${exitState.currentTarget.toFixed(2)}`);
+
     // Step 5: Calculate dynamic position size with MTF multiplier
     const accountBalance = 10000; // This should come from user's actual balance
     const atr = Math.abs(marketData.high - marketData.low) * 1.5; // Simplified ATR for position sizing calculation

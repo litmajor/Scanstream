@@ -37,6 +37,11 @@ import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
 
+// Import MTF confirmation routes
+import mtfConfirmationRouter from './routes/mtf-confirmation';
+// Import intelligent exits routes
+import intelligentExitsRouter from './routes/intelligent-exits';
+
 // Create prisma instance
 const prisma = new PrismaClient();
 
@@ -1719,6 +1724,12 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
   });
+
+  // Register MTF confirmation routes
+  app.use('/api/mtf-confirmation', mtfConfirmationRouter);
+
+  // Register intelligent exits routes
+  app.use('/api/intelligent-exits', intelligentExitsRouter);
 
   // At the end, create and return the httpServer:
   const httpServer = createServer(app);
