@@ -62,7 +62,7 @@ router.post('/run', async (req: Request, res: Response) => {
     };
     
     console.log('[Optimization] Starting optimization with config:', config);
-    const results = await optimizer.optimizeAll(config, marketData);
+    const results = await optimizer.optimizeAll(config, marketData as any);
     
     // Get full report
     const report = optimizer.getOptimizationReport();
@@ -117,11 +117,11 @@ router.get('/strategies', async (_req: Request, res: Response) => {
   }
   
   const report = optimizer.getOptimizationReport();
-  const history = optimizer.getOptimizationHistory();
+  const history = optimizer.getOptimizationHistory() || {};
   
-  const strategies = Object.entries(report.agentPerformance || {}).map(([agentName, perf]: [string, any]) => {
-    const agentHistory = history[agentName] || [];
-    const iterations = perf.iterations || [];
+  const strategies = Object.entries((report as any).agents || {}).map(([agentName, perf]: [string, any]) => {
+    const agentHistory = (history as any)[agentName] || [];
+    const iterations = (perf as any).iterations || [];
     
     return {
       id: agentName,
