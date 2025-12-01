@@ -7,6 +7,8 @@
 import { SignalPipeline, AggregatedSignal } from '../lib/signal-pipeline';
 import { SignalClassifier } from '../lib/signal-classifier';
 import { getBacktester, BacktestSignal } from './signal-backtester';
+import { assetVelocityProfiler } from './asset-velocity-profile';
+import { tradeClassifier } from './trade-classifier';
 import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 import yahooFinance from 'yahoo-finance2';
 
@@ -73,12 +75,14 @@ export class HistoricalBacktester {
 
   /**
    * Run comprehensive backtest on 2+ years of REAL historical data
+   * NOW INTEGRATED WITH: Asset Velocity Profiles + Adaptive Holding Intelligence
    */
   async runHistoricalBacktest(config: HistoricalBacktestConfig): Promise<HistoricalBacktestResult> {
     const riskFreeRate = config.riskFreeRate || 0.05;
     const assets = config.assets || ALL_TRACKED_ASSETS.map(a => a.symbol);
 
-    console.log(`[HistoricalBacktest] Starting backtest: ${config.startDate.toISOString()} to ${config.endDate.toISOString()}`);
+    console.log(`[HistoricalBacktest] Starting backtest WITH ACTUAL SYSTEMS: Velocity Profiles + Adaptive Holding`);
+    console.log(`[HistoricalBacktest] Period: ${config.startDate.toISOString()} to ${config.endDate.toISOString()}`);
     console.log(`[HistoricalBacktest] Assets: ${assets.length} | Data source: Yahoo Finance (REAL)`);
 
     // Fetch real historical data
@@ -97,19 +101,23 @@ export class HistoricalBacktester {
           successCount++;
           allCandles.push(...candles);
 
-          // Detect patterns from candle data using SignalClassifier + analyze returns
-          for (let i = 1; i < candles.length; i++) {
+          // Calculate velocity profile from this asset's historical data
+          const velocityProfile = assetVelocityProfiler.getVelocityProfile(symbol, candles);
+
+          // Enhanced backtest loop using VELOCITY-BASED STOPS/TARGETS + ADAPTIVE HOLDING
+          for (let i = 1; i < candles.length - 7; i++) { // Leave 7 days for holding period analysis
             const prevCandle = candles[i - 1];
             const currCandle = candles[i];
-            const ret = ((currCandle.close - prevCandle.close) / prevCandle.close) * 100;
-            historicalReturns.push(ret);
-            if (ret < 0) downsideReturns.push(ret);
+            
+            // Calculate RSI from lookback window
+            const rsiValue = this.calculateRSI(candles, i);
+            const momentumScore = (rsiValue - 50) / 50; // -1 to +1 scale
 
             // Calculate support/resistance for pattern detection
             const support = Math.min(prevCandle.low, currCandle.low) * 0.98;
             const resistance = Math.max(prevCandle.high, currCandle.high) * 1.02;
             
-            // Use SignalClassifier to detect actual patterns from indicators
+            // Detect pattern
             const classificationResult = this.signalClassifier.classifySignal({
               support,
               resistance,
@@ -117,19 +125,81 @@ export class HistoricalBacktester {
               prevPrice: prevCandle.close,
               volume: currCandle.volume,
               prevVolume: prevCandle.volume,
-              rsi: 50 + (Math.random() - 0.5) * 40 // Simulated RSI for now
+              rsi: rsiValue
             });
 
-            // Track detected patterns (prefer SUPPORT_BOUNCE if detected with volume/price action)
             if (classificationResult.patterns.length > 0) {
               const detectedPattern = classificationResult.patterns[0].pattern;
+              
+              // ADAPTIVE HOLDING: Classify trade based on market conditions
+              const volatilityRatio = this.calculateVolatilityRatio(candles, i);
+              const adx = this.calculateADX(candles, i);
+              const volumeRatio = this.calculateVolumeRatio(candles, i);
+
+              const tradeClass = tradeClassifier.classifyTrade({
+                volatilityRatio,
+                adx,
+                volumeRatio,
+                patternType: detectedPattern,
+                assetCategory: 'tier-1',
+                marketRegime: volatilityRatio > 1.5 ? 'VOLATILE' : 'NORMAL',
+                mlPredictedHoldingPeriodCandles: 20
+              }, currCandle.close);
+
+              // VELOCITY-BASED: Calculate realistic profit target and stop loss
+              const holdingDays = Math.ceil(tradeClass.holdingPeriodHours / 24);
+              const velocityKey = holdingDays === 1 ? '1D' : holdingDays <= 3 ? '3D' : '7D';
+              const velocityData = velocityProfile[velocityKey as keyof typeof velocityProfile];
+              const expectedMove = (velocityData && typeof velocityData === 'object' && 'avgPercentMove' in velocityData) 
+                ? (velocityData as any).avgPercentMove 
+                : 2.0;
+
+              // Calculate trade return using velocity-based targets
+              // Look ahead in the holding period to see if we hit take profit or stop loss
+              let tradeReturn = 0;
+              let hitTakeProfit = false;
+              let hitStopLoss = false;
+
+              for (let j = i + 1; j < Math.min(i + holdingDays + 1, candles.length); j++) {
+                const futureCandle = candles[j];
+                const priceChange = ((futureCandle.high - currCandle.close) / currCandle.close) * 100;
+                const downChange = ((currCandle.close - futureCandle.low) / currCandle.close) * 100;
+
+                // Check if we hit take profit
+                if (priceChange >= (tradeClass.profitTargetPercent || expectedMove)) {
+                  tradeReturn = tradeClass.profitTargetPercent || expectedMove;
+                  hitTakeProfit = true;
+                  break;
+                }
+                // Check if we hit stop loss
+                if (downChange >= (tradeClass.stopLossPercent || 1.0)) {
+                  tradeReturn = -(tradeClass.stopLossPercent || 1.0);
+                  hitStopLoss = true;
+                  break;
+                }
+              }
+
+              // If didn't hit targets, use actual close-to-close return
+              if (!hitTakeProfit && !hitStopLoss) {
+                const futureClose = candles[Math.min(i + holdingDays, candles.length - 1)];
+                tradeReturn = ((futureClose.close - currCandle.close) / currCandle.close) * 100;
+              }
+
+              // Weight return by momentum confidence + classification confidence
+              const confidenceWeighting = (Math.abs(momentumScore) * 0.5 + tradeClass.confidence * 0.5);
+              const weightedReturn = tradeReturn * confidenceWeighting;
+
+              // Track pattern performance
               if (!patternStats.has(detectedPattern)) {
                 patternStats.set(detectedPattern, { signals: 0, wins: 0, returns: [] });
               }
               const stats = patternStats.get(detectedPattern)!;
               stats.signals++;
-              stats.returns.push(ret);
-              if (ret > 0) stats.wins++;
+              stats.returns.push(weightedReturn);
+              if (weightedReturn > 0) stats.wins++;
+
+              historicalReturns.push(weightedReturn);
+              if (weightedReturn < 0) downsideReturns.push(weightedReturn);
             }
           }
         }
@@ -394,6 +464,98 @@ export class HistoricalBacktester {
       daysToRecover: 0,
       dataPoints: 0
     };
+  }
+
+  /**
+   * Calculate RSI (Relative Strength Index) from candles
+   */
+  private calculateRSI(candles: Candle[], index: number, period: number = 14): number {
+    if (index < period) return 50; // Default neutral
+    
+    let gains = 0, losses = 0;
+    for (let i = index - period; i < index; i++) {
+      const change = candles[i + 1].close - candles[i].close;
+      if (change > 0) gains += change;
+      else losses += Math.abs(change);
+    }
+    
+    const avgGain = gains / period;
+    const avgLoss = losses / period;
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+  }
+
+  /**
+   * Calculate volatility ratio (current ATR / average ATR)
+   */
+  private calculateVolatilityRatio(candles: Candle[], index: number, period: number = 20): number {
+    if (index < period) return 1.0;
+    
+    const currentATR = this.calculateATR(candles, index);
+    let sumATR = 0;
+    for (let i = index - period; i < index; i++) {
+      sumATR += this.calculateATR(candles, i);
+    }
+    const avgATR = sumATR / period;
+    return avgATR > 0 ? currentATR / avgATR : 1.0;
+  }
+
+  /**
+   * Calculate ATR (Average True Range) at index
+   */
+  private calculateATR(candles: Candle[], index: number): number {
+    if (index === 0) {
+      return candles[0].high - candles[0].low;
+    }
+    const high = candles[index].high;
+    const low = candles[index].low;
+    const prevClose = candles[index - 1].close;
+    
+    const tr1 = high - low;
+    const tr2 = Math.abs(high - prevClose);
+    const tr3 = Math.abs(low - prevClose);
+    
+    return Math.max(tr1, tr2, tr3);
+  }
+
+  /**
+   * Calculate ADX (Average Directional Index) - trend strength
+   */
+  private calculateADX(candles: Candle[], index: number, period: number = 14): number {
+    if (index < period * 2) return 20; // Default weak trend
+    
+    let plusDM = 0, minusDM = 0, tr = 0;
+    for (let i = index - period; i < index; i++) {
+      const high = candles[i].high - candles[i - 1].high;
+      const low = candles[i - 1].low - candles[i].low;
+      
+      if (high > low && high > 0) plusDM += high;
+      else if (low > high && low > 0) minusDM += low;
+      
+      tr += this.calculateATR(candles, i);
+    }
+    
+    const atr = tr / period;
+    const plusDI = (plusDM / atr) * 100 / period;
+    const minusDI = (minusDM / atr) * 100 / period;
+    
+    const di = Math.abs(plusDI - minusDI) / (plusDI + minusDI);
+    return Math.min(100, Math.max(0, di * 100));
+  }
+
+  /**
+   * Calculate volume ratio (current volume / average volume)
+   */
+  private calculateVolumeRatio(candles: Candle[], index: number, period: number = 20): number {
+    if (index < period) return 1.0;
+    
+    const currentVolume = candles[index].volume;
+    let sumVolume = 0;
+    for (let i = index - period; i < index; i++) {
+      sumVolume += candles[i].volume;
+    }
+    const avgVolume = sumVolume / period;
+    return avgVolume > 0 ? currentVolume / avgVolume : 1.0;
   }
 }
 
