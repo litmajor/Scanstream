@@ -5,6 +5,7 @@ import MLPredictionService from '../services/ml-predictions';
 import type { MarketFrame } from '@shared/schema';
 import { getPerformanceTracker } from '../services/model-performance-tracker';
 import { signalPerformanceTracker } from '../services/signal-performance-tracker';
+import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 
 const router = express.Router();
 const mlEnhancer = new MLSignalEnhancer();
@@ -15,8 +16,8 @@ const mlEnhancer = new MLSignalEnhancer();
  */
 router.get('/predictions', async (_req: Request, res: Response) => {
   try {
-    // Get market data from multiple symbols using storage interface
-    const defaultSymbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT', 'XRP/USDT'];
+    // Get market data from all 50 tracked assets using storage interface
+    const defaultSymbols = ALL_TRACKED_ASSETS.map(a => `${a.symbol}/USDT`);
     const recentFrames: MarketFrame[] = [];
 
     for (const symbol of defaultSymbols) {

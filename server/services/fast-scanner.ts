@@ -1,6 +1,6 @@
 /**
  * Fast Scanner Service
- * Two-phase scanning: Quick scan + Background processing
+ * Two-phase scanning: Quick scan + Background processing for 50 tracked assets
  * 
  * Phase 1: Fast Scan (5-10 seconds)
  *   - Fetch latest prices
@@ -17,6 +17,7 @@
 
 import axios from 'axios';
 import { EventEmitter } from 'events';
+import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 
 interface QuickSignal {
   symbol: string;
@@ -77,13 +78,8 @@ class FastScannerService extends EventEmitter {
     const startTime = Date.now();
 
     try {
-      // Get symbols to scan (top 20 by volume if not specified)
-      const symbolsToScan = symbols || [
-        'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT',
-        'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT', 'DOT/USDT', 'MATIC/USDT',
-        'LINK/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'APT/USDT',
-        'ARB/USDT', 'OP/USDT', 'INJ/USDT', 'SUI/USDT', 'TIA/USDT'
-      ];
+      // Get symbols to scan (all 50 tracked assets if not specified)
+      const symbolsToScan = symbols || ALL_TRACKED_ASSETS.map(a => `${a.symbol}/USDT`);
 
       // Quick parallel fetch with timeout
       const quickResults = await this.fetchQuickData(symbolsToScan, scanId);

@@ -1,28 +1,27 @@
 
 import { ExchangeAggregator } from './exchange-aggregator';
+import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 
 export class CacheWarmer {
   private aggregator: ExchangeAggregator;
-  private topSymbols = [
-    'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT',
-    'ADA/USDT', 'DOGE/USDT', 'AVAX/USDT', 'DOT/USDT', 'MATIC/USDT',
-    'LINK/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'ETC/USDT'
-  ];
+  private topSymbols: string[] = [];
 
   constructor(aggregator: ExchangeAggregator) {
     this.aggregator = aggregator;
+    // Generate symbols from all 50 tracked assets: BTC/USDT, ETH/USDT, etc.
+    this.topSymbols = ALL_TRACKED_ASSETS.map(asset => `${asset.symbol}/USDT`);
   }
 
   /**
-   * Warm cache on startup
+   * Warm cache on startup for all 50 tracked assets
    */
   async warmCache(): Promise<void> {
-    console.log('[CacheWarmer] Starting cache warming...');
+    console.log(`[CacheWarmer] Starting cache warming for ${this.topSymbols.length} assets...`);
     
     const startTime = Date.now();
     let warmed = 0;
     
-    // Fetch prices for top symbols
+    // Fetch prices for all tracked assets
     for (const symbol of this.topSymbols) {
       try {
         await this.aggregator.getAggregatedPrice(symbol);

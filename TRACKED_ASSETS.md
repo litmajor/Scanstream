@@ -112,7 +112,7 @@ Binance Coin (Exchange Token)
 
 ## CoinGecko Integration
 
-All 30 assets are integrated with CoinGecko for:
+All 50 assets are integrated with CoinGecko for:
 - Real-time price data
 - Market cap tracking
 - Volume analysis
