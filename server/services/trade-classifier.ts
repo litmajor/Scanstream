@@ -12,7 +12,6 @@
 import { getAssetBySymbol } from '@shared/tracked-assets';
 import MarketRegimeDetector, { type MarketRegime } from './ml-regime-detector';
 import { assetVelocityProfiler } from './asset-velocity-profile';
-import { assetVelocityProfiler } from './asset-velocity-profile';
 
 export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 
