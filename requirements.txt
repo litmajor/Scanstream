@@ -13,3 +13,6 @@ flask-cors>=4.0.0
 aiofiles>=23.0.0
 xgboost>=3.1.1
 scipy>=1.16.2
+imbalanced-learn
+requests
+scikit-learn
