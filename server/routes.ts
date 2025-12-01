@@ -16,6 +16,8 @@ import paperTradingRoutes from './routes/paper-trading';
 import signalPerformanceRoutes from './routes/signal-performance';
 // Import notification routes
 import notificationRoutes from './routes/notifications';
+// Import user preferences routes
+import userPreferencesRoutes from './routes/user-preferences';
 
 
 // Create prisma instance
@@ -1627,7 +1629,12 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Mount notification routes
   app.use('/api/notifications', notificationRoutes);
   console.log('[express] Notifications API registered at /api/notifications');
+  app.use('/api/user', userPreferencesRoutes);
 
+  // Health check endpoint
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
+  });
 
   // At the end, create and return the httpServer:
   const httpServer = createServer(app);
@@ -1635,7 +1642,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // WebSocket server on the same port as HTTP server
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  // Removed Fast Scanner related code
+  // Removed: Fast Scanner related code
 
   wss.on('connection', (ws) => {
     console.log('Client connected to WebSocket');

@@ -7,6 +7,7 @@ import SignalTimeline from '../components/SignalTimeline';
 import { UnifiedSignalDisplay } from '../components/UnifiedSignalDisplay';
 import { MarketOverview } from '../components/coingecko/MarketOverview';
 import { useGatewaySignals } from '../hooks/useGatewaySignals';
+import { AdvancedSignalFilters, SignalFilterCriteria } from '../components/AdvancedSignalFilters';
 
 type SignalSource = 'all' | 'gateway' | 'scanner' | 'strategies' | 'ml' | 'rl';
 
@@ -41,6 +42,18 @@ export default function SignalsPage() {
     hot: false,
     confirmed: false,
     highConviction: false,
+  });
+
+  const [advancedFilters, setAdvancedFilters] = useState<SignalFilterCriteria>({
+    signalType: 'all',
+    minStrength: 0,
+    maxStrength: 100,
+    trendDirection: 'all',
+    exchanges: [],
+    sources: [],
+    timeframe: 'all',
+    hasStopLoss: false,
+    hasTakeProfit: false,
   });
 
   // Fetch Gateway Signals
@@ -157,6 +170,45 @@ export default function SignalsPage() {
   }
   if (filters.highConviction) {
     displaySignals = displaySignals.filter(s => (s.confidence || s.strength / 100) > 0.8);
+  }
+
+  // Apply advanced filters
+  if (advancedFilters.signalType !== 'all') {
+    displaySignals = displaySignals.filter(s => s.signal === advancedFilters.signalType);
+  }
+  if (advancedFilters.minStrength > 0 || advancedFilters.maxStrength < 100) {
+    displaySignals = displaySignals.filter(
+      s => s.strength >= advancedFilters.minStrength && s.strength <= advancedFilters.maxStrength
+    );
+  }
+  if (advancedFilters.trendDirection !== 'all') {
+    displaySignals = displaySignals.filter(s => {
+      const change = s.change || s.change24h || 0;
+      if (advancedFilters.trendDirection === 'up') return change > 0;
+      if (advancedFilters.trendDirection === 'down') return change < 0;
+      return Math.abs(change) < 0.5;
+    });
+  }
+  if (advancedFilters.sources.length > 0) {
+    displaySignals = displaySignals.filter(s => advancedFilters.sources.includes(s.source));
+  }
+  if (advancedFilters.minPrice !== undefined) {
+    displaySignals = displaySignals.filter(s => s.price >= advancedFilters.minPrice!);
+  }
+  if (advancedFilters.maxPrice !== undefined) {
+    displaySignals = displaySignals.filter(s => s.price <= advancedFilters.maxPrice!);
+  }
+  if (advancedFilters.minChange !== undefined) {
+    displaySignals = displaySignals.filter(s => (s.change || s.change24h || 0) >= advancedFilters.minChange!);
+  }
+  if (advancedFilters.maxChange !== undefined) {
+    displaySignals = displaySignals.filter(s => (s.change || s.change24h || 0) <= advancedFilters.maxChange!);
+  }
+  if (advancedFilters.minRSI !== undefined) {
+    displaySignals = displaySignals.filter(s => (s.indicators?.rsi || 50) >= advancedFilters.minRSI!);
+  }
+  if (advancedFilters.maxRSI !== undefined) {
+    displaySignals = displaySignals.filter(s => (s.indicators?.rsi || 50) <= advancedFilters.maxRSI!);
   }
 
   const handleRefreshAll = async () => {
@@ -307,6 +359,14 @@ export default function SignalsPage() {
               }%
             </div>
           </div>
+        </div>
+
+        {/* Advanced Filters */}
+        <div className="mt-6">
+          <AdvancedSignalFilters
+            currentCriteria={advancedFilters}
+            onFilterChange={setAdvancedFilters}
+          />
         </div>
 
         {/* View Mode Toggle & Smart Filters */}
