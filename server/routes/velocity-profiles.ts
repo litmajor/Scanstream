@@ -33,12 +33,19 @@ export function registerVelocityProfileRoutes(app: Express) {
   });
 
   /**
-   * GET /api/velocity/:symbol
-   * Returns velocity profile for a specific asset
+   * GET /api/velocity/profile
+   * Returns velocity profile for a specific asset (query param: symbol=BTC or BTC/USDT)
    */
-  app.get('/api/velocity/:symbol', (req, res) => {
+  app.get('/api/velocity/profile', (req, res) => {
     try {
-      const { symbol } = req.params;
+      let { symbol } = req.query;
+      if (!symbol) {
+        return res.status(400).json({
+          success: false,
+          error: 'symbol query parameter required (e.g., ?symbol=BTC or ?symbol=BTC/USDT)'
+        });
+      }
+      symbol = symbol as string;
       const profile = assetVelocityProfiler.getVelocityProfile(symbol);
 
       res.json({
@@ -56,18 +63,25 @@ export function registerVelocityProfileRoutes(app: Express) {
   });
 
   /**
-   * GET /api/velocity/:symbol/target
-   * Calculate profit target for a specific trade
+   * GET /api/velocity/target
+   * Calculate profit target for a specific trade (query params: symbol, entryPrice, tradeType)
    */
-  app.get('/api/velocity/:symbol/target', (req, res) => {
+  app.get('/api/velocity/target', (req, res) => {
     try {
-      const { symbol } = req.params;
-      const { entryPrice, tradeType = 'SWING' } = req.query;
+      let { symbol, entryPrice, tradeType = 'SWING' } = req.query;
+      
+      if (!symbol) {
+        return res.status(400).json({
+          success: false,
+          error: 'symbol query parameter required (e.g., ?symbol=BTC or ?symbol=BTC/USDT)'
+        });
+      }
+      symbol = symbol as string;
 
       if (!entryPrice) {
         return res.status(400).json({
           success: false,
-          error: 'entryPrice query parameter required'
+          error: 'entryPrice query parameter required (e.g., ?entryPrice=87000)'
         });
       }
 
