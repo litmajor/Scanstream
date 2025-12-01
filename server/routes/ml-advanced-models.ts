@@ -13,7 +13,7 @@ const router = express.Router();
 router.get('/attention-prediction/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const frames = await storage.getMarketFrames(symbol, 100);
+    const frames = await storage.getMarketFrames(symbol, 200);
     
     if (frames.length < 50) {
       return res.status(400).json({ error: 'Insufficient data' });
@@ -38,7 +38,7 @@ router.get('/attention-prediction/:symbol', async (req: Request, res: Response) 
 router.get('/regime/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const frames = await storage.getMarketFrames(symbol, 100);
+    const frames = await storage.getMarketFrames(symbol, 200);
     
     const regimeInfo = RegimeDetector.detectRegime(frames);
     const stability = RegimeDetector.getRegimeStability();
@@ -61,7 +61,7 @@ router.get('/regime/:symbol', async (req: Request, res: Response) => {
 router.get('/anomaly/:symbol', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const frames = await storage.getMarketFrames(symbol, 150);
+    const frames = await storage.getMarketFrames(symbol, 200);
     
     const anomaly = AnomalyDetector.detectAnomaly(frames);
     const report = AnomalyDetector.getAnomalyReport(frames, 20);
