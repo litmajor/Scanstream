@@ -115,8 +115,11 @@ export class AssetVelocityProfiler {
    * Used when no historical data available
    */
   private getDefaultProfile(symbol: string): AssetVelocityData {
+    // Normalize symbol - handle both "BTC" and "BTC/USDT" formats
+    const normalizedSymbol = symbol.includes('/') ? symbol : `${symbol}/USDT`;
+    
     // Tier-1 assets: BTC, ETH (larger absolute moves)
-    if (symbol === 'BTC/USDT') {
+    if (normalizedSymbol === 'BTC/USDT' || symbol === 'BTC') {
       return {
         symbol,
         '1D': {
@@ -190,7 +193,7 @@ export class AssetVelocityProfiler {
     }
 
     // ETH
-    if (symbol === 'ETH/USDT') {
+    if (normalizedSymbol === 'ETH/USDT' || symbol === 'ETH') {
       return {
         symbol,
         '1D': {
