@@ -275,7 +275,7 @@ export class SignalClassifier {
 
     patterns.forEach(p => reasoning.push(p.reasoning));
 
-    const levels = [];
+    const levels: number[] = [];
     if (indicators.support) levels.push(indicators.support);
     if (indicators.resistance) levels.push(indicators.resistance);
     if (indicators.ema20) levels.push(indicators.ema20);
