@@ -6,6 +6,11 @@ import { pgEnum } from "drizzle-orm/pg-core";
 
 // Enums for type safety
 export const signalTypeEnum = pgEnum("signal_type", ["BUY", "SELL", "HOLD"]);
+export const signalClassificationEnum = pgEnum("signal_classification", [
+  "BREAKOUT", "REVERSAL", "CONTINUATION", "PULLBACK", "DIVERGENCE", 
+  "SUPPORT_BOUNCE", "RESISTANCE_BREAK", "TREND_CONFIRMATION", "CONSOLIDATION_BREAK",
+  "MA_CROSSOVER", "RSI_EXTREME", "MACD_SIGNAL", "CONFLUENCE", "ML_PREDICTION"
+]);
 export const tradeStatusEnum = pgEnum("trade_status", ["OPEN", "CLOSED", "CANCELLED"]);
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, real, integer, timestamp, jsonb, boolean, uuid } from "drizzle-orm/pg-core";
@@ -28,10 +33,11 @@ export const signals = pgTable("signals", {
   timestamp: timestamp("timestamp").notNull().default(sql`now()`),
   symbol: text("symbol").notNull(),
   type: signalTypeEnum("type").notNull(),
+  classification: signalClassificationEnum("classification").notNull().default("CONFLUENCE"),
   strength: real("strength").notNull(),
   confidence: real("confidence").notNull(),
-  price: real("price").notNull(), // Consider making this a JSON blob for OHLC consistency
-  reasoning: jsonb("reasoning").notNull(), // string[]
+  price: real("price").notNull(),
+  reasoning: jsonb("reasoning").notNull(),
   riskReward: real("riskReward").notNull(),
   stopLoss: real("stop_loss").notNull(),
   takeProfit: real("take_profit").notNull(),
@@ -39,6 +45,8 @@ export const signals = pgTable("signals", {
   regimeState: text("regime_state"),
   legacyLabel: text("legacy_label"),
   signalStrengthScore: real("signal_strength_score"),
+  patternDetails: jsonb("pattern_details"), // { pattern, support, resistance, levels }
+  timeframeAlignment: real("timeframe_alignment"), // 0-1 score
 });
 
 export const trades = pgTable("trades", {
