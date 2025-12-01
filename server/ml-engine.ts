@@ -532,32 +532,45 @@ export class MLSignalEnhancer {
    * Add velocity and regime features to market frame
    */
   private enhanceFeatures(frame: MarketFrame): MarketFrame {
-    const enhanced = { ...frame };
+    const enhanced = { ...frame } as any;
     
     // Velocity features (price movement rate)
-    const priceChange1d = frame.price - (frame.prevPrice || frame.price);
-    const priceChange7d = frame.price - (frame.weekAgoPrice || frame.price);
-    enhanced.velocity1d = priceChange1d / frame.price;
-    enhanced.velocity7d = priceChange7d / frame.price;
+    const currentPrice = typeof frame.price === 'number' ? frame.price : frame.price.close;
+    const priceChange1d = currentPrice - ((frame as any).prevPrice || currentPrice);
+    const priceChange7d = currentPrice - ((frame as any).weekAgoPrice || currentPrice);
+    enhanced.velocity1d = priceChange1d / currentPrice;
+    enhanced.velocity7d = priceChange7d / currentPrice;
     
     // Volume quality
-    enhanced.volumeSpike = frame.volume / (frame.avgVolume20d || frame.volume);
-    enhanced.volumeTrend = frame.volume > (frame.prevVolume || 0) ? 1 : -1;
+    enhanced.volumeSpike = frame.volume / ((frame as any).avgVolume20d || frame.volume);
+    enhanced.volumeTrend = frame.volume > ((frame as any).prevVolume || 0) ? 1 : -1;
     
     // Regime detection
-    enhanced.adxRising = (frame.adx || 0) > (frame.prevAdx || 0) ? 1 : 0;
+    const adx = frame.indicators?.adx || 25;
+    enhanced.adxRising = adx > ((frame as any).prevAdx || 0) ? 1 : 0;
     enhanced.marketRegime = this.classifyRegime(frame);
     
     // Price action quality
     enhanced.higherLows = this.countHigherLows(frame);
     enhanced.higherHighs = this.countHigherHighs(frame);
     
+    // Cross-asset correlation (if available)
+    if ((frame as any).btcCorrelation) {
+      enhanced.btcCorrelation = (frame as any).btcCorrelation;
+    }
+    if ((frame as any).ethCorrelation) {
+      enhanced.ethCorrelation = (frame as any).ethCorrelation;
+    }
+    if ((frame as any).sectorMomentum) {
+      enhanced.sectorMomentum = (frame as any).sectorMomentum;
+    }
+    
     return enhanced;
   }
 
   private classifyRegime(frame: MarketFrame): number {
-    const adx = frame.adx || 25;
-    const volatility = frame.volatility || 0.02;
+    const adx = frame.indicators?.adx || 25;
+    const volatility = (frame as any).volatility || 0.02;
     
     if (adx > 25 && volatility < 0.05) return 1; // trending
     if (volatility > 0.05) return 3; // volatile
@@ -565,12 +578,15 @@ export class MLSignalEnhancer {
   }
 
   private countHigherLows(frame: MarketFrame): number {
-    // Simplified - would need historical data
-    return frame.price > (frame.prevLow || 0) ? 1 : 0;
+    const currentPrice = typeof frame.price === 'number' ? frame.price : frame.price.close;
+    const prevLow = (frame as any).prevLow || 0;
+    return currentPrice > prevLow ? 1 : 0;
   }
 
   private countHigherHighs(frame: MarketFrame): number {
-    return frame.price > (frame.prevHigh || 0) ? 1 : 0;
+    const currentPrice = typeof frame.price === 'number' ? frame.price : frame.price.close;
+    const prevHigh = (frame as any).prevHigh || 0;
+    return currentPrice > prevHigh ? 1 : 0;
   }
   
   getModelInsights(): Record<string, number> {

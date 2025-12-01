@@ -10,7 +10,11 @@
  * 5. PRESENTATION: Optimized frontend response with caching
  */
 
+import { SignalClassifier } from './signal-classifier';
 import { SignalAccuracyEngine } from './signal-accuracy';
+import { storage } from '../storage';
+import { smartPatternCombination } from './smart-pattern-combination';
+import { signalPerformanceTracker } from '../services/signal-performance-tracker';
 import { assetCorrelationAnalyzer } from '../services/asset-correlation-analyzer';
 import { executionOptimizer } from '../services/execution-optimizer';
 import { tradeClassifier, TradeClassification } from '../services/trade-classifier';
@@ -72,40 +76,40 @@ export interface AggregatedSignal {
   symbol: string;
   timestamp: number;
   type: 'BUY' | 'SELL' | 'HOLD';
-  
+
   // Classification with accuracy boost
   classifications: string[];
   primaryClassification: string;
   confidence: number; // Accuracy-adjusted
   strength: number;
-  
+
   // Source contributions (transparency)
   sources: {
     scanner: { confidence: number; patterns: string[] };
     ml: { confidence: number; model: string };
     rl: { confidence: number; qValue: number };
   };
-  
+
   // Quality metrics
   quality: {
     score: number; // 0-100
     rating: 'excellent' | 'good' | 'fair' | 'poor';
     reasons: string[];
   };
-  
+
   // Entry/Exit
   price: number;
   stopLoss: number;
   takeProfit: number;
   riskRewardRatio: number;
-  
+
   // Pattern details
   patternDetails: Array<{
     pattern: string;
     accuracy: number;
     levels: Array<{ name: string; value: number }>;
   }>;
-  
+
   // Timeframe alignment
   timeframes: {
     '1m': number;
@@ -115,15 +119,15 @@ export interface AggregatedSignal {
     '4h': number;
     '1d': number;
   };
-  
+
   // Position sizing
   agreementScore?: number; // 0-100, how much sources agree
   positionSize?: number; // 0-1 scale, position sizing multiplier
-  
+
   // Correlation analysis
   correlationBoost?: number; // Confidence boost from correlated assets (-0.15 to +0.15)
   correlatedSignals?: string[]; // Which correlated assets show aligned signals
-  
+
   // Execution optimization
   executionMetrics?: {
     slippagePercentage: number; // Expected slippage
@@ -194,11 +198,10 @@ export class SignalPipeline {
     // Step 4.5: VOLATILITY NORMALIZATION - Adjust confidence by asset volatility
     const volatilityMultiplier = this.calculateVolatilityMultiplier(marketData);
     const volatilityAdjustedConfidence = accuracy.adjustedConfidence * (1 + volatilityMultiplier);
-    
+
     // Step 4.6: MARKET REGIME DETECTION - Detect trending vs ranging vs volatile markets
-    // This uses scanner patterns to build frame data for regime analysis
-    const regimeAnalysis = this.detectMarketRegime(
-      Array.isArray(scannerOutput.patterns) && scannerOutput.patterns.length > 0 
+    const regimeData = this.detectMarketRegime(
+      Array.isArray(scannerOutput.patterns) && scannerOutput.patterns.length > 0
         ? [marketData] // Use market data as frame
         : []
     );
@@ -207,11 +210,35 @@ export class SignalPipeline {
       ...accuracy,
       adjustedConfidence: Math.min(1, Math.max(0, volatilityAdjustedConfidence)),
       volatilityMultiplier,
-      marketRegime: regimeAnalysis.regime,
-      regimeStrength: regimeAnalysis.strength
+      marketRegime: regimeData.regime,
+      regimeStrength: regimeData.strength
     };
 
-    // Step 5: Calculate quality score
+    // Step 5: Calculate overall confidence with smart pattern weighting
+    const patternSignals: Record<string, number> = {};
+    scannerOutput.patterns.forEach(p => {
+      patternSignals[p.type] = p.strength;
+    });
+
+    // Get recent pattern win rates for performance weighting
+    const patternWinRates = signalPerformanceTracker.getPatternWinRates(50);
+
+    // Calculate weighted confidence based on regime and performance
+    const weightedResult = smartPatternCombination.calculateWeightedConfidence(
+      patternSignals,
+      {
+        regime: regimeData.regime === 'TRENDING' ? 'TRENDING'
+          : regimeData.regime === 'VOLATILE' ? 'VOLATILE'
+          : 'CHOPPY',
+        adx: regimeData.indicators.adx,
+        volatility: regimeData.indicators.volatility,
+        volumeRatio: regimeData.indicators.volumeProfile === 'HEAVY' ? 1.5 : 1.0
+      }
+    );
+
+    const overallConfidence = weightedResult.finalConfidence / 100; // Normalize to 0-1
+
+    // Step 6: Calculate quality score
     const quality = this.calculateQualityScore(
       scannerOutput,
       volatilityAdjustedAccuracy,
@@ -219,7 +246,7 @@ export class SignalPipeline {
       rlDecision
     );
 
-    // Step 6: Extract source contribution (for transparency)
+    // Step 7: Extract source contribution (for transparency)
     const sources = {
       scanner: {
         confidence: scannerOutput.technicalScore / 100,
@@ -235,23 +262,23 @@ export class SignalPipeline {
       }
     };
 
-    // Step 7: Calculate position targets
+    // Step 8: Calculate position targets
     const positions = this.calculatePositionTargets(marketData);
 
-    // Step 7.5: Calculate agreement score (how much sources agree)
+    // Step 8.5: Calculate agreement score (how much sources agree)
     // 3/3 agreement = 100 × avgConfidence, 2/3 = 65 × avgConfidence, 1/3 = 30 × avgConfidence
     const avgSourceConfidence = (
       (scannerOutput.technicalScore / 100) +
       Math.max(...mlPredictions.map(m => m.probability)) +
       Math.min(Math.abs(rlDecision.qValue), 1)
     ) / 3;
-    
+
     // Determine agreement type from signal consensus
     let agreementBase = 30; // Conservative default
     const scannerDir = scannerOutput.technicalScore > 65 ? 'BUY' : scannerOutput.technicalScore < 35 ? 'SELL' : 'HOLD';
     const mlDir = mlPredictions[0]?.direction || 'HOLD';
     const rlDir = rlDecision.qValue > 0.2 ? 'BUY' : rlDecision.qValue < -0.2 ? 'SELL' : 'HOLD';
-    
+
     if (scannerDir === mlDir && mlDir === rlDir) {
       agreementBase = 100; // 3/3 agreement
     } else if (
@@ -261,19 +288,19 @@ export class SignalPipeline {
     ) {
       agreementBase = 65; // 2/3 agreement
     }
-    
+
     const agreementScore = Math.round(Math.min(100, agreementBase * avgSourceConfidence));
 
-    // Step 8: Calculate position size based on quality, agreement, and asset category
+    // Step 9: Calculate position size based on quality, agreement, and asset category
     const asset = getAssetBySymbol(symbol);
     const assetCategory = asset?.category || 'fundamental';
     const positionSize = this.calculatePositionSize(symbol, quality.score, agreementScore, assetCategory);
 
-    // Step 8.5: Apply correlation boost if correlated assets show aligned signals
+    // Step 9.5: Apply correlation boost if correlated assets show aligned signals
     const correlationBoost = await assetCorrelationAnalyzer.getCorrelationBoost(
       symbol,
       signalType,
-      volatilityAdjustedAccuracy.adjustedConfidence
+      overallConfidence // Use the now regime and pattern-weighted confidence
     );
 
     // Track this signal for future correlation analysis
@@ -282,10 +309,11 @@ export class SignalPipeline {
     // Use boosted confidence if available
     const finalConfidence = correlationBoost.boostedConfidence;
 
-    // Step 8.7: Classify trade type + VELOCITY-BASED PROFIT TARGETS (only for BUY/SELL signals)
+    // Step 10: Classify trade type + VELOCITY-BASED PROFIT TARGETS (only for BUY/SELL signals)
     let classification: any = null;
     let adjustedStopLoss = positions.stopLoss;
     let adjustedTakeProfit = positions.takeProfit;
+    const reasoning: string[] = [...(quality.reasons || []), ...weightedResult.reasoning]; // Combine quality and pattern reasoning
 
     if (signalType !== 'HOLD') {
       classification = tradeClassifier.classifyTrade({
@@ -294,7 +322,7 @@ export class SignalPipeline {
         volumeRatio: marketData.volume > 0 && marketData.prevVolume > 0 ? marketData.volume / marketData.prevVolume : 1.0,
         patternType: primaryClassification,
         assetCategory: assetCategory,
-        marketRegime: (accuracy as any).marketRegime || 'RANGING'
+        marketRegime: regimeData.regime // Pass detected regime
       }, marketData.price); // PASS ENTRY PRICE for velocity-based targets
 
       // Use velocity-based targets if available, otherwise fall back to percent-based
@@ -311,17 +339,17 @@ export class SignalPipeline {
       );
     }
 
-    // Step 8.8: Optimize execution (model slippage, fees, entry timing)
+    // Step 11: Optimize execution (model slippage, fees, entry timing)
     const executionOpt = executionOptimizer.optimizeExecution({
       symbol,
       entryPrice: marketData.price,
       positionSize,
       marketVolume24h: marketData.volume * 24, // Estimate 24h from current candle
-      orderType: classification.pyramidStrategy,
+      orderType: classification?.pyramidStrategy || 'all-at-once', // Use classification's strategy or default
       exchangeFeePercentage: 0.1 // Standard exchange fee
     });
 
-    // Step 9: Build pattern details for frontend
+    // Step 12: Build pattern details for frontend
     const patternDetails = scannerOutput.patterns.map(p => {
       const stats = this.accuracyEngine.getPatternStats(p.type as any);
       return {
@@ -336,7 +364,7 @@ export class SignalPipeline {
       };
     });
 
-    // Step 10: Assemble aggregated signal with adaptive trade classification
+    // Step 13: Assemble aggregated signal with adaptive trade classification
     const signal: AggregatedSignal = {
       id: `${symbol}-${Date.now()}`,
       symbol,
@@ -347,7 +375,7 @@ export class SignalPipeline {
       confidence: finalConfidence,
       strength: scannerOutput.technicalScore,
       sources,
-      quality,
+      quality: { ...quality, reasons: reasoning }, // Include combined reasoning
       price: marketData.price,
       stopLoss: adjustedStopLoss, // Use adaptive stops
       takeProfit: adjustedTakeProfit, // Use adaptive targets
@@ -392,7 +420,6 @@ export class SignalPipeline {
     let votes = { BUY: 0, SELL: 0, HOLD: 0 };
 
     // ADAPTIVE WEIGHTS: Use recent performance instead of static 40/35/25
-    const { signalPerformanceTracker } = require('../services/signal-performance-tracker');
     const recentWinRates = signalPerformanceTracker.getRecentWinRates(20);
     const total = recentWinRates.scanner + recentWinRates.ml + recentWinRates.rl;
     const weights = {
@@ -653,7 +680,7 @@ export class SignalPipeline {
 
     // REGIME-SPECIFIC PATTERN WEIGHTS
     const patternWeights: Record<string, number> = {};
-    
+
     if (regime === 'TRENDING') {
       patternWeights.BREAKOUT = 1.3;
       patternWeights.TREND_CONFIRMATION = 1.2;
@@ -740,7 +767,7 @@ export class SignalPipeline {
    */
   private calculatePositionSize(symbol: string, qualityScore: number, agreementScore: number, category: string): number {
     const MAX_POSITION = getMaxPositionForCategory(category);
-    
+
     // Agreement multiplier: 3/3 = 1.0x, 2/3 = 0.7x, 1/3 = 0.3x
     let agreementMultiplier = 0.3; // Default: low agreement
     if (agreementScore >= 95) {
