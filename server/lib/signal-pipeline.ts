@@ -288,7 +288,7 @@ export class SignalPipeline {
     accuracy: any,
     ml: MLPrediction[],
     rl: RLDecision
-  ): { score: number; rating: string; reasons: string[] } {
+  ): { score: number; rating: 'excellent' | 'good' | 'fair' | 'poor'; reasons: string[] } {
     const reasons: string[] = [];
     let score = 0;
 
@@ -339,7 +339,7 @@ export class SignalPipeline {
       reasons.push('RL moderately converged');
     }
 
-    const rating =
+    const rating: 'excellent' | 'good' | 'fair' | 'poor' =
       score >= 85 ? 'excellent' :
       score >= 70 ? 'good' :
       score >= 50 ? 'fair' : 'poor';
@@ -416,7 +416,7 @@ export const buildSignalsPageResponse = memoize(
       }
     };
   },
-  { maxAge: 10000, prependThis: false } // Cache for 10 seconds
+  { maxAge: 10000 } // Cache for 10 seconds
 );
 
 function getTopPatterns(signals: AggregatedSignal[]) {
