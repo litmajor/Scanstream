@@ -9,7 +9,10 @@ export const signalTypeEnum = pgEnum("signal_type", ["BUY", "SELL", "HOLD"]);
 export const signalClassificationEnum = pgEnum("signal_classification", [
   "BREAKOUT", "REVERSAL", "CONTINUATION", "PULLBACK", "DIVERGENCE", 
   "SUPPORT_BOUNCE", "RESISTANCE_BREAK", "TREND_CONFIRMATION", "CONSOLIDATION_BREAK",
-  "MA_CROSSOVER", "RSI_EXTREME", "MACD_SIGNAL", "CONFLUENCE", "ML_PREDICTION"
+  "MA_CROSSOVER", "RSI_EXTREME", "MACD_SIGNAL", "CONFLUENCE", "ML_PREDICTION",
+  "PARABOLIC", "BULL_EARLY", "BEAR_EARLY", "ACCUMULATION", "DISTRIBUTION",
+  "SPIKE", "TOPPING", "BOTTOMING", "RANGING", "LAGGING", "LEADING",
+  "TREND_EXHAUSTION", "TREND_ESTABLISHMENT", "RETEST", "FLIP"
 ]);
 export const tradeStatusEnum = pgEnum("trade_status", ["OPEN", "CLOSED", "CANCELLED"]);
 import { sql } from "drizzle-orm";

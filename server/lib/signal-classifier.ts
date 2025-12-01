@@ -17,7 +17,22 @@ export type SignalClassification =
   | "RSI_EXTREME"
   | "MACD_SIGNAL"
   | "CONFLUENCE"
-  | "ML_PREDICTION";
+  | "ML_PREDICTION"
+  | "PARABOLIC"
+  | "BULL_EARLY"
+  | "BEAR_EARLY"
+  | "ACCUMULATION"
+  | "DISTRIBUTION"
+  | "SPIKE"
+  | "TOPPING"
+  | "BOTTOMING"
+  | "RANGING"
+  | "LAGGING"
+  | "LEADING"
+  | "TREND_EXHAUSTION"
+  | "TREND_ESTABLISHMENT"
+  | "RETEST"
+  | "FLIP";
 
 export interface PatternDetails {
   pattern: SignalClassification;
@@ -132,6 +147,48 @@ export class SignalClassifier {
       strength = 65;
       reasoning.push("Volume spike confirms trend");
     }
+    // Parabolic detection
+    else if (indicators.price && indicators.prevPrice && Math.abs((indicators.price - indicators.prevPrice) / indicators.prevPrice) > 0.05) {
+      classification = "PARABOLIC";
+      confidence = 0.58;
+      strength = 58;
+      reasoning.push("Parabolic move detected - >5% move in single period");
+    }
+    // Accumulation/Distribution
+    else if (indicators.volume && indicators.prevVolume && indicators.volume > indicators.prevVolume * 1.5 && indicators.price > indicators.prevPrice) {
+      classification = "ACCUMULATION";
+      confidence = 0.62;
+      strength = 62;
+      reasoning.push("High volume on up move - accumulation phase");
+    }
+    // Spike detection
+    else if (indicators.volume && indicators.prevVolume && indicators.volume > indicators.prevVolume * 2) {
+      classification = "SPIKE";
+      confidence = 0.55;
+      strength = 55;
+      reasoning.push("Volume spike detected - temporary spike move");
+    }
+    // Retest pattern
+    else if (indicators.support && Math.abs(indicators.price - indicators.support) < indicators.support * 0.01) {
+      classification = "RETEST";
+      confidence = 0.68;
+      strength = 68;
+      reasoning.push("Price retesting support level");
+    }
+    // Trend establishment
+    else if (indicators.ema20 && indicators.ema50 && indicators.ema20 > indicators.ema50 * 1.02) {
+      classification = "TREND_ESTABLISHMENT";
+      confidence = 0.7;
+      strength = 70;
+      reasoning.push("Trend establishing - EMAs in strong uptrend");
+    }
+    // Ranging market
+    else if (indicators.resistance && indicators.support && ((indicators.resistance - indicators.support) / indicators.support) < 0.03) {
+      classification = "RANGING";
+      confidence = 0.6;
+      strength = 60;
+      reasoning.push("Price ranging in tight consolidation");
+    }
 
     const levels = [];
     if (indicators.support) levels.push(indicators.support);
@@ -171,7 +228,22 @@ export class SignalClassifier {
       RSI_EXTREME: "RSI at extreme levels - reversal or strong trend signal",
       MACD_SIGNAL: "MACD histogram shows momentum shift - directional signal",
       CONFLUENCE: "Multiple indicators align - high quality signal",
-      ML_PREDICTION: "Machine learning model predicts direction with high confidence"
+      ML_PREDICTION: "Machine learning model predicts direction with high confidence",
+      PARABOLIC: "Steep acceleration detected - parabolic move underway or imminent reversal",
+      BULL_EARLY: "Early stage bull market - accumulation phase with momentum building",
+      BEAR_EARLY: "Early stage bear market - distribution phase with selling pressure",
+      ACCUMULATION: "Price accumulating at support - large buyers accumulating positions",
+      DISTRIBUTION: "Price distributing at resistance - large sellers offloading positions",
+      SPIKE: "Sharp vertical move detected - spike or flash move pattern",
+      TOPPING: "Price forming top - sellers gaining control, reversal likely",
+      BOTTOMING: "Price forming bottom - buyers gaining control, reversal likely",
+      RANGING: "Price ranging in consolidation - breakout potential in either direction",
+      LAGGING: "Signal lagging price action - less reliable, entry timing poor",
+      LEADING: "Leading signal ahead of price - early entry opportunity detected",
+      TREND_EXHAUSTION: "Trend showing signs of exhaustion - reversal or correction probable",
+      TREND_ESTABLISHMENT: "Trend establishing with strong confirmation - trend is solidifying",
+      RETEST: "Price retesting previous level - support/resistance confirmation signal",
+      FLIP: "Level flipped from resistance to support or vice versa - major shift"
     };
     return descriptions[classification] || "Signal detected";
   }
