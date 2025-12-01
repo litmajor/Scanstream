@@ -176,6 +176,42 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/strategies/signals - Get all strategy signals (for UnifiedSignalDisplay)
+router.get('/signals', async (req, res) => {
+  try {
+    const signals = await storage.getSignals({ limit: 50 });
+    
+    // Filter for strategy-generated signals and format for frontend
+    const strategySignals = signals
+      .filter(s => s.source === 'strategy' || s.strategyId)
+      .map(s => ({
+        symbol: s.symbol,
+        exchange: 'strategy',
+        signal: s.type,
+        strength: s.strength,
+        confidence: s.confidence,
+        price: s.price,
+        change: 0, // Calculate from recent price movement
+        change24h: 0,
+        timestamp: new Date(s.timestamp).getTime(),
+        source: 'strategy',
+        strategyName: s.strategyId || 'Unknown Strategy',
+        stopLoss: s.stopLoss,
+        takeProfit: s.takeProfit,
+        reasoning: s.reasoning,
+        indicators: {}
+      }));
+    
+    res.json({
+      success: true,
+      signals: strategySignals
+    });
+  } catch (error) {
+    console.error('Error fetching strategy signals:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch strategy signals' });
+  }
+});
+
 // GET /api/strategies/:id - Get strategy details
 router.get('/:id', async (req, res) => {
   try {
@@ -193,7 +229,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/strategies/:id/execute - Execute strategy
+// POST /api/strategies/:id/execute - Execute strategy and create signal
 router.post('/:id/execute', async (req, res) => {
   try {
     const { id } = req.params;
@@ -206,6 +242,30 @@ router.post('/:id/execute', async (req, res) => {
     
     // Execute strategy via Python
     const result = await executeStrategy(id, symbol, timeframe, parameters);
+    
+    // If strategy generated a signal, store it in the database
+    if (result.success && result.signal && result.signal !== 'HOLD') {
+      const signalData = {
+        symbol,
+        type: result.signal === 'BUY' || result.signal === 'LONG' ? 'BUY' : 'SELL',
+        strength: result.metadata?.strength || 75,
+        confidence: result.metadata?.confidence || 70,
+        price: result.price,
+        reasoning: [
+          `${strategy.name} generated ${result.signal} signal`,
+          `Timeframe: ${timeframe}`,
+          ...Object.entries(result.metadata || {}).map(([k, v]) => `${k}: ${v}`)
+        ],
+        riskReward: 2.5,
+        stopLoss: result.metadata?.trailing_stop || (result.signal === 'BUY' ? result.price * 0.98 : result.price * 1.02),
+        takeProfit: result.signal === 'BUY' ? result.price * 1.05 : result.price * 0.95,
+        source: 'strategy',
+        strategyId: strategy.name
+      };
+      
+      await storage.createSignal(signalData);
+      console.log(`[Strategy ${strategy.name}] Signal created: ${result.signal} ${symbol} @ ${result.price}`);
+    }
     
     res.json({
       success: true,
@@ -410,6 +470,67 @@ async function backtestStrategy(
     });
   });
 }
+
+// POST /api/strategies/execute-all - Execute all active strategies
+router.post('/execute-all', async (req, res) => {
+  try {
+    const { symbols, timeframe } = req.body;
+    const symbolsToScan = symbols || ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
+    const tf = timeframe || '1h';
+    
+    const activeStrategies = STRATEGIES.filter(s => s.isActive);
+    const results = [];
+    
+    for (const strategy of activeStrategies) {
+      for (const symbol of symbolsToScan) {
+        try {
+          const result = await executeStrategy(strategy.id, symbol, tf, {});
+          
+          // Store signals in database
+          if (result.success && result.signal && result.signal !== 'HOLD') {
+            const signalData = {
+              symbol,
+              type: result.signal === 'BUY' || result.signal === 'LONG' ? 'BUY' : 'SELL',
+              strength: result.metadata?.strength || 75,
+              confidence: result.metadata?.confidence || 70,
+              price: result.price,
+              reasoning: [
+                `${strategy.name} generated ${result.signal} signal`,
+                `Timeframe: ${tf}`,
+                ...Object.entries(result.metadata || {}).map(([k, v]) => `${k}: ${v}`)
+              ],
+              riskReward: 2.5,
+              stopLoss: result.metadata?.trailing_stop || (result.signal === 'BUY' ? result.price * 0.98 : result.price * 1.02),
+              takeProfit: result.signal === 'BUY' ? result.price * 1.05 : result.price * 0.95,
+              source: 'strategy',
+              strategyId: strategy.name
+            };
+            
+            await storage.createSignal(signalData);
+          }
+          
+          results.push({
+            strategy: strategy.name,
+            symbol,
+            signal: result.signal,
+            success: result.success
+          });
+        } catch (error) {
+          console.error(`Error executing ${strategy.name} on ${symbol}:`, error);
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      results,
+      totalSignals: results.filter(r => r.signal !== 'HOLD').length
+    });
+  } catch (error) {
+    console.error('Error executing strategies:', error);
+    res.status(500).json({ success: false, error: 'Failed to execute strategies' });
+  }
+});
 
 export default router;
 

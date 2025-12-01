@@ -1,4 +1,66 @@
 
+import { Router } from 'express';
+import { storage } from '../storage';
+
+const router = Router();
+
+// POST /api/paper-trading/execute - Execute a position from a signal
+router.post('/execute', async (req, res) => {
+  try {
+    const { symbol, side, quantity, price, stopLoss, takeProfit } = req.body;
+    
+    if (!symbol || !side || !quantity || !price) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: symbol, side, quantity, price' 
+      });
+    }
+    
+    // Create trade record
+    const trade = await storage.createTrade({
+      symbol,
+      side,
+      entryPrice: price,
+      quantity,
+      stopLoss: stopLoss || (side === 'BUY' ? price * 0.98 : price * 1.02),
+      takeProfit: takeProfit || (side === 'BUY' ? price * 1.05 : price * 0.95),
+      status: 'OPEN',
+      entryTime: new Date(),
+    });
+    
+    console.log(`[Paper Trading] Executed ${side} ${quantity} ${symbol} @ $${price}`);
+    
+    res.json({
+      success: true,
+      trade,
+      message: `${side} position opened for ${symbol}`
+    });
+  } catch (error) {
+    console.error('Error executing paper trade:', error);
+    res.status(500).json({ success: false, error: 'Failed to execute trade' });
+  }
+});
+
+// GET /api/paper-trading/positions - Get all open positions
+router.get('/positions', async (req, res) => {
+  try {
+    const trades = await storage.getTrades();
+    const openPositions = trades.filter(t => t.status === 'OPEN');
+    
+    res.json({
+      success: true,
+      positions: openPositions,
+      total: openPositions.length
+    });
+  } catch (error) {
+    console.error('Error fetching positions:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch positions' });
+  }
+});
+
+export default router;
+
+
 import express, { type Request, type Response } from 'express';
 import { paperTradingEngine } from '../paper-trading-engine';
 

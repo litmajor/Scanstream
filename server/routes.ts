@@ -9,6 +9,10 @@ import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios'; // Import axios for CoinGecko API calls
 
+// Import strategy routes and paper trading routes
+import strategyRoutes from './routes/strategies';
+import paperTradingRoutes from './routes/paper-trading';
+
 // Create prisma instance
 const prisma = new PrismaClient();
 
@@ -17,7 +21,7 @@ let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
 let calculate_volume_profile: any, calculate_anchored_volume_profile: any, calculate_fixed_range_volume_profile: any;
 let calculate_composite_score: any, calculate_volume_composite_score: any, calculate_confidence_score: any;
 let calculate_value_area: any, calculate_poc: any;
-let runBacktest: any, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
+let runBacktest, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
 let MLSignalEnhancer: any, EnhancedMultiTimeframeAnalyzer: any;
 let registerChartApi: any, registerAdvancedIndicatorApi: any;
 let StrategyIntegrationEngine: any;
@@ -302,7 +306,7 @@ try {
   app.get('/api/strategies/list', async (req: Request, res: Response) => {
     try {
       const { symbol } = req.query;
-      
+
       // Mock strategies data with performance metrics
       const strategies = [
         {
@@ -854,7 +858,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       if (coingeckoGlobalData) {
         const marketCapChangePercent = coingeckoGlobalData.market_cap_change_percentage_24h_usd || 0;
         const btcDominance = coingeckoGlobalData.market_cap_percentage?.btc || 50;
-        
+
         // Calculate regime score (0-100)
         regimeScore = 50;
         if (marketCapChangePercent > 5) regimeScore += 25;
@@ -882,7 +886,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
         fearGreedIndex: fearGreedData?.value ?? null,
         fearGreedClassification: fearGreedData?.classification ?? 'Unknown',
         fearGreedTimestamp: fearGreedData?.timestamp ?? null,
-        
+
         // Global Market Data (REAL DATA)
         btcDominance: coingeckoGlobalData?.market_cap_percentage?.btc ?? null,
         ethDominance: coingeckoGlobalData?.market_cap_percentage?.eth ?? null,
@@ -891,25 +895,25 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
         marketCapChange24hPercent: coingeckoGlobalData?.market_cap_change_percentage_24h_usd ?? null,
         activeCryptocurrencies: coingeckoGlobalData?.active_cryptocurrencies ?? null,
         totalExchanges: coingeckoGlobalData?.markets ?? null,
-        
+
         // Top Gainers/Losers (REAL DATA with multi-timeframe)
         topGainers,
         topLosers,
-        
+
         // Trending Coins by Social Sentiment (REAL DATA)
         trendingCoins,
-        
+
         // Market Regime Analysis
         marketRegime: {
           status: regimeAnalysis,
           score: regimeScore,
-          description: regimeAnalysis === 'bullish' 
-            ? 'Market showing strong upward momentum' 
-            : regimeAnalysis === 'bearish' 
-              ? 'Market showing downward pressure' 
+          description: regimeAnalysis === 'bullish'
+            ? 'Market showing strong upward momentum'
+            : regimeAnalysis === 'bearish'
+              ? 'Market showing downward pressure'
               : 'Market in consolidation phase'
         },
-        
+
         // Metadata
         lastUpdated: new Date().toISOString(),
         dataSource: 'CoinGecko + Alternative.me',
@@ -1353,7 +1357,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.get('/api/strategies', async (req: Request, res: Response) => {
     try {
       const strategies = await prisma.strategy.findMany();
-      
+
       // Transform database records to include real performance metrics
       const enrichedStrategies = strategies.map(s => ({
         id: s.id,
@@ -1473,7 +1477,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       }
 
       // Calculate position size based on equity and volatility
-      const volatility = latestSignals.length > 1 
+      const volatility = latestSignals.length > 1
         ? Math.sqrt(latestSignals.reduce((sum: number, s: any, i: number) => {
             if (i === 0) return 0;
             const ret = (s.price - latestSignals[i-1].price) / latestSignals[i-1].price;
@@ -1533,6 +1537,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       res.status(500).json({ success: false, error: 'Failed to generate consensus' });
     }
   });
+
+  // Mount strategy routes and paper trading routes
+  app.use('/api/strategies', strategyRoutes);
+  app.use('/api/paper-trading', paperTradingRoutes);
 
   // At the end, create and return the httpServer:
   const httpServer = createServer(app);
@@ -1693,12 +1701,12 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
               // Suppress geo-restriction errors (451/403) - they're expected and handled gracefully
               const errorMsg = symbolError?.message || '';
               const statusCode = symbolError?.status || symbolError?.statusCode || 0;
-              const isGeoRestricted = statusCode === 403 || statusCode === 451 || 
+              const isGeoRestricted = statusCode === 403 || statusCode === 451 ||
                                     errorMsg.includes('403') || errorMsg.includes('451') ||
                                     errorMsg.includes('Forbidden') || errorMsg.includes('geo') ||
                                     errorMsg.includes('restricted') || errorMsg.includes('CloudFront') ||
                                     errorMsg.includes('Service unavailable');
-              
+
               if (!isGeoRestricted) {
                 console.error(`Error processing symbol ${symbol}:`, symbolError);
               }
@@ -1754,13 +1762,13 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const buyCount = signals.filter((s: any) => s.type === 'BUY' || s.signal === 'BUY').length;
       const sellCount = signals.filter((s: any) => s.type === 'SELL' || s.signal === 'SELL').length;
       const sentiment = buyCount > sellCount ? 'bullish' : sellCount > buyCount ? 'bearish' : 'neutral';
-      
+
       // Get CoinGecko global market data
       let fearGreedIndex = 50; // Default neutral value
       let btcDominance = 0;
       let totalMarketCap = 0;
       let volume24h = 0;
-      
+
       try {
         // Fetch Fear & Greed Index from Alternative.me
         const fearGreedResponse = await axios.get('https://api.alternative.me/fng/', { timeout: 5000 });
@@ -1770,7 +1778,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       } catch (err) {
         console.warn('[Market Sentiment] Failed to fetch Fear & Greed index, using default');
       }
-      
+
       try {
         // Fetch CoinGecko global data
         const globalResponse = await axios.get('https://api.coingecko.com/api/v3/global', { timeout: 5000 });
@@ -1783,7 +1791,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       } catch (err) {
         console.warn('[Market Sentiment] Failed to fetch CoinGecko global data');
       }
-      
+
       res.json({
         sentiment,
         buySignals: buyCount,
@@ -1809,7 +1817,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const openTrades = trades.filter((t: any) => t.status === 'open');
       const winningTrades = closedTrades.filter((t: any) => (t.profit || 0) > 0);
       const totalProfit = closedTrades.reduce((sum: number, t: any) => sum + (t.profit || 0), 0);
-      
+
       res.json({
         totalTrades: trades.length,
         openTrades: openTrades.length,
@@ -1852,10 +1860,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     try {
       const signals = await storage.getLatestSignals(50);
       const trades = await storage.getTrades();
-      const avgSignalStrength = signals.length > 0 
+      const avgSignalStrength = signals.length > 0
         ? (signals.reduce((sum: number, s: any) => sum + (s.strength || s.confidence || 0), 0) / signals.length).toFixed(2)
         : 0;
-      
+
       res.json({
         insights: [
           { type: 'trend', message: 'Market showing strong upward momentum in majors', confidence: 0.85 },
@@ -1882,9 +1890,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     try {
       const { symbol } = req.params;
       const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
-      
+
       const analysis: Record<string, any> = {};
-      
+
       for (const timeframe of timeframes) {
         analysis[timeframe] = {
           timeframe,
@@ -1928,9 +1936,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       const { symbol } = req.query;
       const targetSymbol = symbol || 'BTC/USDT';
       const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
-      
+
       const analysis: Record<string, any> = {};
-      
+
       for (const timeframe of timeframes) {
         analysis[timeframe] = {
           timeframe,

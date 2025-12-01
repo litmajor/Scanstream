@@ -1,10 +1,9 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, TrendingDown, Zap, Target, Brain, Bot, AlertCircle, ExternalLink, Star, Activity, ArrowUpRight, ArrowDownRight, Wifi, WifiOff } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, Target, Brain, Bot, AlertCircle, ExternalLink, Star, Activity, ArrowUpRight, ArrowDownRight, Wifi, WifiOff, Clock, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SentimentBadge } from './coingecko/SentimentIndicator';
 import { MarketRegimeBadge } from './coingecko/MarketRegimeBadge';
@@ -372,9 +371,9 @@ export function UnifiedSignalDisplay() {
     const avgStrength = signals.reduce((sum, s) => sum + s.strength, 0) / signals.length;
     const latestPrice = signals[0]?.price || 0;
     const latestChange = signals[0]?.change24h || signals[0]?.change || 0;
-    
-    const consensus: 'BUY' | 'SELL' | 'HOLD' = 
-      buyCount > sellCount ? 'BUY' : 
+
+    const consensus: 'BUY' | 'SELL' | 'HOLD' =
+      buyCount > sellCount ? 'BUY' :
       sellCount > buyCount ? 'SELL' : 'HOLD';
 
     const agreement = Math.max(buyCount, sellCount) / signals.length;
@@ -438,8 +437,8 @@ export function UnifiedSignalDisplay() {
 
         <TabsContent value="consensus" className="space-y-3">
           {unifiedSignals.map((unified) => (
-            <SignalCard 
-              key={unified.symbol} 
+            <SignalCard
+              key={unified.symbol}
               unified={unified}
               onTrade={(signal) => setSelectedSignal(signal)}
             />
@@ -483,9 +482,9 @@ export function UnifiedSignalDisplay() {
 
         <TabsContent value="high-conviction" className="space-y-3">
           {unifiedSignals.filter(u => u.agreement >= 0.75 && u.sourceCount >= 2).map((unified) => (
-            <SignalCard 
-              key={unified.symbol} 
-              unified={unified} 
+            <SignalCard
+              key={unified.symbol}
+              unified={unified}
               highlighted
               onTrade={(signal) => setSelectedSignal(signal)}
             />
@@ -505,6 +504,19 @@ export function UnifiedSignalDisplay() {
 }
 
 function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; highlighted?: boolean; onTrade: (signal: Signal) => void }) {
+  const { addNotification } = useNotifications();
+
+  const handleCopySignal = (signal: Signal) => {
+    navigator.clipboard.writeText(JSON.stringify(signal, null, 2));
+    addNotification(
+      'copy',
+      'info',
+      'Signal Copied',
+      `Signal details for ${signal.symbol} copied to clipboard.`,
+      { metadata: signal }
+    );
+  };
+
   const { data: compositeData } = useQuery<CompositeScore>({
     queryKey: ['composite-score', unified.symbol],
     queryFn: async () => {
@@ -522,8 +534,10 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
           includeSentiment: true,
         }),
       });
+      if (!response.ok) return null; // Handle non-OK responses
       return response.json();
     },
+    enabled: !!unified.symbol, // Only run query if symbol exists
     staleTime: 300000,
   });
 
@@ -566,7 +580,7 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
             </div>
 
             <div className="text-right space-y-2">
-              <Badge 
+              <Badge
                 variant={unified.consensus === 'BUY' ? 'default' : unified.consensus === 'SELL' ? 'destructive' : 'secondary'}
                 className="text-sm px-3 py-1"
               >
@@ -582,13 +596,54 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
               >
                 Trade Now
               </Button>
+              <div className="flex items-center space-x-2">
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Execute ${unified.consensus} position for ${unified.symbol} at $${unified.price}?`)) return;
+                        try {
+                          const res = await fetch('/api/paper-trading/execute', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              symbol: unified.symbol,
+                              side: unified.consensus,
+                              quantity: 0.01, // Default quantity
+                              price: unified.price,
+                              stopLoss: unified.signals[0]?.stopLoss || unified.price * (unified.consensus === 'BUY' ? 0.98 : 1.02),
+                              takeProfit: unified.signals[0]?.takeProfit || unified.price * (unified.consensus === 'BUY' ? 1.05 : 0.95)
+                            })
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            alert(`Position executed! Order ID: ${data.trade?.id}`);
+                          } else {
+                            alert(`Failed: ${data.error}`);
+                          }
+                        } catch (error) {
+                          console.error('Failed to execute position:', error);
+                          alert('Failed to execute position');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all text-white text-sm font-medium"
+                      title="Execute position"
+                    >
+                      Execute
+                    </button>
+                    <button
+                      onClick={() => handleCopySignal(unified.signals[0])}
+                      className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                      title="Copy signal details"
+                    >
+                      <Copy className="w-4 h-4 text-slate-400" />
+                    </button>
+                  </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             {unified.signals.map((signal: Signal, idx: number) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={cn('px-2 py-1 rounded-lg border text-xs font-medium flex items-center gap-1', getSourceColor(signal.source))}
               >
                 {getSourceIcon(signal.source)}

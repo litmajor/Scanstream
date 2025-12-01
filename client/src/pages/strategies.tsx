@@ -200,6 +200,31 @@ export default function StrategiesPage() {
             {/* Action Buttons */}
             <div className="flex items-center space-x-2">
               <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/strategies/execute-all', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'ADA/USDT'],
+                        timeframe: '1h'
+                      })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert(`Generated ${data.totalSignals} signals from ${data.results.length} strategy executions!`);
+                    }
+                  } catch (error) {
+                    console.error('Failed to execute strategies:', error);
+                    alert('Failed to execute strategies');
+                  }
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-green-500/20"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Generate Signals</span>
+              </button>
+              <button
                 onClick={() => setShowLiveMonitor(true)}
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-orange-500/20"
               >
