@@ -21,7 +21,7 @@ router.get('/predictions', async (_req: Request, res: Response) => {
     const recentFrames: MarketFrame[] = [];
 
     for (const symbol of defaultSymbols) {
-      const frames = await storage.getMarketFrames(symbol, 100);
+      const frames = await storage.getMarketFrames(symbol, 200);
       recentFrames.push(...frames);
     }
 

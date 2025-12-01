@@ -42,7 +42,7 @@ export class MemStorage implements IStorage {
   private strategies: Map<string, Strategy> = new Map();
   private backtestResults: Map<string, BacktestResult> = new Map();
 
-  async getMarketFrames(symbol: string, limit = 100): Promise<MarketFrame[]> {
+  async getMarketFrames(symbol: string, limit = 200): Promise<MarketFrame[]> {
     return Array.from(this.marketFrames.values())
       .filter(frame => frame.symbol === symbol)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())

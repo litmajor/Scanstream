@@ -10,7 +10,7 @@ export class DbStorage implements IStorage {
     this.prisma = new PrismaClient();
   }
 
-  async getMarketFrames(symbol: string, limit = 100): Promise<MarketFrame[]> {
+  async getMarketFrames(symbol: string, limit = 200): Promise<MarketFrame[]> {
     return this.prisma.marketFrame.findMany({
       where: { symbol },
       orderBy: { timestamp: 'desc' },
