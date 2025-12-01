@@ -32,13 +32,26 @@ export class SignalConsensusEngine {
   resolveSignalConsensus(
     scanner: SourceSignal,
     ml: SourceSignal,
-    rl: SourceSignal
+    rl: SourceSignal,
+    recentPerformance?: { scanner: number; ml: number; rl: number }
   ): ConsensusResult {
-    const weights = {
-      scanner: 0.40,  // Technical foundation most reliable
-      ml: 0.35,       // Pattern recognition
-      rl: 0.25        // Adaptive learning
+    // Adaptive weights: Use recent performance if available, otherwise default
+    let weights = {
+      scanner: 0.40,
+      ml: 0.35,
+      rl: 0.25
     };
+
+    if (recentPerformance) {
+      const total = recentPerformance.scanner + recentPerformance.ml + recentPerformance.rl;
+      if (total > 0) {
+        weights = {
+          scanner: recentPerformance.scanner / total,
+          ml: recentPerformance.ml / total,
+          rl: recentPerformance.rl / total
+        };
+      }
+    }
 
     // Step 1: Calculate weighted votes
     const scannerVote = this.directionToScore(scanner.direction) * weights.scanner;
@@ -173,24 +186,25 @@ export class SignalConsensusEngine {
   ): number {
     let agreement = 0;
 
-    // Perfect agreement
-    if (scanner.direction === ml.direction && ml.direction === rl.direction) {
-      agreement = 100;
-    }
-    // 2 agree
-    else if (scanner.direction === ml.direction || ml.direction === rl.direction || scanner.direction === rl.direction) {
-      agreement = 65;
-    }
-    // Divergence
-    else {
-      agreement = 30;
-    }
-
-    // Adjust for confidence levels - higher confidence = higher agreement score
+    // Confidence-weighted agreement: High confidence unanimity > Low confidence unanimity
+    const allAgree = scanner.direction === ml.direction && ml.direction === rl.direction;
+    const twoAgree = (scanner.direction === ml.direction || ml.direction === rl.direction || scanner.direction === rl.direction);
     const avgConfidence = (scanner.confidence + ml.confidence + rl.confidence) / 3;
-    agreement *= avgConfidence;
 
-    return Math.round(agreement);
+    if (allAgree) {
+      agreement = 100 * avgConfidence; // 3/3 agreement weighted by confidence
+    } else if (twoAgree) {
+      agreement = 65 * avgConfidence; // 2/3 agreement weighted by confidence
+    } else {
+      agreement = 30 * avgConfidence; // Conflicting signals, heavy discount
+    }
+
+    // Boost agreement if strongest sources agree (min 70% confidence on both)
+    if (scanner.confidence >= 0.70 && ml.confidence >= 0.70 && scanner.direction === ml.direction) {
+      agreement = Math.min(100, agreement * 1.1); // +10% boost for strong technical + ML agreement
+    }
+
+    return Math.round(Math.max(0, Math.min(100, agreement)));
   }
 
   private identifyConflicts(
