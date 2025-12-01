@@ -1,23 +1,39 @@
 import { Wallet, TrendingUp, Target, Activity } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import BaseWidget from './BaseWidget';
 
 interface PortfolioWidgetProps {
   id: string;
-  balance: number;
-  totalReturn: number;
-  winRate: number;
-  totalTrades: number;
   onRemove?: (id: string) => void;
+}
+
+interface PortfolioSummary {
+  totalValue: number;
+  performance: {
+    totalReturn: number;
+    winRate: number;
+    totalTrades: number;
+  };
 }
 
 export default function PortfolioWidget({
   id,
-  balance,
-  totalReturn,
-  winRate,
-  totalTrades,
   onRemove,
 }: PortfolioWidgetProps) {
+  const { data: portfolio } = useQuery<PortfolioSummary>({
+    queryKey: ['portfolio-summary'],
+    queryFn: async () => {
+      const response = await fetch('/api/portfolio/summary');
+      if (!response.ok) throw new Error('Failed to fetch portfolio');
+      return response.json();
+    },
+    refetchInterval: 10000,
+  });
+
+  const balance = portfolio?.totalValue || 0;
+  const totalReturn = portfolio?.performance?.totalReturn || 0;
+  const winRate = portfolio?.performance?.winRate || 0;
+  const totalTrades = portfolio?.performance?.totalTrades || 0;
   return (
     <BaseWidget
       id={id}

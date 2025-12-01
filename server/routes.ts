@@ -24,8 +24,8 @@ import mlPredictionsRouter from './routes/ml-predictions';
 import mlTrainingRouter from './routes/ml-training';
 import mlSignalsRouter from './routes/ml-signals';
 import mlAdvancedRoutes from './routes/ml-advanced';
-import mlAdvancedModelsRoutes from './routes/ml-advanced-models';
-
+import mlAdvancedModelsRouter from './routes/ml-advanced-models';
+import portfolioRouter from './routes/portfolio';
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -1643,8 +1643,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/ml-training', mlTrainingRouter);
   app.use('/api/ml-engine', mlSignalsRouter);
   app.use('/api/ml/advanced', mlAdvancedRoutes);
-  app.use('/api/ml-advanced', mlAdvancedModelsRoutes);
-
+  app.use('/api/ml-advanced', mlAdvancedModelsRouter);
+  app.use('/api/portfolio', portfolioRouter);
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
