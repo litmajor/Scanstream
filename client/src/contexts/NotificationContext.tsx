@@ -70,7 +70,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<NotificationSettings>(() => {
     const saved = localStorage.getItem('notificationSettings');
-    return saved ? JSON.JSON.parse(saved) : {
+    return saved ? JSON.parse(saved) : {
       soundEnabled: true,
       desktopEnabled: false,
       categories: {
@@ -86,6 +86,26 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   useEffect(() => {
     localStorage.setItem('notificationSettings', JSON.stringify(settings));
   }, [settings]);
+
+  // Show desktop notification (defined before use)
+  const showDesktopNotification = useCallback((title: string, message: string, priority: NotificationPriority) => {
+    if (!settings.desktopEnabled || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    const icon = '/favicon.svg';
+    const urgencyTag = priority === 'urgent' ? '!' : priority === 'high' ? '!' : '';
+
+    new Notification(`${urgencyTag}${title}`, {
+      body: message,
+      icon,
+      badge: icon,
+      tag: `notification-${Date.now()}`,
+      requireInteraction: priority === 'urgent',
+    });
+  }, [settings.desktopEnabled]);
+
+  // Unread count
+  const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
   // Listen for WebSocket notifications
   useEffect(() => {
@@ -111,27 +131,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     return () => {
       window.removeEventListener('ws-notification', handleWebSocketNotification as EventListener);
     };
-  }, [settings.soundEnabled, showDesktopNotification]); // Added settings.soundEnabled as dependency
-
-  // Unread count
-  const unreadCount = notifications.filter(n => n.status === 'unread').length;
-
-  // Show desktop notification
-  const showDesktopNotification = useCallback((title: string, message: string, priority: NotificationPriority) => {
-    if (!settings.desktopEnabled || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
-    const icon = '/favicon.svg';
-    const urgencyTag = priority === 'urgent' ? '🚨 ' : priority === 'high' ? '⚠️ ' : '';
-
-    new Notification(`${urgencyTag}${title}`, {
-      body: message,
-      icon,
-      badge: icon,
-      tag: `notification-${Date.now()}`,
-      requireInteraction: priority === 'urgent',
-    });
-  }, [settings.desktopEnabled]);
+  }, [settings.soundEnabled, showDesktopNotification]);
 
   // Add notification
   const addNotification = useCallback((

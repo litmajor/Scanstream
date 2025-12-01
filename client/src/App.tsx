@@ -34,12 +34,12 @@ import LandingPage from "@/pages/landing";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
 import GatewayAlertsPage from "@/pages/gateway-alerts";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import AppLayout from "./components/AppLayout";
 
-function AuthenticatedRouter({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => void }) {
+function AuthenticatedRouter() {
   return (
-    <AppLayout isDark={isDark} toggleTheme={toggleTheme}>
+    <AppLayout>
       <Switch>
         <Route path="/" component={TradingTerminal} />
         <Route path="/signals" component={SignalsPage} />
@@ -79,7 +79,7 @@ function UnauthenticatedRouter() {
   );
 }
 
-function AppRouter({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () => void }) {
+function AppRouter() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
@@ -97,47 +97,18 @@ function AppRouter({ isDark, toggleTheme }: { isDark: boolean; toggleTheme: () =
     return <UnauthenticatedRouter />;
   }
 
-  return <AuthenticatedRouter isDark={isDark} toggleTheme={toggleTheme} />;
+  return <AuthenticatedRouter />;
 }
 
 function App() {
-  const [isDark, setIsDark] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      return savedTheme === 'dark';
-    }
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return true;
-    }
-    return false;
-  });
-
-  const toggleTheme = () => {
-    setIsDark(prev => {
-      const newTheme = !prev;
-      localStorage.setItem('theme', newTheme ? 'dark' : 'light');
-      return newTheme;
-    });
-  };
-
   useEffect(() => {
     const htmlElement = document.documentElement;
-    if (isDark) {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       htmlElement.classList.add('dark');
     } else {
       htmlElement.classList.remove('dark');
     }
-  }, [isDark]);
-
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'T') {
-        e.preventDefault();
-        toggleTheme();
-      }
-    };
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
   return (
@@ -146,7 +117,7 @@ function App() {
         <NotificationProvider>
           <TooltipProvider>
             <Toaster />
-            <AppRouter isDark={isDark} toggleTheme={toggleTheme} />
+            <AppRouter />
           </TooltipProvider>
         </NotificationProvider>
       </ThemeProvider>
