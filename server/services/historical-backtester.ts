@@ -5,6 +5,7 @@
  */
 
 import { SignalPipeline, AggregatedSignal } from '../lib/signal-pipeline';
+import { SignalClassifier } from '../lib/signal-classifier';
 import { getBacktester, BacktestSignal } from './signal-backtester';
 import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 import yahooFinance from 'yahoo-finance2';
@@ -49,14 +50,25 @@ interface HistoricalBacktestResult {
   dataSource: string;
 }
 
+interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 export class HistoricalBacktester {
   private signalPipeline: SignalPipeline;
+  private signalClassifier: SignalClassifier;
   private backtester = getBacktester();
   private readonly MINIMUM_SIGNALS_FOR_ANALYSIS = 50;
   private readonly YAHOO_TIMEOUT = 30000; // 30 second timeout per request
 
   constructor() {
     this.signalPipeline = new SignalPipeline();
+    this.signalClassifier = new SignalClassifier();
   }
 
   /**
@@ -70,7 +82,7 @@ export class HistoricalBacktester {
     console.log(`[HistoricalBacktest] Assets: ${assets.length} | Data source: Yahoo Finance (REAL)`);
 
     // Fetch real historical data
-    const allCandles: Array<{ timestamp: number; close: number }> = [];
+    const allCandles: Candle[] = [];
     const historicalReturns: number[] = [];
     const downsideReturns: number[] = [];
     const patternStats = new Map<string, { signals: number; wins: number; returns: number[] }>();
@@ -85,11 +97,40 @@ export class HistoricalBacktester {
           successCount++;
           allCandles.push(...candles);
 
-          // Calculate returns from candles
+          // Detect patterns from candle data using SignalClassifier + analyze returns
           for (let i = 1; i < candles.length; i++) {
-            const ret = ((candles[i].close - candles[i - 1].close) / candles[i - 1].close) * 100;
+            const prevCandle = candles[i - 1];
+            const currCandle = candles[i];
+            const ret = ((currCandle.close - prevCandle.close) / prevCandle.close) * 100;
             historicalReturns.push(ret);
             if (ret < 0) downsideReturns.push(ret);
+
+            // Calculate support/resistance for pattern detection
+            const support = Math.min(prevCandle.low, currCandle.low) * 0.98;
+            const resistance = Math.max(prevCandle.high, currCandle.high) * 1.02;
+            
+            // Use SignalClassifier to detect actual patterns from indicators
+            const classificationResult = this.signalClassifier.classifySignal({
+              support,
+              resistance,
+              price: currCandle.close,
+              prevPrice: prevCandle.close,
+              volume: currCandle.volume,
+              prevVolume: prevCandle.volume,
+              rsi: 50 + (Math.random() - 0.5) * 40 // Simulated RSI for now
+            });
+
+            // Track detected patterns (prefer SUPPORT_BOUNCE if detected with volume/price action)
+            if (classificationResult.patterns.length > 0) {
+              const detectedPattern = classificationResult.patterns[0].pattern;
+              if (!patternStats.has(detectedPattern)) {
+                patternStats.set(detectedPattern, { signals: 0, wins: 0, returns: [] });
+              }
+              const stats = patternStats.get(detectedPattern)!;
+              stats.signals++;
+              stats.returns.push(ret);
+              if (ret > 0) stats.wins++;
+            }
           }
         }
       } catch (err) {
@@ -100,11 +141,12 @@ export class HistoricalBacktester {
     console.log(`[HistoricalBacktest] Successfully fetched ${successCount} assets from Yahoo Finance`);
     console.log(`[HistoricalBacktest] Total data points: ${allCandles.length} candles`);
 
-    // If real data fetch fails, fall back to realistic simulation
+    // If real data fetch fails, fall back to realistic simulation (keeping pattern distribution)
     if (historicalReturns.length === 0) {
       console.log(`[HistoricalBacktest] Insufficient real data, using realistic simulation`);
       const dayCount = Math.ceil((config.endDate.getTime() - config.startDate.getTime()) / (1000 * 60 * 60 * 24));
       const signalsPerDay = Math.max(1, Math.floor(assets.length * dayCount / 2000));
+      const patterns = ['BREAKOUT', 'REVERSAL', 'MA_CROSSOVER', 'SUPPORT_BOUNCE', 'ML_PREDICTION'];
 
       for (let i = 0; i < signalsPerDay * dayCount; i++) {
         const baseReturnDistribution = this.generateRealisticReturn();
@@ -112,20 +154,17 @@ export class HistoricalBacktester {
         if (baseReturnDistribution < 0) {
           downsideReturns.push(baseReturnDistribution);
         }
+        
+        // Still assign patterns for sim fallback
+        const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+        if (!patternStats.has(pattern)) {
+          patternStats.set(pattern, { signals: 0, wins: 0, returns: [] });
+        }
+        const stats = patternStats.get(pattern)!;
+        stats.signals++;
+        stats.returns.push(baseReturnDistribution);
+        if (baseReturnDistribution > 0) stats.wins++;
       }
-    }
-
-    // Generate pattern stats from returns
-    const patterns = ['BREAKOUT', 'REVERSAL', 'MA_CROSSOVER', 'SUPPORT_BOUNCE', 'ML_PREDICTION'];
-    for (const ret of historicalReturns) {
-      const pattern = patterns[Math.floor(Math.random() * patterns.length)];
-      if (!patternStats.has(pattern)) {
-        patternStats.set(pattern, { signals: 0, wins: 0, returns: [] });
-      }
-      const stats = patternStats.get(pattern)!;
-      stats.signals++;
-      stats.returns.push(ret);
-      if (ret > 0) stats.wins++;
     }
 
     // Calculate metrics
@@ -157,13 +196,13 @@ export class HistoricalBacktester {
   }
 
   /**
-   * Fetch real historical data from Yahoo Finance
+   * Fetch real historical OHLCV data from Yahoo Finance
    */
   private async fetchHistoricalData(
     symbol: string,
     startDate: Date,
     endDate: Date
-  ): Promise<Array<{ timestamp: number; close: number }>> {
+  ): Promise<Candle[]> {
     try {
       // Convert symbol (e.g., "BTC" -> "BTC-USD")
       const yahooSymbol = symbol === 'USDT' ? 'USDT' : `${symbol}-USD`;
@@ -182,7 +221,11 @@ export class HistoricalBacktester {
       if (Array.isArray(result)) {
         return result.map(candle => ({
           timestamp: candle.date.getTime(),
-          close: candle.close || 0
+          open: candle.open || 0,
+          high: candle.high || 0,
+          low: candle.low || 0,
+          close: candle.close || 0,
+          volume: candle.volume || 0
         }));
       }
       return [];
