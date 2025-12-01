@@ -31,6 +31,8 @@ import portfolioRouter from './routes/portfolio';
 import signalQualityRouter from './routes/signal-quality';
 // Import flow field analytics routes
 import flowFieldRouter from './routes/flow-field';
+// Import velocity profiles routes
+import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -758,6 +760,14 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 });
 
 
+
+  // Register velocity profile API
+  try {
+    registerVelocityProfileRoutes(app);
+    console.log('[INIT] Velocity Profile API registered at /api/velocity/*');
+  } catch (error) {
+    console.warn('Velocity Profile API could not be registered:', error);
+  }
 
   // Register chart and advanced indicator APIs (conditionally)
   if (registerChartApi) {
