@@ -1,7 +1,7 @@
 /**
  * SCANSTREAM Signal Pipeline
  * Unified data flow: Gateway → Scanner → RL/ML → Quality Engine → Presentation
- * 
+ *
  * Architecture:
  * 1. GATEWAY LAYER: Raw market data (prices, volume, order flow)
  * 2. SCANNER LAYER: Pattern detection (technical analysis, flow-field)
@@ -24,6 +24,7 @@ import memoize from 'memoizee';
 import { DynamicPositionSizer } from '../services/dynamic-position-sizer';
 import { MultiTimeframeConfirmation } from '../services/multi-timeframe-confirmation';
 import type { EnhancedMultiTimeframeSignal } from '../multi-timeframe';
+import { correlationHedgeManager, type Position, type MarketRegime } from '../services/correlation-hedge-manager'; // Integrated correlation hedging
 
 // ============================================================================
 // DATA STRUCTURES - Optimized for performance and frontend consumption
@@ -161,6 +162,9 @@ export interface AggregatedSignal {
       positionMultiplier: number;
     };
   };
+
+  // Correlation Hedging
+  hedgeRecommendation?: string; // Recommendation from correlation hedge manager
 }
 
 // ============================================================================
@@ -468,13 +472,13 @@ export class SignalPipeline {
 
     // Get intelligent exit levels
     const exitState = exitManager.getState();
-    
+
     // Override stop/target with intelligent levels
     mtfEnhancedSignal.stopLoss = exitState.currentStop;
     mtfEnhancedSignal.takeProfit = exitState.currentTarget;
-    
+
     // Add exit manager metadata
-    mtfEnhancedSignal.reasoning.push(
+    mtfEnhancedSignal.quality.reasons.push( // Use quality.reasons for consistency
       `Intelligent Exit: ${exitState.stage} stage`,
       `Dynamic stop: ${exitState.currentStop.toFixed(2)}`,
       `Initial target: ${exitState.currentTarget.toFixed(2)}`
@@ -502,10 +506,32 @@ export class SignalPipeline {
 
     console.log(`[Pipeline] ${symbol} - Position size: $${finalPositionSize.toFixed(2)} (${(finalPositionSize/accountBalance*100).toFixed(2)}% of account) [MTF multiplier: ${mtfRecommendation.positionMultiplier.toFixed(2)}x]`);
 
-    // Update the signal with MTF and position sizing details
+    // Step 6: Check portfolio hedge requirements
+    // This would typically be called with current portfolio state
+    // For now, we'll add hedge metadata to signal
+    const portfolioRisk = {
+      totalExposure: 0,
+      effectiveExposure: 0,
+      correlationRisk: 0.88, // Typical crypto correlation
+      positionCount: 0,
+      averageCorrelation: 0.88,
+      totalValue: 100000
+    };
+
+    const marketRegime: MarketRegime = {
+      regime: regimeData.regime, // Use detected regime
+      volatility: regimeData.indicators.volatility,
+      trend: regimeData.indicators.adx, // Using ADX as a proxy for trend strength
+      riskLevel: 'MEDIUM' // This should be dynamically determined
+    };
+
+    const hedgeDecision = correlationHedgeManager.shouldHedge(portfolioRisk, marketRegime);
+
+    // Update the signal with MTF, position sizing, and hedging details
     const finalSignal: AggregatedSignal = {
       ...mtfEnhancedSignal,
       positionSize: finalPositionSize,
+      hedgeRecommendation: hedgeDecision.shouldHedge ? hedgeDecision.reason : undefined,
       metadata: {
         ...mtfEnhancedSignal.metadata, // Spread existing metadata if any
         positionSize: finalPositionSize,
@@ -519,6 +545,17 @@ export class SignalPipeline {
           confidenceMultiplier: mtfRecommendation.confidenceMultiplier,
           positionMultiplier: mtfRecommendation.positionMultiplier
         }
+      },
+      quality: { // Ensure quality reasons include hedge check
+        ...mtfEnhancedSignal.quality,
+        reasons: [...mtfEnhancedSignal.quality.reasons, ...(hedgeDecision.shouldHedge ? [`Hedge required: ${hedgeDecision.reason}`] : [])]
+      },
+      pipeline: { // Add hedgeChecked flag
+        positionSized: true,
+        exitManaged: true,
+        mtfConfirmed: mtfRecommendation.action !== 'SKIP',
+        hedgeChecked: true,
+        timestamp: new Date().toISOString()
       }
     };
 
@@ -526,6 +563,7 @@ export class SignalPipeline {
     // Add metadata for performance tracking
     (finalSignal as any).dominantSource = dominantSource;
     (finalSignal as any).primaryPattern = primaryClassification;
+    (finalSignal as any).marketRegime = regimeData.regime; // Add regime to signal for easier access
 
     // Track signal for future performance weighting
     signalPerformanceTracker.trackSignal(finalSignal);
