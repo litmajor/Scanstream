@@ -5,6 +5,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { SignalAccuracyEngine } from './signal-accuracy';
 
 const prisma = new PrismaClient();
 
@@ -41,6 +42,11 @@ export interface QualityScore {
 
 export class SignalQualityEngine {
   private performanceCache: Map<string, { wins: number; losses: number; rate: number }> = new Map();
+  private accuracyEngine: SignalAccuracyEngine;
+
+  constructor() {
+    this.accuracyEngine = new SignalAccuracyEngine();
+  }
 
   /**
    * Calculate comprehensive quality score for a signal
@@ -91,17 +97,40 @@ export class SignalQualityEngine {
     scores.convergence = convergence.score;
     reasons.push(...convergence.reasons);
 
-    // 4. Historical Accuracy (0-15 points)
-    const accuracy = await this.getHistoricalAccuracy(signal.type, signal.symbol);
-    if (accuracy >= 0.70) {
-      scores.accuracy = 15;
-      reasons.push(`Signal type has ${(accuracy * 100).toFixed(1)}% historical accuracy`);
-    } else if (accuracy >= 0.55) {
-      scores.accuracy = 8;
-      reasons.push(`Signal type has ${(accuracy * 100).toFixed(1)}% historical accuracy`);
+    // 4. Historical Accuracy (0-20 points) - IMPROVED WITH PATTERN ACCURACY
+    let totalAccuracy = 0;
+    if (signal.classifications && signal.classifications.length > 0) {
+      // Use pattern-specific accuracy
+      for (const pattern of signal.classifications) {
+        const adjustment = this.accuracyEngine.adjustConfidenceByAccuracy(0.5, pattern as any, "1h");
+        totalAccuracy += adjustment.patternAccuracy;
+        reasons.push(...adjustment.reasoning);
+      }
+      const avgPatternAccuracy = totalAccuracy / signal.classifications.length;
+      if (avgPatternAccuracy >= 0.75) {
+        scores.accuracy = 20;
+      } else if (avgPatternAccuracy >= 0.70) {
+        scores.accuracy = 16;
+      } else if (avgPatternAccuracy >= 0.60) {
+        scores.accuracy = 12;
+      } else if (avgPatternAccuracy >= 0.50) {
+        scores.accuracy = 6;
+      } else {
+        scores.accuracy = 0;
+      }
     } else {
-      scores.accuracy = 0;
-      reasons.push('Poor historical accuracy for this signal type');
+      // Fallback to signal type accuracy
+      const accuracy = await this.getHistoricalAccuracy(signal.type, signal.symbol);
+      if (accuracy >= 0.70) {
+        scores.accuracy = 15;
+        reasons.push(`Signal type has ${(accuracy * 100).toFixed(1)}% historical accuracy`);
+      } else if (accuracy >= 0.55) {
+        scores.accuracy = 8;
+        reasons.push(`Signal type has ${(accuracy * 100).toFixed(1)}% historical accuracy`);
+      } else {
+        scores.accuracy = 0;
+        reasons.push('Poor historical accuracy for this signal type');
+      }
     }
 
     // 5. Risk/Reward Score (0-10 points)

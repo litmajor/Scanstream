@@ -61,6 +61,12 @@ export interface ClassificationResult {
 }
 
 export class SignalClassifier {
+  private accuracyEngine: any; // Will be injected
+
+  constructor(accuracyEngine?: any) {
+    this.accuracyEngine = accuracyEngine;
+  }
+
   /**
    * Classify signal - detects MULTIPLE patterns
    */
