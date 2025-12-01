@@ -5,9 +5,10 @@
  */
 
 import express, { type Request, type Response } from 'express';
-import { getExchangeDataFeed } from '../trading-engine';
+import { ExchangeDataFeed } from '../trading-engine';
 
 const router = express.Router();
+let dataFeed: ExchangeDataFeed | null = null;
 
 /**
  * GET /api/analysis/multi-timeframe
@@ -25,7 +26,9 @@ router.get('/', async (req: Request, res: Response) => {
       });
     }
 
-    const dataFeed = getExchangeDataFeed();
+    if (!dataFeed) {
+      dataFeed = new ExchangeDataFeed(['binance', 'coinbase', 'kraken', 'kucoinfutures', 'okx', 'bybit']);
+    }
     const timeframes = ['1h', '4h', '1d'];
     
     // Fetch data for each timeframe

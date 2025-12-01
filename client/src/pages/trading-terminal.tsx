@@ -337,7 +337,7 @@ export default function TradingTerminal() {
   const [showSymbolSearch, setShowSymbolSearch] = useState(false);
   const [availableExchanges, setAvailableExchanges] = useState<string[]>([]);
   const [selectedExchange, setSelectedExchange] = useState<string>('binance');
-  const [currentPrice, setCurrentPrice] = useState(45000); // Start with mock BTC price
+  const [currentPrice, setCurrentPrice] = useState(0); // Will be set from real data
   const [priceChange, setPriceChange] = useState(0);
   const [priceChangePercent, setPriceChangePercent] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -721,6 +721,34 @@ export default function TradingTerminal() {
     setLoading(l => ({ ...l, multiTF: multiTFLoading }));
     setError(e => ({ ...e, multiTF: multiTFError }));
   }, [multiTFLoading, multiTFError]);
+
+  // Fetch real price data for selected symbol
+  const { data: priceData } = useQuery({
+    queryKey: ['/api/gateway/price', selectedSymbol],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/gateway/price/${selectedSymbol}`);
+        if (!response.ok) return null;
+        return response.json();
+      } catch (e) {
+        return null;
+      }
+    },
+    refetchInterval: 3000,
+  });
+
+  // Update current price from real data
+  useEffect(() => {
+    if (priceData?.price) {
+      setCurrentPrice(priceData.price);
+      if (priceData.priceChange !== undefined) {
+        setPriceChange(priceData.priceChange);
+      }
+      if (priceData.priceChangePercent !== undefined) {
+        setPriceChangePercent(priceData.priceChangePercent);
+      }
+    }
+  }, [priceData]);
 
   // Fetch chart data from CoinGecko with error recovery
   const { data: coinGeckoChartData, isLoading: isChartLoading, error: chartError, refetch: refetchChart } = useCoinGeckoChart(selectedSymbol, 7);
