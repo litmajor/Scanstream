@@ -24,8 +24,6 @@ import {
 
 interface AppLayoutProps {
   children: React.ReactNode;
-  isDark: boolean;
-  toggleTheme: () => void;
 }
 
 interface NavItem {
@@ -60,10 +58,10 @@ const navItems: NavItem[] = [
   { name: 'Card Showcase', path: '/card-showcase', icon: Wallet, section: 'dev' },
 ];
 
-export default function AppLayout({ children, isDark, toggleTheme }: AppLayoutProps) {
+export default function AppLayout({ children }: AppLayoutProps) {
   const [location] = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { preset, colors } = useTheme();
+  const { preset, setPreset, colors } = useTheme();
 
   const mainItems = navItems.filter(item => item.section === 'main');
   const tradingItems = navItems.filter(item => item.section === 'trading');
@@ -224,15 +222,16 @@ export default function AppLayout({ children, isDark, toggleTheme }: AppLayoutPr
 
           {/* Theme Toggle at Bottom */}
           <div className="border-t border-slate-800 p-3 space-y-2">
-            {/* Legacy dark/light toggle */}
+            {/* Modern theme toggle */}
             <button
-              onClick={toggleTheme}
+              onClick={() => setPreset(preset === 'dark' ? 'light' : 'dark')}
               className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 transition-all hover:bg-slate-800 text-slate-400 hover:text-white ${
                 !isSidebarOpen && 'justify-center'
               }`}
-              title={isSidebarOpen ? 'Toggle theme (Ctrl+Shift+T)' : isDark ? 'Light mode' : 'Dark mode'}
+              title={preset === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              data-testid="button-theme-toggle"
             >
-              {isDark ? (
+              {preset === 'dark' ? (
                 <>
                   <Sun className="h-5 w-5 flex-shrink-0" />
                   {isSidebarOpen && <span className="font-medium">Light Mode</span>}
