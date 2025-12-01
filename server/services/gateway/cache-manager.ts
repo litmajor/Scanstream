@@ -55,7 +55,9 @@ export class CacheManager {
     // Evict oldest if at capacity
     if (this.cache.size >= this.maxEntries) {
       const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
     }
 
     this.cache.set(key, {

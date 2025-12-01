@@ -286,19 +286,11 @@ def health_check():
     })
 
 
-@app.route('/api/scanner/scan', methods=['POST'])
-def trigger_scan():
+def _run_scan_background(data):
     """
-    Trigger a market scan (single or parallel)
-    Request body:
-    {
-        "timeframe": "1h" | "4h" | "1d" | "scalping" | "short" | "medium" | "daily",
-        "exchange": "binance" | "kucoinfutures" | "coinbase" | "kraken" | ["binance", "okx"],
-        "parallel": true | false (default: false, auto-enabled if exchange is array),
-        "signal": "all" | "BUY" | "SELL" | "HOLD",
-        "minStrength": 0-100,
-        "fullAnalysis": true | false
-    }
+    Background thread function to execute scan asynchronously
+    This avoids HTTP timeout and keeps API responsive
+    Data dict is passed in (not request object)
     """
     global last_scan_results, last_scan_timestamp
     
@@ -306,7 +298,6 @@ def trigger_scan():
     scan_start_time = datetime.now()
     
     try:
-        data = request.get_json() or {}
         
         # Extract parameters
         timeframe = data.get('timeframe', 'medium')
@@ -326,6 +317,21 @@ def trigger_scan():
         # Auto-enable parallel if multiple exchanges
         if len(exchanges) > 1:
             parallel_mode = True
+        
+        # Auto-initialize scanner if not already initialized (for single exchange scans)
+        global scanner
+        if not parallel_mode and scanner is None:
+            logger.info(f"Auto-initializing scanner for {exchanges[0]}")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                scanner = get_scanner(loop, exchanges[0])
+                logger.info(f"Auto-initialized scanner for {exchanges[0]}")
+            except Exception as e:
+                logger.error(f"Failed to auto-initialize scanner: {e}")
+                raise
+            finally:
+                loop.close()
         
         # === PARALLEL SCANNING MODE ===
         if parallel_mode and len(exchanges) > 1:
@@ -384,32 +390,7 @@ def trigger_scan():
             last_scan_timestamp = scan_end_time
             
             logger.info(f"⏱️  Filtering and formatting took: {filter_duration:.2f} seconds")
-            
-            return jsonify({
-                'signals': all_results,
-                'metadata': {
-                    'count': len(all_results),
-                    'mode': 'parallel',
-                    'exchanges': exchanges,
-                    'exchange_details': parallel_result['exchange_metadata'],
-                    'timeframe': timeframe,
-                    'timestamp': scan_end_time.isoformat(),
-                    'duration_seconds': round(total_duration, 2),
-                    'performance': {
-                        'parallel_duration': parallel_result['parallel_duration'],
-                        'sequential_duration_estimated': parallel_result['sequential_duration_estimated'],
-                        'speedup': parallel_result['speedup'],
-                        'time_saved_seconds': parallel_result['time_saved'],
-                        'filtering_seconds': round(filter_duration, 2),
-                        'successful_scans': parallel_result['successful_scans'],
-                        'failed_scans': parallel_result['failed_scans']
-                    },
-                    'filters_applied': {
-                        'signal': signal_filter,
-                        'minStrength': min_strength * 100
-                    }
-                }
-            })
+            logger.info(f"Parallel scan background task completed: {len(all_results)} signals found")
         
         # === SINGLE EXCHANGE SCANNING MODE ===
         exchange = exchanges[0]
@@ -471,17 +452,6 @@ def trigger_scan():
             logger.warning(f"   End Time: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             logger.warning(f"   Total Duration: {total_duration:.2f} seconds")
             logger.warning("="*80)
-            
-            return jsonify({
-                'signals': [],
-                'metadata': {
-                    'count': 0,
-                    'timeframe': timeframe,
-                    'exchange': exchange,
-                    'timestamp': scan_end_time.isoformat(),
-                    'duration_seconds': round(total_duration, 2)
-                }
-            })
         
         # Store results
         last_scan_results = results
@@ -534,47 +504,75 @@ def trigger_scan():
         logger.info(f"     - Filtering: {filter_duration:.2f}s ({(filter_duration/total_duration*100):.1f}%)")
         logger.info("="*80)
         
-        return jsonify({
-            'signals': signals,
-            'metadata': {
-                'count': len(signals),
-                'total_scanned': len(results),
-                'timeframe': timeframe,
-                'exchange': exchange,
-                'timestamp': scan_end_time.isoformat(),
-                'duration_seconds': round(total_duration, 2),
-                'performance': {
-                    'initialization_seconds': round(init_duration, 2),
-                    'scan_execution_seconds': round(scan_exec_duration, 2),
-                    'filtering_seconds': round(filter_duration, 2),
-                    'total_seconds': round(total_duration, 2)
-                },
-                'filters_applied': {
-                    'signal': signal_filter,
-                    'minStrength': min_strength * 100,
-                    'exchange': exchange
-                }
-            }
-        })
-        
     except Exception as e:
         scan_end_time = datetime.now()
         total_duration = (scan_end_time - scan_start_time).total_seconds()
         
         logger.error("="*80)
         logger.error(f"❌ SCAN FAILED")
-        logger.error(f"   Exchange: {data.get('exchange', 'kucoinfutures') if 'data' in locals() else 'unknown'}")
-        logger.error(f"   Timeframe: {data.get('timeframe', 'medium') if 'data' in locals() else 'unknown'}")
+        logger.error(f"   Exchange: {data.get('exchange', 'kucoinfutures')}")
+        logger.error(f"   Timeframe: {data.get('timeframe', 'medium')}")
         logger.error(f"   Error: {str(e)}")
         logger.error(f"   End Time: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         logger.error(f"   Duration Before Failure: {total_duration:.2f} seconds")
         logger.error("="*80)
         logger.error(f"Stack trace:", exc_info=True)
+
+
+@app.route('/api/scanner/scan', methods=['POST'])
+def trigger_scan():
+    """
+    Trigger a market scan (single or parallel)
+    Returns 202 Accepted immediately - scan runs in background
+    Request body:
+    {
+        "timeframe": "1h" | "4h" | "1d" | "scalping" | "short" | "medium" | "daily",
+        "exchange": "binance" | "kucoinfutures" | "coinbase" | "kraken" | ["binance", "okx"],
+        "parallel": true | false (default: false, auto-enabled if exchange is array),
+        "signal": "all" | "BUY" | "SELL" | "HOLD",
+        "minStrength": 0-100,
+        "fullAnalysis": true | false
+    }
+    """
+    try:
+        data = request.get_json() or {}
         
+        # Determine if parallel mode
+        exchange_param = data.get('exchange', 'kucoinfutures')
+        parallel_mode = data.get('parallel', False)
+        
+        if isinstance(exchange_param, list):
+            exchanges = exchange_param
+            parallel_mode = True
+        else:
+            exchanges = [exchange_param]
+        
+        if len(exchanges) > 1:
+            parallel_mode = True
+        
+        mode_str = "parallel" if parallel_mode else "single"
+        logger.info(f"Scan request queued: {mode_str} mode, exchanges: {exchanges}")
+        
+        # Spawn background thread to run scan
+        scan_thread = threading.Thread(target=_run_scan_background, args=(data,), daemon=True)
+        scan_thread.start()
+        
+        # Return immediately with 202 Accepted
+        return jsonify({
+            'status': 'accepted',
+            'message': f'Scan queued in background ({mode_str} mode)',
+            'mode': mode_str,
+            'exchanges': exchanges,
+            'timeframe': data.get('timeframe', 'medium'),
+            'timestamp': datetime.now().isoformat(),
+            'note': 'Poll /api/scanner/status to check progress. Results will be available in /api/scanner/signals'
+        }), 202
+        
+    except Exception as e:
+        logger.error(f"Error queueing scan: {str(e)}", exc_info=True)
         return jsonify({
             'error': str(e),
-            'message': 'Failed to complete market scan',
-            'duration_seconds': round(total_duration, 2)
+            'message': 'Failed to queue scan'
         }), 500
 
 
@@ -665,13 +663,115 @@ def get_signals():
 @app.route('/api/scanner/status', methods=['GET'])
 def get_status():
     """Get scanner status and statistics"""
+    global scanner
+    is_initialized = scanner is not None
+    is_active = is_initialized  # Only active if properly initialized
+    
     return jsonify({
-        'status': 'active',
-        'scanner_initialized': scanner is not None,
+        'status': 'active' if is_active else 'inactive',
+        'scanner_initialized': is_initialized,
         'last_scan': last_scan_timestamp.isoformat() if last_scan_timestamp else None,
         'results_count': len(last_scan_results) if last_scan_results is not None else 0,
         'timestamp': datetime.now().isoformat()
     })
+
+
+def _initialize_scanner_background(exchange_id):
+    """
+    Background thread function to initialize scanner
+    """
+    global scanner
+    
+    try:
+        logger.info(f"Background init starting for exchange: {exchange_id}")
+        
+        # Create event loop and initialize scanner
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            scanner = get_scanner(loop, exchange_id)
+            logger.info(f"✅ Scanner initialized successfully for {exchange_id} (background)")
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"❌ Error initializing scanner in background: {str(e)}", exc_info=True)
+
+
+@app.route('/api/scanner/initialize', methods=['POST'])
+def initialize_scanner():
+    """Initialize the scanner with a specific exchange (non-blocking)"""
+    global scanner
+    
+    try:
+        data = request.get_json() or {}
+        exchange_id = data.get('exchange', 'kucoinfutures')
+        
+        if scanner is not None:
+            logger.info(f"Scanner already initialized for exchange: {exchange_id}")
+            return jsonify({
+                'status': 'already_initialized',
+                'message': f'Scanner is already initialized',
+                'exchange': exchange_id,
+                'timestamp': datetime.now().isoformat()
+            }), 200
+        
+        logger.info(f"Queueing scanner initialization for exchange: {exchange_id}")
+        
+        # Spawn background thread to initialize
+        init_thread = threading.Thread(target=_initialize_scanner_background, args=(exchange_id,), daemon=True)
+        init_thread.start()
+        
+        # Return immediately with 202 Accepted
+        return jsonify({
+            'status': 'accepted',
+            'message': f'Scanner initialization queued for {exchange_id}',
+            'exchange': exchange_id,
+            'timestamp': datetime.now().isoformat(),
+            'note': 'Poll /api/scanner/status to check when scanner_initialized is true'
+        }), 202
+            
+    except Exception as e:
+        logger.error(f"Error queueing scanner initialization: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'message': 'Failed to queue scanner initialization'
+        }), 500
+
+
+@app.route('/api/scanner/reset', methods=['POST'])
+def reset_scanner():
+    """Reset scanner state (clears current instance)"""
+    global scanner, last_scan_results, last_scan_timestamp
+    
+    try:
+        if scanner:
+            # Close exchange connection if needed
+            if hasattr(scanner, 'exchange') and hasattr(scanner.exchange, 'close'):
+                try:
+                    asyncio.run(scanner.exchange.close())
+                except:
+                    pass
+        
+        scanner = None
+        last_scan_results = None
+        last_scan_timestamp = None
+        
+        logger.info("Scanner reset successfully")
+        
+        return jsonify({
+            'status': 'reset',
+            'message': 'Scanner has been reset',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error resetting scanner: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'message': 'Failed to reset scanner'
+        }), 500
 
 
 @app.route('/api/scanner/multi-timeframe', methods=['POST'])

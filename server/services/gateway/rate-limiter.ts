@@ -156,7 +156,24 @@ export class RateLimiter {
   /**
    * Get rate limit stats
    */
-  getStats(exchange: string) {
+  getStats(exchange?: string) {
+    if (!exchange) {
+      // Return stats for all exchanges
+      return Object.fromEntries(
+        Array.from(this.buckets.entries()).map(([ex, bucket]) => [
+          ex,
+          {
+            exchange: ex,
+            availableTokens: Math.floor(bucket.tokens),
+            capacity: bucket.capacity,
+            usage: 1 - (bucket.tokens / bucket.capacity),
+            queueLength: this.queue.filter(r => r.exchange === ex).length,
+            healthy: this.isHealthy(ex),
+            failures: this.failureCount.get(ex) || 0
+          }
+        ])
+      );
+    }
     const bucket = this.buckets.get(exchange);
     if (!bucket) return null;
 

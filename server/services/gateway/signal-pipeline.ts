@@ -53,6 +53,8 @@ export class SignalPipeline {
 
       return {
         ...signal,
+        id: signal.id || require('crypto').randomUUID(),
+        timestamp: signal.timestamp || new Date(),
         reasoning: [
           ...signal.reasoning,
           `Price confidence: ${priceData.confidence.toFixed(1)}% (${priceData.sources.length} sources)`,

@@ -71,34 +71,33 @@ export default function AppLayout({ children, isDark, toggleTheme }: AppLayoutPr
   const devItems = navItems.filter(item => item.section === 'dev');
 
   return (
-    <div className={isDark ? 'dark' : ''}>
-      <div className="min-h-screen bg-slate-950 text-white">
-        {/* Sidebar */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ${
-            isSidebarOpen ? 'w-64' : 'w-16'
-          }`}
-        >
-          {/* Header */}
-          <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
-            {isSidebarOpen && (
-              <div className="flex items-center space-x-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
-                  <LayoutDashboard className="h-5 w-5" />
-                </div>
-                <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  AlgoTrader
-                </span>
+    <div className="min-h-screen bg-slate-950 text-white dark:bg-slate-950 dark:text-white transition-colors duration-300 flex">
+      {/* Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ${
+          isSidebarOpen ? 'w-64' : 'w-16'
+        }`}
+      >
+        {/* Header */}
+        <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
+          {isSidebarOpen && (
+            <div className="flex items-center space-x-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
+                <LayoutDashboard className="h-5 w-5" />
               </div>
-            )}
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="rounded-lg p-2 hover:bg-slate-800 transition-colors"
-              aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            >
-              {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
+              <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                AlgoTrader
+              </span>
+            </div>
+          )}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="rounded-lg p-2 hover:bg-slate-800 transition-colors"
+            aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-6">
@@ -260,14 +259,13 @@ export default function AppLayout({ children, isDark, toggleTheme }: AppLayoutPr
 
         {/* Main Content */}
         <main
-          className={`transition-all duration-300 ${
+          className={`flex-1 transition-all duration-300 ${
             isSidebarOpen ? 'ml-64' : 'ml-16'
           }`}
         >
           {children}
         </main>
       </div>
-    </div>
   );
 }
 

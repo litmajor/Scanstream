@@ -28,6 +28,7 @@ export interface ExchangeHealth {
   lastError?: string;
   lastErrorTime?: Date;
   consecutiveFailures: number;
+  isGeoRestricted?: boolean;
 }
 
 export interface GatewayHealth {

@@ -80,6 +80,16 @@ function App() {
     });
   };
 
+  // Apply theme to document root for Tailwind dark mode
+  useEffect(() => {
+    const htmlElement = document.documentElement;
+    if (isDark) {
+      htmlElement.classList.add('dark');
+    } else {
+      htmlElement.classList.remove('dark');
+    }
+  }, [isDark]);
+
   // Add keyboard shortcut for theme toggle (Ctrl+Shift+T)
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -91,7 +101,7 @@ function App() {
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // toggleTheme is stable, no need in deps
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

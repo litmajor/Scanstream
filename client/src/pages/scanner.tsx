@@ -44,6 +44,8 @@ export default function ScannerPage() {
   // WebSocket for real-time scanner updates
   const [realTimeSignals, setRealTimeSignals] = useState<any[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
+  const [apiHealthy, setApiHealthy] = useState(true);
+  const [scannerInitialized, setScannerInitialized] = useState(false);
 
   // Load cached FastScanner results on mount
   useEffect(() => {
@@ -73,6 +75,34 @@ export default function ScannerPage() {
     };
 
     loadCachedResults();
+  }, []);
+
+  // Check Scanner API health periodically
+  useEffect(() => {
+    const checkApiHealth = async () => {
+      try {
+        const response = await fetch('/api/scanner/status', { signal: AbortSignal.timeout(3000) });
+        if (response.ok) {
+          const data = await response.json();
+          setApiHealthy(true);
+          setScannerInitialized(data.scanner_initialized || false);
+          console.log('[Scanner] API healthy, initialized:', data.scanner_initialized);
+        } else {
+          setApiHealthy(false);
+          console.warn('[Scanner] API returned status:', response.status);
+        }
+      } catch (error) {
+        setApiHealthy(false);
+        console.warn('[Scanner] API health check failed:', error);
+      }
+    };
+
+    // Check immediately
+    checkApiHealth();
+
+    // Then check every 10 seconds
+    const interval = setInterval(checkApiHealth, 10000);
+    return () => clearInterval(interval);
   }, []);
   const [scanProgress, setScanProgress] = useState<{ total: number; remaining: number } | null>(null);
 
@@ -440,8 +470,53 @@ export default function ScannerPage() {
         }),
       });
 
+      // Handle 202 Accepted - scan is queued in background
+      if (response.status === 202) {
+        const data = await response.json();
+        console.log('✅ Scan queued in background:', data);
+        
+        // Show success message with polling info
+        alert(`✅ Scan Accepted!\n\n${data.message}\n\nMode: ${data.mode}\nExchanges: ${data.exchanges.join(', ')}\n\nThe scan is running in the background. Results will appear in the data grid as they complete.`);
+        
+        // Start polling for results
+        let pollCount = 0;
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          
+          // Stop polling after 5 minutes
+          if (pollCount > 60) {
+            clearInterval(pollInterval);
+            setIsScanning(false);
+            alert('⏰ Scan polling timeout. Check results manually.');
+            return;
+          }
+          
+          try {
+            // Check scanner status
+            const statusResponse = await fetch('/api/scanner/status');
+            const status = await statusResponse.json();
+            
+            console.log(`[Scan Poll ${pollCount}] Status:`, status);
+            
+            // If we have new results, refetch them
+            if (status.last_scan) {
+              console.log('📊 Scan results available, refreshing data...');
+              await refetch();
+              clearInterval(pollInterval);
+              setIsScanning(false);
+              console.log('✅ Scan complete and results loaded');
+            }
+          } catch (pollErr) {
+            console.error('Poll error:', pollErr);
+          }
+        }, 5000); // Poll every 5 seconds
+        
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error(`Scan failed: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Scan failed: ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -456,8 +531,9 @@ export default function ScannerPage() {
       // After successful scan, refetch the data
       await refetch();
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('Scan error:', err);
-      alert('Failed to trigger scan. Please ensure the scanner service is running.');
+      alert(`❌ Failed to trigger scan: ${errorMessage}`);
     } finally {
       setIsScanning(false);
     }
@@ -483,6 +559,13 @@ export default function ScannerPage() {
           }),
         });
 
+        // Handle 202 Accepted responses
+        if (response.status === 202) {
+          const data = await response.json();
+          console.log(`✅ Scan queued for ${exchange}:`, data);
+          continue; // Move to next exchange
+        }
+
         if (response.ok) {
           const data = await response.json();
           setAllExchangeSignals(prev => {
@@ -490,12 +573,43 @@ export default function ScannerPage() {
             updated.set(exchange, data.signals || []);
             return updated;
           });
+        } else {
+          console.warn(`⚠️ Scan failed for ${exchange}`);
         }
       }
-      await refetch();
+      
+      // After all scans queued, start polling
+      console.log('📊 All exchange scans queued, polling for results...');
+      let pollCount = 0;
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+        
+        if (pollCount > 60) {
+          clearInterval(pollInterval);
+          setIsScanning(false);
+          alert('⏰ Multi-exchange scan polling timeout.');
+          return;
+        }
+        
+        try {
+          const statusResponse = await fetch('/api/scanner/status');
+          const status = await statusResponse.json();
+          
+          if (status.last_scan) {
+            console.log('📊 Results available from multi-exchange scan');
+            await refetch();
+            clearInterval(pollInterval);
+            setIsScanning(false);
+          }
+        } catch (err) {
+          console.error('Poll error:', err);
+        }
+      }, 5000);
+      
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('Multi-exchange scan error:', err);
-    } finally {
+      alert(`❌ Failed to scan exchanges: ${errorMessage}`);
       setIsScanning(false);
     }
   };
@@ -722,7 +836,7 @@ export default function ScannerPage() {
                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all flex items-center space-x-2 text-white font-semibold shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Search className={`w-4 h-4 ${isScanning ? 'animate-pulse' : ''}`} />
-                <span>{isScanning ? 'Scanning...' : 'Scan ' + selectedExchange.toUpperCase()}</span>
+                <span>{isScanning ? 'Queuing scan...' : 'Scan ' + selectedExchange.toUpperCase()}</span>
               </button>
 
               <button
@@ -866,6 +980,31 @@ export default function ScannerPage() {
         {scanProgress && scanProgress.remaining > 0 && (
           <div className="mb-6">
             <ScanProgress total={scanProgress.total} remaining={scanProgress.remaining} />
+          </div>
+        )}
+
+        {/* API & Scanner Status */}
+        {!apiHealthy && (
+          <div className="mb-4 bg-red-900/20 border border-red-800 rounded-lg p-4 backdrop-blur-sm">
+            <p className="text-sm text-red-200">
+              ❌ Scanner API unavailable. Cannot trigger scans.
+            </p>
+          </div>
+        )}
+
+        {apiHealthy && !scannerInitialized && (
+          <div className="mb-4 bg-yellow-900/20 border border-yellow-800 rounded-lg p-4 backdrop-blur-sm">
+            <p className="text-sm text-yellow-200">
+              ⚠️ Scanner not initialized yet. Click "Scan" to initialize.
+            </p>
+          </div>
+        )}
+
+        {apiHealthy && scannerInitialized && (
+          <div className="mb-4 bg-green-900/20 border border-green-800 rounded-lg p-4 backdrop-blur-sm">
+            <p className="text-sm text-green-200">
+              ✅ Scanner API connected and initialized. Ready to scan.
+            </p>
           </div>
         )}
 
@@ -1372,7 +1511,7 @@ export default function ScannerPage() {
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               <RefreshCw className={`w-5 h-5 ${isScanning ? 'animate-spin' : ''}`} />
-              {isScanning ? 'Fetching...' : 'Fetch Market Data'}
+              {isScanning ? 'Queuing scan...' : 'Fetch Market Data'}
             </button>
 
             {/* Render the SignalFilters component */}

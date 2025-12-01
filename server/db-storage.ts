@@ -69,11 +69,36 @@ export class DbStorage implements IStorage {
       reasoning: signal.reasoning ?? {},
       type: signal.type as "BUY" | "SELL" | "HOLD",
     };
-    const result = await this.prisma.signal.create({ data: safeSignal });
-    return {
-      ...result,
-      type: result.type as "BUY" | "SELL" | "HOLD",
-    };
+    
+    try {
+      const result = await this.prisma.signal.create({ data: safeSignal });
+      return {
+        ...result,
+        type: result.type as "BUY" | "SELL" | "HOLD",
+      };
+    } catch (error: any) {
+      // If unique constraint violation, try to update existing signal instead
+      if (error?.code === 'P2002') {
+        console.warn(`Signal already exists, updating instead of creating new one`);
+        // Find by symbol and use the latest one
+        const existing = await this.prisma.signal.findFirst({
+          where: { symbol: signal.symbol },
+          orderBy: { timestamp: 'desc' }
+        });
+        
+        if (existing) {
+          const result = await this.prisma.signal.update({
+            where: { id: existing.id },
+            data: safeSignal,
+          });
+          return {
+            ...result,
+            type: result.type as "BUY" | "SELL" | "HOLD",
+          };
+        }
+      }
+      throw error;
+    }
   }
 
   async getLatestSignals(limit = 10): Promise<Signal[]> {
@@ -241,6 +266,17 @@ export class DbStorage implements IStorage {
       orderBy: { timestamp: 'desc' },
       take: limit,
     });
+  }
+
+  async createSignalPerformance(performance: any): Promise<void> {
+    // Store signal performance metrics - could be in a separate table or cache
+    // For now, we'll just log it since signal tracking is handled elsewhere
+    console.log('[DbStorage] Signal performance tracked:', performance);
+  }
+
+  async updateSignalPerformance(signalId: string, updates: any): Promise<void> {
+    // Update signal performance metrics
+    console.log('[DbStorage] Signal performance updated:', { signalId, updates });
   }
 }
 

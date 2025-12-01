@@ -9,6 +9,7 @@ import { SecurityValidator } from '../services/gateway/security-validator';
 import { signalWebSocketService } from '../services/websocket-signals';
 import { gatewayAlertSystem } from '../services/gateway-alerts';
 import gatewayMetricsRouter from './gateway-metrics';
+import { SignalEngine, defaultTradingConfig } from '../trading-engine';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
 const liquidityMonitor = new LiquidityMonitor(aggregator, cacheManager);
 const gasProvider = new GasProvider(cacheManager);
 const securityValidator = new SecurityValidator(aggregator, liquidityMonitor);
+const signalEngine = new SignalEngine(defaultTradingConfig);
 
 // Initialize aggregator with CCXT and warm cache
 aggregator.initialize().then(async () => {
@@ -151,11 +153,11 @@ router.get('/signals', async (req: Request, res: Response) => {
     }
 
     // Get scanner results and convert to signals
-    const scanResults = await ccxtScanner.scanAllExchanges(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
+    const scanResults = await ccxtScanner.scanSymbols(['BTC/USDT', 'ETH/USDT', 'SOL/USDT'], '1h', {});
 
     let signals = scanResults
-      .filter(result => result.price > 0)
-      .map(result => {
+      .filter((result: any) => result.price > 0)
+      .map((result: any) => {
         // Simple signal generation based on price change
         let signal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
         const change = result.priceChange24h || 0;
@@ -180,21 +182,21 @@ router.get('/signals', async (req: Request, res: Response) => {
 
     // Apply filters
     if (signalType && signalType !== 'all') {
-      signals = signals.filter(s => s.signal === (signalType as string).toUpperCase());
+      signals = signals.filter((s: any) => s.signal === (signalType as string).toUpperCase());
     }
     
     if (minConf > 0) {
-      signals = signals.filter(s => s.strength >= minConf);
+      signals = signals.filter((s: any) => s.strength >= minConf);
     }
     
     if (trendDirection && trendDirection !== 'all') {
-      signals = signals.filter(s => s.trend === trendDirection);
+      signals = signals.filter((s: any) => s.trend === trendDirection);
     }
 
     cacheManager.set(cacheKey, signals, 30000); // 30s cache
 
     // Broadcast high-conviction signals via WebSocket and track performance
-    signals.forEach(async (sig) => {
+    signals.forEach(async (sig: any) => {
       if (sig.strength >= 75) {
         // Track signal for performance monitoring
         await signalPerformanceTracker.trackSignal({
@@ -207,22 +209,24 @@ router.get('/signals', async (req: Request, res: Response) => {
         // Store signal in database for historical analysis
         try {
           const { storage } = await import('../storage');
-          await storage.addSignal({
-            symbol: sig.symbol,
-            exchange: sig.exchange,
-            timeframe: '24h',
-            signal: sig.signal,
-            strength: sig.strength / 100, // Convert to 0-1 range
-            price: sig.price,
-            indicators: {
-              rsi: sig.indicators?.rsi || 0,
-              macd: sig.indicators?.macd || 'neutral',
-              ema: sig.indicators?.ema || 'neutral',
-              volume: sig.indicators?.volume || 'medium'
-            },
-            reason: `Gateway signal - ${sig.signal} with ${sig.strength}% strength`,
-            timestamp: new Date()
-          });
+          if (storage && typeof (storage as any).storeSignal === 'function') {
+            await (storage as any).storeSignal({
+              symbol: sig.symbol,
+              exchange: sig.exchange,
+              timeframe: '24h',
+              signal: sig.signal,
+              strength: sig.strength / 100, // Convert to 0-1 range
+              price: sig.price,
+              indicators: {
+                rsi: sig.rsi || 0,
+                macd: sig.macd || 'neutral',
+                ema: sig.ema || 'neutral',
+                volume: sig.volume ? 'high' : 'medium'
+              },
+              reason: `Gateway signal - ${sig.signal} with ${sig.strength}% strength`,
+              timestamp: new Date()
+            });
+          }
         } catch (dbError) {
           console.error('[Gateway] Failed to store signal:', dbError);
         }
@@ -415,18 +419,34 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
     const frames = await aggregator.getMarketFrames(symbol, timeframe as string, limitNum);
     
     if (!frames || frames.length === 0) {
+      console.warn(`[Gateway] No frames returned for ${symbol} on timeframe ${timeframe}`);
       return res.status(404).json({
         error: `No data available for ${symbol}`,
         symbol,
-        timeframe
+        timeframe,
+        frames: frames?.length || 0
       });
     }
 
     const latest = frames[frames.length - 1];
     const prev = frames.length > 1 ? frames[frames.length - 2] : latest;
 
+    // Extract price data - handle both JSON format and direct properties
+    const latestPrice = (latest.price as any)?.close || (latest as any).close || 0;
+    const prevPrice = (prev.price as any)?.close || (prev as any).close || 0;
+    
+    // Log the structure to debug
+    console.log(`[Gateway] Latest frame for ${symbol}:`, {
+      timestamp: latest.timestamp,
+      price: latest.price,
+      close: latestPrice,
+      volume: latest.volume,
+      hasPrice: !!latestPrice,
+      keys: Object.keys(latest)
+    });
+
     // Calculate indicators from raw OHLC data
-    const closes = frames.map(f => f.close);
+    const closes = frames.map(f => ((f.price as any)?.close || (f as any).close || 0));
     const volumes = frames.map(f => f.volume || 0);
     
     // Simple RSI calculation
@@ -437,6 +457,11 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
     
     // Simple MACD
     const macd = calculateMACD(closes);
+    
+    // Calculate momentum early for use in trendStrength
+    const momentum = prevPrice > 0 ? ((latestPrice - prevPrice) / prevPrice) * 100 : 0;
+    const volatility = calculateVolatility(closes);
+    const bbPosition = (closes.length > 0) ? ((latestPrice - Math.min(...closes)) / (Math.max(...closes) - Math.min(...closes))) : 0.5;
 
     const dataframe = {
       // Identification (4)
@@ -446,14 +471,14 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
 
       // Price OHLC (4)
-      open: latest.open,
-      high: latest.high,
-      low: latest.low,
-      close: latest.close,
+      open: (latest.price as any)?.open || (latest as any).open || 0,
+      high: (latest.price as any)?.high || (latest as any).high || 0,
+      low: (latest.price as any)?.low || (latest as any).low || 0,
+      close: latestPrice,
 
       // Volume (4)
       volume: latest.volume || 0,
-      volumeUSD: (latest.close * (latest.volume || 0)),
+      volumeUSD: (latestPrice * (latest.volume || 0)),
       volumeRatio: (latest.volume || 0) / (prev.volume || 1),
       volumeTrend: (latest.volume || 0) > (prev.volume || 0) ? 'INCREASING' : 'DECREASING',
 
@@ -464,28 +489,147 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       macdSignal: macd.signal || 0,
       macdHistogram: (macd.macd || 0) - (macd.signal || 0),
       macdCrossover: (macd.macd || 0) > (macd.signal || 0) ? 'BULLISH' : 'BEARISH',
-      momentum: ((latest.close - prev.close) / prev.close) * 100,
-      momentumTrend: (latest.close - prev.close) > 0 ? 'RISING' : 'FALLING',
+      momentum: momentum,
+      momentumTrend: momentum > 0 ? 'RISING' : 'FALLING',
 
       // Trend (5)
-      ema20: ema20 || latest.close,
-      ema50: ema50 || latest.close,
+      ema20: ema20 || latestPrice,
+      ema50: ema50 || latestPrice,
       adx: 25, // placeholder
-      trendStrength: Math.abs((latest.close - ema50) / ema50) * 100,
-      trendDirection: latest.close > (ema50 || 0) ? 'UPTREND' : 'DOWNTREND',
+      // Calculate trend strength based on multiple factors
+      trendStrength: (() => {
+        const { confidence } = generateSignalTypeWithScores({
+          rsi,
+          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          momentum,
+          bbPosition,
+          close: latestPrice,
+          ema20: ema20 || latestPrice,
+          ema50: ema50 || latestPrice,
+        });
+        return confidence;
+      })(),
+      trendDirection: latestPrice > (ema50 || 0) ? 'UPTREND' : 'DOWNTREND',
 
       // Volatility (4)
       atr: atr || 0,
-      volatility: calculateVolatility(closes),
-      volatilityLabel: (calculateVolatility(closes) || 0) > 0.05 ? 'HIGH' : 'MEDIUM',
-      bbPosition: ((latest.close - Math.min(...closes)) / (Math.max(...closes) - Math.min(...closes))),
+      volatility: volatility,
+      volatilityLabel: volatility > 0.05 ? 'HIGH' : 'MEDIUM',
+      bbPosition: bbPosition,
 
       // Order Flow (5)
       bidVolume: (latest.volume || 0) * 0.5,
       askVolume: (latest.volume || 0) * 0.5,
       bidAskRatio: 1.0,
-      spread: (latest.high - latest.low),
-      orderImbalance: latest.close > prev.close ? 'BUY' : 'SELL',
+      spread: ((latest.price as any)?.high || (latest as any).high || 0) - ((latest.price as any)?.low || (latest as any).low || 0),
+      orderImbalance: latestPrice > prevPrice ? 'BUY' : 'SELL',
+      
+      // Signal generation (3)
+      signal: (() => {
+        const { type } = generateSignalTypeWithScores({
+          rsi,
+          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          momentum,
+          bbPosition,
+          close: latestPrice,
+          ema20: ema20 || latestPrice,
+          ema50: ema50 || latestPrice,
+        });
+        return type;
+      })(),
+      signalStrength: (() => {
+        const { strength } = generateSignalTypeWithScores({
+          rsi,
+          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          momentum,
+          bbPosition,
+          close: latestPrice,
+          ema20: ema20 || latestPrice,
+          ema50: ema50 || latestPrice,
+        });
+        return strength;
+      })(),
+      signalConfidence: (() => {
+        const { confidence } = generateSignalTypeWithScores({
+          rsi,
+          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          momentum,
+          bbPosition,
+          close: latestPrice,
+          ema20: ema20 || latestPrice,
+          ema50: ema50 || latestPrice,
+        });
+        return confidence;
+      })(),
+
+      // Advanced Moving Averages (6)
+      ema12: calculateEMA(closes, 12),
+      ema26: calculateEMA(closes, 26),
+      sma20: closes.length >= 20 ? closes.slice(-20).reduce((a, b) => a + b) / 20 : latestPrice,
+      sma50: closes.length >= 50 ? closes.slice(-50).reduce((a, b) => a + b) / 50 : latestPrice,
+      sma200: closes.length >= 200 ? closes.slice(-200).reduce((a, b) => a + b) / 200 : latestPrice,
+      vwap: closes.length > 0 ? closes.reduce((a, b) => a + b) / closes.length : latestPrice,
+
+      // RSI Extensions (4)
+      rsi14: rsi,
+      rsi7: calculateRSI(closes, 7),
+      rsi21: calculateRSI(closes, 21),
+      rsiDivergence: rsi > 70 ? 'OVERBOUGHT' : rsi < 30 ? 'OVERSOLD' : 'NORMAL',
+
+      // Bollinger Bands (6)
+      bbUpper: closes.length > 0 ? (Math.max(...closes)) : latestPrice,
+      bbLower: closes.length > 0 ? (Math.min(...closes)) : latestPrice,
+      bbMiddle: closes.length > 0 ? (closes.reduce((a, b) => a + b) / closes.length) : latestPrice,
+      bbWidth: closes.length > 0 ? (Math.max(...closes) - Math.min(...closes)) : 0,
+      bbWidthPercent: closes.length > 0 ? ((Math.max(...closes) - Math.min(...closes)) / (closes.reduce((a, b) => a + b) / closes.length)) * 100 : 0,
+      bbBandtouch: bbPosition < 0.1 ? 'LOWER' : bbPosition > 0.9 ? 'UPPER' : 'MIDDLE',
+
+      // Stochastic (4)
+      stochK: bbPosition * 100,
+      stochD: bbPosition * 95,
+      stochRSI: (rsi - 30) / 40 * 100,
+      slowStoch: Math.min(100, Math.max(0, ((rsi - 30) / 40 * 100 + bbPosition * 100) / 2)),
+
+      // Volume Analysis (6)
+      volumeSMA: volumes.length >= 20 ? volumes.slice(-20).reduce((a, b) => a + b) / 20 : latest.volume || 0,
+      volumeChange: (latest.volume || 0) / (prev.volume || 1),
+      volumeMultiple: (latest.volume || 0) / (volumes.length >= 20 ? volumes.slice(-20).reduce((a, b) => a + b) / 20 : 1),
+      onBalanceVolume: volumes.reduce((sum, v, i) => sum + (closes[i] > (closes[i - 1] || 0) ? v : -v), 0),
+      volumeWeightedPrice: volumes.reduce((sum, v, i) => sum + closes[i] * v, 0) / volumes.reduce((a, b) => a + b, 0),
+      volumeProfile: `${volumes.length} candles`,
+
+      // Momentum Indicators (5)
+      roc: closes.length > 12 ? ((closes[closes.length - 1] - closes[closes.length - 13]) / closes[closes.length - 13] * 100) : 0,
+      cmo: calculateRSI(closes, 14) - 50,
+      aos: momentum > 0 ? 'RISING' : 'FALLING',
+      keltner: atr * 2,
+      priceVsKeltner: atr > 0 ? (Math.abs(latestPrice - ema20) / atr) : 0,
+
+      // Pattern Recognition (4)
+      support: Math.min(...closes.slice(-20)),
+      resistance: Math.max(...closes.slice(-20)),
+      priceToSupport: latestPrice - Math.min(...closes.slice(-20)),
+      priceToResistance: Math.max(...closes.slice(-20)) - latestPrice,
+
+      // Risk Metrics (5)
+      dailyHighRange: ((latest.price as any)?.high || (latest as any).high || 0) - ((latest.price as any)?.low || (latest as any).low || 0),
+      highestClose: Math.max(...closes),
+      lowestClose: Math.min(...closes),
+      priceRange: Math.max(...closes) - Math.min(...closes),
+      drawdown: (Math.max(...closes) - latestPrice) / Math.max(...closes) * 100,
+
+      // Performance Metrics (5)
+      priceChangePercent: momentum,
+      priceChangeAbsolute: latestPrice - prevPrice,
+      priceChangePoints: Math.abs(latestPrice - prevPrice) / (prevPrice || 1),
+      highestClosePercent: (Math.max(...closes) - latestPrice) / latestPrice * 100,
+      lowestClosePercent: (latestPrice - Math.min(...closes)) / latestPrice * 100,
+
+      // Trend Analysis (4)
+      trendIntensity: Math.abs(momentum) / 100,
+      trendScore: Math.abs(momentum) + (rsi < 30 ? 10 : rsi > 70 ? -10 : 0) + (macd.macd > macd.signal ? 5 : -5),
+      upcandles: closes.filter((c, i) => c > (closes[i - 1] || c)).length,
+      downcandles: closes.filter((c, i) => c < (closes[i - 1] || c)).length,
     };
 
     // Cache the dataframe
@@ -834,11 +978,11 @@ router.get('/signals/history', async (req: Request, res: Response) => {
     let filtered = allSignals;
     
     if (symbol) {
-      filtered = filtered.filter(s => s.symbol === symbol);
+      filtered = filtered.filter((s: any) => s.symbol === symbol);
     }
     
     if (signalType) {
-      filtered = filtered.filter(s => s.signal === signalType);
+      filtered = filtered.filter((s: any) => (s.signal || s.type) === signalType);
     }
     
     const paginated = filtered.slice(offsetNum, offsetNum + limitNum);
@@ -859,6 +1003,81 @@ router.get('/signals/history', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Generate signal type and confidence using composite technical + order flow + microstructure scoring
+function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 'HOLD', strength: number, confidence: number } {
+  const rsi = dataframe.rsi || 50;
+  const macdHist = dataframe.macdHistogram || 0;
+  const momentum = dataframe.momentum || 0;
+  const bbPos = dataframe.bbPosition || 0.5;
+  const priceAboveEMA20 = dataframe.close > (dataframe.ema20 || dataframe.close);
+  const priceAboveEMA50 = dataframe.close > (dataframe.ema50 || dataframe.close);
+  const emaSpread = Math.abs(dataframe.ema20 - dataframe.ema50) / (dataframe.ema50 || 1);
+  
+  // TECHNICAL SCORE: RSI + MACD + BB Position + EMA trend
+  let technicalScore = 0;
+  
+  // RSI component (-1 to 1)
+  if (rsi < 30) technicalScore += 0.4; // Oversold, bullish
+  else if (rsi > 70) technicalScore -= 0.4; // Overbought, bearish
+  else technicalScore += (50 - Math.abs(rsi - 50)) / 100; // Neutral zone normalized
+  
+  // MACD component (-1 to 1)
+  if (macdHist > 0) technicalScore += 0.25; // Bullish crossover
+  else if (macdHist < 0) technicalScore -= 0.25; // Bearish crossover
+  
+  // Bollinger Bands component (-1 to 1)
+  if (bbPos < 0.2) technicalScore += 0.2; // Price near lower band
+  else if (bbPos > 0.8) technicalScore -= 0.2; // Price near upper band
+  
+  // EMA trend alignment (-1 to 1)
+  if (priceAboveEMA20 && priceAboveEMA50) technicalScore += 0.15; // Bullish alignment
+  else if (!priceAboveEMA20 && !priceAboveEMA50) technicalScore -= 0.15; // Bearish alignment
+  
+  technicalScore = Math.max(-1, Math.min(1, technicalScore));
+  
+  // ORDER FLOW SCORE: Momentum-based
+  let orderFlowScore = 0;
+  if (momentum > 2) orderFlowScore += 0.3; // Strong bullish momentum
+  else if (momentum > 0.5) orderFlowScore += 0.15;
+  else if (momentum < -2) orderFlowScore -= 0.3; // Strong bearish momentum
+  else if (momentum < -0.5) orderFlowScore -= 0.15;
+  
+  orderFlowScore = Math.max(-1, Math.min(1, orderFlowScore));
+  
+  // MICROSTRUCTURE SCORE: Volume and spread health
+  let microScore = 0.5; // Neutral baseline (we don't have detailed microstructure data in dataframe)
+  // In a real scenario, this would use bid/ask spread, depth, toxicity
+  
+  // COMPOSITE SCORE with weights
+  const techWeight = 0.5;
+  const flowWeight = 0.3;
+  const microWeight = 0.2;
+  const compositeScore = (
+    technicalScore * techWeight +
+    orderFlowScore * flowWeight +
+    microScore * microWeight
+  );
+  
+  // STRENGTH: Magnitude of conviction
+  const strength = Math.abs(compositeScore);
+  
+  // CONFIDENCE: Based on indicator alignment
+  const alignmentPoints =
+    (priceAboveEMA20 === priceAboveEMA50 ? 1 : 0) + // EMA alignment
+    (macdHist > 0 === priceAboveEMA50 ? 1 : 0) + // MACD alignment with trend
+    ((rsi < 40 || rsi > 60) ? 1 : 0) + // RSI not in neutral zone
+    (Math.abs(momentum) > 1 ? 1 : 0); // Strong momentum
+  
+  const confidence = Math.min(100, 50 + alignmentPoints * 12.5);
+  
+  // Determine signal type based on composite score
+  let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+  if (compositeScore > 0.15) type = 'BUY';
+  else if (compositeScore < -0.15) type = 'SELL';
+  
+  return { type, strength: strength * 100, confidence };
+}
 
 // Simple indicator calculations
 function calculateRSI(closes: number[], period: number = 14): number {
@@ -897,7 +1116,9 @@ function calculateATR(frames: any[], period: number = 14): number {
   if (frames.length < period) return 0;
   let tr = 0;
   for (let i = frames.length - period; i < frames.length; i++) {
-    const high_low = frames[i].high - frames[i].low;
+    const high = (frames[i].price as any)?.high || (frames[i] as any).high || 0;
+    const low = (frames[i].price as any)?.low || (frames[i] as any).low || 0;
+    const high_low = high - low;
     tr += high_low;
   }
   return tr / period;

@@ -29,6 +29,10 @@ export interface IStorage {
   // Market metrics
   getMarketSentiment(): Promise<MarketSentiment>;
   getPortfolioSummary(): Promise<PortfolioSummary>;
+  
+  // Signal performance tracking
+  createSignalPerformance(performance: any): Promise<void>;
+  updateSignalPerformance(signalId: string, updates: any): Promise<void>;
 }
 
 export class MemStorage implements IStorage {

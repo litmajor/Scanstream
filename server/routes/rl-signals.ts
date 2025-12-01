@@ -38,7 +38,7 @@ router.get('/signals', async (_req: Request, res: Response) => {
       // Sort by timestamp
       frames.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      const currentFrame = frames[frames.length - 1];
+      const currentFrame = frames[frames.length - 1] as any;
       
       // Extract RL state
       const state = rlAgent.extractState(

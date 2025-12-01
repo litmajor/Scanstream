@@ -1,7 +1,12 @@
+/* stylelint-disable-next-line */
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertCircle, X, ChevronDown } from 'lucide-react';
+
+interface FullDataframe {
+  [key: string]: any;
+}
 
 interface Dataframe {
   symbol: string;
@@ -17,6 +22,7 @@ interface Dataframe {
   volume: number;
   volumeTrend: string;
   priceChangePercent: number;
+  fullData?: FullDataframe;
 }
 
 const SYMBOLS = [
@@ -29,12 +35,22 @@ export default function GatewayScannerPage() {
   const [data, setData] = useState<Record<string, Dataframe>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    momentum: true,
+    volatility: true,
+    volume: true,
+    trend: true,
+    patterns: true,
+    risk: true,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const results: Record<string, Dataframe> = {};
+        let successCount = 0;
 
         for (const symbol of SYMBOLS) {
           try {
@@ -46,7 +62,27 @@ export default function GatewayScannerPage() {
             if (response.ok) {
               const json = await response.json();
               if (json.dataframe) {
-                results[symbol] = json.dataframe;
+                const df = json.dataframe;
+                const hasPrice = df.close && df.close > 0;
+                
+                results[symbol] = {
+                  symbol: df.symbol || symbol,
+                  signal: df.signal || 'HOLD',
+                  signalConfidence: df.trendStrength || 0,
+                  close: df.close || 0,
+                  rsi: df.rsi || 50,
+                  ema20: df.ema20 || 0,
+                  ema50: df.ema50 || 0,
+                  macd: df.macd || 0,
+                  atr: df.atr || 0,
+                  trendDirection: df.trendDirection || 'UPTREND',
+                  volume: df.volume || 0,
+                  volumeTrend: df.volumeTrend || 'DECREASING',
+                  priceChangePercent: df.momentum || 0,
+                  fullData: df
+                };
+                
+                if (hasPrice) successCount++;
               }
             }
           } catch (err) {
@@ -56,7 +92,11 @@ export default function GatewayScannerPage() {
 
         setData(results);
         if (Object.keys(results).length === 0) {
-          setError('No data available from gateway');
+          setError('No data available from gateway - ensure exchange connection is active');
+        } else if (successCount === 0) {
+          setError('Gateway connected but prices unavailable - checking exchange feeds...');
+        } else {
+          setError(null);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
@@ -66,7 +106,7 @@ export default function GatewayScannerPage() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30s
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -84,23 +124,72 @@ export default function GatewayScannerPage() {
     );
   };
 
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const getProgressBarWidth = (confidence: number) => {
+    return `${Math.min(100, confidence || 0)}%`;
+  };
+
+  const formatValue = (value: any, decimals = 2) => {
+    if (value === undefined || value === null) return 'N/A';
+    if (typeof value === 'number') return value.toFixed(decimals);
+    return String(value);
+  };
+
+  const TechDataSection = ({ title, icon, data: sectionData }: { title: string; icon: string; data: Array<[string, any]> }) => {
+    const sectionKey = title.toLowerCase().replace(/\s+/g, '_');
+    const isExpanded = expandedSections[sectionKey] ?? true;
+    
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <button
+          onClick={() => toggleSection(sectionKey)}
+          className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-between transition-colors"
+        >
+          <div className="flex items-center gap-2 font-semibold">
+            <span>{icon}</span>
+            <span>{title}</span>
+          </div>
+          <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+        {isExpanded && (
+          <div className="p-4 space-y-2 bg-slate-50 dark:bg-slate-900">
+            {sectionData.map(([label, value], idx) => (
+              <div key={idx} className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">{label}</span>
+                <span className="font-mono font-semibold">{formatValue(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading gateway scanner data...</p>
         </div>
       </div>
     );
   }
 
+  const selectedData = selectedSymbol ? data[selectedSymbol]?.fullData : null;
+
   return (
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold mb-2">Gateway Scanner Dashboard</h1>
         <p className="text-muted-foreground">
-          Real-time market analysis with 67-column technical indicators
+          Real-time market analysis with 70+ technical indicators - Click any symbol for detailed analysis
         </p>
       </div>
 
@@ -116,92 +205,182 @@ export default function GatewayScannerPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {SYMBOLS.map((symbol) => {
-          const df = data[symbol];
-          if (!df) return null;
+      {selectedSymbol && selectedData ? (
+        <Card className="p-6 border-primary bg-slate-50 dark:bg-slate-900">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">{selectedSymbol}</h2>
+              <p className="text-muted-foreground">${selectedData.close?.toFixed(2) || 'N/A'}</p>
+            </div>
+            <button
+              onClick={() => setSelectedSymbol(null)}
+              className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              title="Close detail view"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-          return (
-            <Card key={symbol} className="p-4 hover:shadow-lg transition-shadow">
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg">{symbol}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      ${df.close?.toFixed(2) || 'N/A'}
-                    </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[75vh] overflow-y-auto">
+            <TechDataSection
+              title="📊 Momentum Indicators"
+              icon="📊"
+              data={[
+                ['RSI (14)', selectedData.rsi14],
+                ['RSI (7)', selectedData.rsi7],
+                ['RSI (21)', selectedData.rsi21],
+                ['MACD', selectedData.macd],
+                ['MACD Signal', selectedData.macdSignal],
+                ['MACD Histogram', selectedData.macdHistogram],
+                ['ROC (12)', selectedData.roc],
+                ['Momentum', selectedData.momentum],
+              ]}
+            />
+
+            <TechDataSection
+              title="📈 Volatility & Bands"
+              icon="📈"
+              data={[
+                ['ATR', selectedData.atr],
+                ['Volatility', selectedData.volatility],
+                ['BB Upper', selectedData.bbUpper],
+                ['BB Lower', selectedData.bbLower],
+                ['BB Width %', selectedData.bbWidthPercent],
+                ['Keltner', selectedData.keltner],
+              ]}
+            />
+
+            <TechDataSection
+              title="🔄 Trend Analysis"
+              icon="🔄"
+              data={[
+                ['EMA 12', selectedData.ema12],
+                ['EMA 20', selectedData.ema20],
+                ['EMA 50', selectedData.ema50],
+                ['SMA 200', selectedData.sma200],
+                ['Trend Direction', selectedData.trendDirection],
+                ['Trend Strength', `${selectedData.trendStrength?.toFixed(1)}%`],
+              ]}
+            />
+
+            <TechDataSection
+              title="📦 Volume Analysis"
+              icon="📦"
+              data={[
+                ['Volume', selectedData.volume],
+                ['Volume SMA', selectedData.volumeSMA],
+                ['Volume Change', selectedData.volumeChange],
+                ['On Balance Volume', selectedData.onBalanceVolume],
+              ]}
+            />
+
+            <TechDataSection
+              title="🎯 Stochastic"
+              icon="🎯"
+              data={[
+                ['Stoch %K', selectedData.stochK],
+                ['Stoch %D', selectedData.stochD],
+                ['Stoch RSI', selectedData.stochRSI],
+              ]}
+            />
+
+            <TechDataSection
+              title="🎪 Support/Resistance"
+              icon="🎪"
+              data={[
+                ['Support', selectedData.support],
+                ['Resistance', selectedData.resistance],
+                ['Price to Support', selectedData.priceToSupport],
+              ]}
+            />
+
+            <TechDataSection
+              title="⚠️ Risk Metrics"
+              icon="⚠️"
+              data={[
+                ['Drawdown %', `${selectedData.drawdown?.toFixed(2)}%`],
+                ['Price Range', selectedData.priceRange],
+                ['Price Change %', `${selectedData.priceChangePercent?.toFixed(2)}%`],
+              ]}
+            />
+
+            <TechDataSection
+              title="✨ Signal"
+              icon="✨"
+              data={[
+                ['Type', selectedData.signal],
+                ['Strength', `${selectedData.signalStrength?.toFixed(1)}%`],
+                ['Confidence', `${selectedData.signalConfidence?.toFixed(1)}%`],
+              ]}
+            />
+          </div>
+
+          <button
+            onClick={() => setSelectedSymbol(null)}
+            className="mt-6 px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            Back to Scanner
+          </button>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {SYMBOLS.map((symbol) => {
+            const df = data[symbol];
+            if (!df && Object.keys(data).length > 0) return null;
+
+            return (
+              <Card
+                key={symbol}
+                className="p-4 hover:shadow-lg transition-shadow cursor-pointer hover:border-primary"
+                onClick={() => setSelectedSymbol(symbol)}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-lg">{symbol}</h3>
+                      <p className="text-sm text-muted-foreground">${df?.close?.toFixed(2) || 'Loading...'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getTrendIcon(df?.trendDirection || 'UPTREND')}
+                      <Badge className={`${getSignalColor(df?.signal || 'HOLD')} border`}>
+                        {df?.signal || 'HOLD'}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {getTrendIcon(df.trendDirection || 'UPTREND')}
-                    <Badge
-                      className={`${getSignalColor(df.signal || 'HOLD')} border`}
-                    >
-                      {df.signal || 'HOLD'}
-                    </Badge>
+
+                  {df?.priceChangePercent !== undefined && (
+                    <div className="text-sm">
+                      <span className={df.priceChangePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {df.priceChangePercent >= 0 ? '+' : ''}{df.priceChangePercent?.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                    <div><p className="text-xs text-muted-foreground">RSI</p><p className="text-sm font-mono">{df?.rsi?.toFixed(1) || 'N/A'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">MACD</p><p className="text-sm font-mono">{df?.macd?.toFixed(3) || 'N/A'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">ATR</p><p className="text-sm font-mono">{df?.atr?.toFixed(2) || 'N/A'}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Volume</p><p className="text-sm font-mono">{df?.volume ? (df.volume / 1000).toFixed(0) : '0'}k</p></div>
+                  </div>
+
+                  <div className="border-t pt-2">
+                    <p className="text-xs text-muted-foreground font-semibold mb-1">Confidence</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-mono">{df?.signalConfidence?.toFixed(0) || '0'}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="bg-blue-500 h-1.5 rounded-full transition-all"
+                        style={{ width: getProgressBarWidth(df?.signalConfidence) } as React.CSSProperties} 
+                      />
+                    </div>
                   </div>
                 </div>
-
-                {/* Price Change */}
-                {df.priceChangePercent !== undefined && (
-                  <div className="text-sm">
-                    <span className={df.priceChangePercent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                      {df.priceChangePercent >= 0 ? '+' : ''}{df.priceChangePercent?.toFixed(2)}%
-                    </span>
-                  </div>
-                )}
-
-                {/* Indicators Grid */}
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-semibold">RSI</p>
-                    <p className="text-sm font-mono">{df.rsi?.toFixed(1) || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-semibold">MACD</p>
-                    <p className="text-sm font-mono">{df.macd?.toFixed(3) || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-semibold">ATR</p>
-                    <p className="text-sm font-mono">{df.atr?.toFixed(2) || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-semibold">Volume</p>
-                    <p className="text-sm font-mono">{(df.volume / 1000)?.toFixed(0)}k</p>
-                  </div>
-                </div>
-
-                {/* Moving Averages */}
-                <div className="border-t pt-2">
-                  <p className="text-xs text-muted-foreground font-semibold mb-1">Moving Averages</p>
-                  <div className="flex gap-2 text-xs">
-                    <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">
-                      EMA20: ${df.ema20?.toFixed(0) || 'N/A'}
-                    </span>
-                    <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800">
-                      EMA50: ${df.ema50?.toFixed(0) || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Signal Confidence */}
-                <div className="border-t pt-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground font-semibold">Confidence</p>
-                    <p className="text-sm font-mono">{df.signalConfidence?.toFixed(0)}%</p>
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 mt-1">
-                    <div
-                      className="bg-blue-500 h-1.5 rounded-full"
-                      style={{ width: `${df.signalConfidence || 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {Object.keys(data).length === 0 && !error && (
         <Card className="p-8 text-center">
@@ -209,7 +388,6 @@ export default function GatewayScannerPage() {
         </Card>
       )}
 
-      {/* Stats Footer */}
       <Card className="p-4 bg-slate-50 dark:bg-slate-900">
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>

@@ -41,5 +41,22 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
+    proxy: {
+      '/api/scanner': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+      '/api/position': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+      '/health': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+    },
   },
 });
