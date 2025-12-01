@@ -11,6 +11,7 @@
  */
 
 import { SignalAccuracyEngine } from './signal-accuracy';
+import { assetCorrelationAnalyzer } from '../services/asset-correlation-analyzer';
 import memoize from 'memoizee';
 
 // ============================================================================
@@ -114,6 +115,10 @@ export interface AggregatedSignal {
   // Position sizing
   agreementScore?: number; // 0-100, how much sources agree
   positionSize?: number; // 0-1 scale, position sizing multiplier
+  
+  // Correlation analysis
+  correlationBoost?: number; // Confidence boost from correlated assets (-0.15 to +0.15)
+  correlatedSignals?: string[]; // Which correlated assets show aligned signals
 }
 
 // ============================================================================
@@ -242,6 +247,19 @@ export class SignalPipeline {
     // Step 8: Calculate position size based on quality and agreement
     const positionSize = this.calculatePositionSize(quality.score, agreementScore);
 
+    // Step 8.5: Apply correlation boost if correlated assets show aligned signals
+    const correlationBoost = await assetCorrelationAnalyzer.getCorrelationBoost(
+      symbol,
+      signalType,
+      volatilityAdjustedAccuracy.adjustedConfidence
+    );
+
+    // Track this signal for future correlation analysis
+    assetCorrelationAnalyzer.trackSignal(symbol, signalType, correlationBoost.boostedConfidence);
+
+    // Use boosted confidence if available
+    const finalConfidence = correlationBoost.boostedConfidence;
+
     // Step 9: Build pattern details for frontend
     const patternDetails = scannerOutput.patterns.map(p => {
       const stats = this.accuracyEngine.getPatternStats(p.type as any);
@@ -263,7 +281,7 @@ export class SignalPipeline {
       type: signalType,
       classifications,
       primaryClassification,
-      confidence: volatilityAdjustedAccuracy.adjustedConfidence,
+      confidence: finalConfidence,
       strength: scannerOutput.technicalScore,
       sources,
       quality,
@@ -274,7 +292,9 @@ export class SignalPipeline {
       patternDetails,
       timeframes: this.estimateTimeframeAlignment(marketData, scannerOutput),
       agreementScore,
-      positionSize
+      positionSize,
+      correlationBoost: correlationBoost.correlationBoost,
+      correlatedSignals: correlationBoost.alignedAssets
     };
 
     // Cache result
