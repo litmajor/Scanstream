@@ -39,7 +39,10 @@ export class AssetVelocityProfiler {
    * Get velocity profile for asset (from cache or calculate)
    */
   getVelocityProfile(symbol: string, historicalData?: any[]): AssetVelocityData {
-    const cached = this.velocityCache.get(symbol);
+    // Normalize symbol to handle both "BTC" and "BTC/USDT" formats
+    const normalizedKey = symbol.includes('/') ? symbol : `${symbol}/USDT`;
+    
+    const cached = this.velocityCache.get(normalizedKey);
     if (cached && Date.now() - cached.lastUpdated < this.CACHE_TTL) {
       return cached;
     }
@@ -47,7 +50,7 @@ export class AssetVelocityProfiler {
     // Calculate from historical data if provided
     if (historicalData && historicalData.length > 30) {
       const profile = this.calculateVelocityProfile(symbol, historicalData);
-      this.velocityCache.set(symbol, profile);
+      this.velocityCache.set(normalizedKey, profile);
       return profile;
     }
 
@@ -118,7 +121,7 @@ export class AssetVelocityProfiler {
     // Normalize symbol - handle both "BTC" and "BTC/USDT" formats
     const normalizedSymbol = symbol.includes('/') ? symbol : `${symbol}/USDT`;
     
-    // Tier-1 assets: BTC, ETH (larger absolute moves)
+    // Tier-1 assets: BTC, ETH (larger absolute moves - realistic data)
     if (normalizedSymbol === 'BTC/USDT' || symbol === 'BTC') {
       return {
         symbol,
@@ -266,7 +269,8 @@ export class AssetVelocityProfiler {
       };
     }
 
-    // Default for other assets: Conservative estimates
+    // Default for all other 48 assets: Conservative estimates
+    // Used as placeholder until real historical data is available
     return {
       symbol,
       '1D': {
