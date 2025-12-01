@@ -266,6 +266,27 @@ export class SignalWebSocketService extends EventEmitter {
     });
   }
 
+  broadcastNotification(notification: {
+    category: 'signal' | 'trade' | 'system' | 'alert';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    title: string;
+    message: string;
+    metadata?: Record<string, any>;
+    actionLabel?: string;
+    actionUrl?: string;
+  }) {
+    if (!this.io) return;
+
+    this.io.emit('notification', {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...notification,
+      status: 'unread',
+      timestamp: new Date()
+    });
+
+    console.log(`[WS] Broadcasted ${notification.priority} notification: ${notification.title}`);
+  }
+
   shutdown() {
     if (this.healthBroadcastInterval) {
       clearInterval(this.healthBroadcastInterval);

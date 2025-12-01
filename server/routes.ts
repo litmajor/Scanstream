@@ -14,6 +14,8 @@ import strategyRoutes from './routes/strategies';
 import paperTradingRoutes from './routes/paper-trading';
 // Import signal performance routes
 import signalPerformanceRoutes from './routes/signal-performance';
+// Import notification routes
+import notificationRoutes from './routes/notifications';
 
 
 // Create prisma instance
@@ -1621,6 +1623,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   // Mount signal performance routes
   app.use('/api/gateway/signals/performance', signalPerformanceRoutes);
+
+  // Mount notification routes
+  app.use('/api/notifications', notificationRoutes);
+  console.log('[express] Notifications API registered at /api/notifications');
 
 
   // At the end, create and return the httpServer:

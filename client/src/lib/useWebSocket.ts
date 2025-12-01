@@ -48,7 +48,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
         // Exponential backoff reconnection
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
         console.log(`[WebSocket] Reconnecting in ${delay}ms...`);
-        
+
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectAttempts.current++;
           connect();
@@ -96,4 +96,3 @@ export function useWebSocket(url: string): UseWebSocketReturn {
 
   return { isConnected, lastMessage, send, reconnect };
 }
-

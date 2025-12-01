@@ -61,6 +61,32 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     localStorage.setItem('notificationSettings', JSON.stringify(settings));
   }, [settings]);
 
+  // Listen for WebSocket notifications
+  useEffect(() => {
+    const handleWebSocketNotification = (event: CustomEvent) => {
+      const notification = event.detail;
+      
+      // Add the notification to state
+      setNotifications(prev => [notification, ...prev]);
+      
+      // Play sound for medium+ priority
+      if (notification.priority !== 'low') {
+        playNotificationSound();
+      }
+      
+      // Show desktop notification for high+ priority
+      if (notification.priority === 'high' || notification.priority === 'urgent') {
+        showDesktopNotification(notification.title, notification.message, notification.priority);
+      }
+    };
+
+    window.addEventListener('ws-notification', handleWebSocketNotification as EventListener);
+    
+    return () => {
+      window.removeEventListener('ws-notification', handleWebSocketNotification as EventListener);
+    };
+  }, [playNotificationSound, showDesktopNotification]);
+
   // Unread count
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 

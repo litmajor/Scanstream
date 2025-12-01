@@ -169,32 +169,54 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 };
 
 export async function getUser(userId: string) {
-  return prisma.user.findUnique({
+  return await prisma.user.findUnique({
     where: { id: userId },
-    include: { preferences: true },
   });
 }
 
 export async function getUserPreferences(userId: string) {
-  let prefs = await prisma.userPreference.findUnique({
-    where: { userId },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
   });
-  
-  if (!prefs) {
-    prefs = await prisma.userPreference.create({
-      data: { userId },
-    });
+
+  if (!user) {
+    throw new Error('User not found');
   }
-  
-  return prefs;
+
+  // Return default preferences if none exist
+  return {
+    theme: 'dark',
+    defaultTimeframe: '1h',
+    defaultExchange: 'binance',
+    notificationsEnabled: true,
+    emailAlerts: false,
+    priceAlerts: true,
+    signalAlerts: true,
+    soundEnabled: true,
+    ...(user.preferences as object || {}),
+  };
 }
 
-export async function updateUserPreferences(userId: string, data: any) {
-  return prisma.userPreference.upsert({
-    where: { userId },
-    update: data,
-    create: { userId, ...data },
+export async function updateUserPreferences(userId: string, preferences: any) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
   });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const updatedPreferences = {
+    ...(user.preferences as object || {}),
+    ...preferences,
+  };
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { preferences: updatedPreferences },
+  });
+
+  return updatedPreferences;
 }
 
 export async function getApiKeys(userId: string) {
