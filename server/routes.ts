@@ -2108,6 +2108,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     }
   });
 
+  // Multi-Timeframe Confirmation routes
+  const mtfConfirmationRoutes = await import('./routes/mtf-confirmation');
+  app.use('/api/mtf-confirmation', mtfConfirmationRoutes.default);
+
   // Multi-Timeframe Analysis endpoint under /api/analysis path
   app.get('/api/analysis/multi-timeframe', async (req: Request, res: Response) => {
     try {

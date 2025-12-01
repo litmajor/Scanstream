@@ -21,6 +21,9 @@ import { tradeClassifier, TradeClassification } from '../services/trade-classifi
 import { getAssetBySymbol, getAssetsByCategory } from '@shared/tracked-assets';
 import { getAssetThresholds, meetsQualityThreshold, getMaxPositionForCategory } from '../config/asset-thresholds';
 import memoize from 'memoizee';
+import { DynamicPositionSizer } from '../services/dynamic-position-sizer';
+import { MultiTimeframeConfirmation } from '../services/multi-timeframe-confirmation';
+import type { EnhancedMultiTimeframeSignal } from '../multi-timeframe';
 
 // ============================================================================
 // DATA STRUCTURES - Optimized for performance and frontend consumption
@@ -143,6 +146,21 @@ export interface AggregatedSignal {
     adjustedStopLoss: number; // Calculated from trade type
     adjustedTakeProfit: number; // Calculated from trade type
   };
+
+  // Metadata for enhanced signals
+  metadata?: {
+    positionSize?: number;
+    positionSizePercent?: number;
+    accountBalance?: number;
+    mtfRecommendation?: {
+      action: 'BUY' | 'SELL' | 'HOLD' | 'SKIP';
+      alignmentScore: number;
+      alignedTimeframes: number;
+      totalTimeframes: number;
+      confidenceMultiplier: number;
+      positionMultiplier: number;
+    };
+  };
 }
 
 // ============================================================================
@@ -154,8 +172,19 @@ export class SignalPipeline {
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private CACHE_TTL = 30000; // 30 seconds
 
+  private positionSizer: DynamicPositionSizer;
+  private performanceTracker: SignalPerformanceTracker;
+  private classifier: SignalClassifier;
+  private patternCombination: SmartPatternCombination;
+  private mtfConfirmation: MultiTimeframeConfirmation;
+
   constructor() {
     this.accuracyEngine = new SignalAccuracyEngine();
+    this.positionSizer = new DynamicPositionSizer();
+    this.performanceTracker = new SignalPerformanceTracker();
+    this.classifier = new SignalClassifier();
+    this.patternCombination = new SmartPatternCombination();
+    this.mtfConfirmation = new MultiTimeframeConfirmation();
   }
 
   /**
@@ -167,7 +196,7 @@ export class SignalPipeline {
     scannerOutput: ScannerOutput,
     mlPredictions: MLPrediction[],
     rlDecision: RLDecision
-  ): Promise<AggregatedSignal> {
+  ): Promise<AggregatedSignal | null> { // Return null if skipped by MTF
     const cacheKey = `${symbol}-${Math.floor(Date.now() / 10000)}`;
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
@@ -295,7 +324,6 @@ export class SignalPipeline {
     // Step 9: Calculate position size based on quality, agreement, and asset category
     const asset = getAssetBySymbol(symbol);
     const assetCategory = asset?.category || 'fundamental';
-    const positionSize = this.calculatePositionSize(symbol, quality.score, agreementScore, assetCategory);
 
     // Step 9.5: Apply correlation boost if correlated assets show aligned signals
     const correlationBoost = await assetCorrelationAnalyzer.getCorrelationBoost(
@@ -344,7 +372,7 @@ export class SignalPipeline {
     const executionOpt = executionOptimizer.optimizeExecution({
       symbol,
       entryPrice: marketData.price,
-      positionSize,
+      positionSize: 0.1, // Placeholder, will be calculated later with MTF multiplier
       marketVolume24h: marketData.volume * 24, // Estimate 24h from current candle
       orderType: classification?.pyramidStrategy || 'all-at-once', // Use classification's strategy or default
       exchangeFeePercentage: 0.1 // Standard exchange fee
@@ -373,7 +401,7 @@ export class SignalPipeline {
       : 'rl';
 
     // Step 13: Assemble aggregated signal with adaptive trade classification
-    const signal: AggregatedSignal = {
+    const baseSignal: AggregatedSignal = {
       id: `${symbol}-${Date.now()}`,
       symbol,
       timestamp: marketData.timestamp,
@@ -391,7 +419,6 @@ export class SignalPipeline {
       patternDetails,
       timeframes: this.estimateTimeframeAlignment(marketData, scannerOutput),
       agreementScore,
-      positionSize,
       correlationBoost: correlationBoost.correlationBoost,
       correlatedSignals: correlationBoost.alignedAssets,
       executionMetrics: {
@@ -411,17 +438,78 @@ export class SignalPipeline {
       })
     } as AggregatedSignal;
 
+    // Step 4: Multi-Timeframe Confirmation
+    const mtfRecommendation = this.mtfConfirmation.getTradeRecommendation(
+      baseSignal, // Pass the base signal for MTF analysis
+      finalConfidence // Pass the confidence adjusted by correlation
+    );
+
+    console.log(`[Pipeline] ${symbol} - MTF Recommendation: ${mtfRecommendation.action} (${mtfRecommendation.alignmentScore.toFixed(1)}% alignment)`);
+
+    // Skip trade if MTF says so
+    if (mtfRecommendation.action === 'SKIP') {
+      console.log(`[Pipeline] ${symbol} - SKIPPED due to poor timeframe alignment`);
+      return null; // Return null to indicate the signal should be discarded
+    }
+
+    // Apply MTF enhancements to confidence and quality
+    const mtfEnhancedSignal = this.mtfConfirmation.enhanceSignalWithMTF(
+      baseSignal,
+      mtfRecommendation
+    );
+
+    // Step 5: Calculate dynamic position size with MTF multiplier
+    const accountBalance = 10000; // This should come from user's actual balance
+    const atr = Math.abs(marketData.high - marketData.low) * 1.5; // Simplified ATR for position sizing calculation
+    const positionSizeResult = await this.calculatePositionSize(
+      symbol,
+      mtfEnhancedSignal.quality.score,
+      agreementScore,
+      assetCategory,
+      mtfEnhancedSignal.confidence, // Use MTF-enhanced confidence
+      signalType,
+      marketData.price,
+      atr,
+      regimeData.regime, // Pass regime data
+      primaryClassification // Pass primary pattern
+    );
+
+    const finalPositionSize = positionSizeResult * mtfRecommendation.positionMultiplier;
+
+    console.log(`[Pipeline] ${symbol} - Position size: $${finalPositionSize.toFixed(2)} (${(finalPositionSize/accountBalance*100).toFixed(2)}% of account) [MTF multiplier: ${mtfRecommendation.positionMultiplier.toFixed(2)}x]`);
+
+    // Update the signal with MTF and position sizing details
+    const finalSignal: AggregatedSignal = {
+      ...mtfEnhancedSignal,
+      positionSize: finalPositionSize,
+      metadata: {
+        ...mtfEnhancedSignal.metadata, // Spread existing metadata if any
+        positionSize: finalPositionSize,
+        positionSizePercent: (finalPositionSize / accountBalance) * 100,
+        accountBalance,
+        mtfRecommendation: {
+          action: mtfRecommendation.action,
+          alignmentScore: mtfRecommendation.alignmentScore,
+          alignedTimeframes: mtfRecommendation.alignedTimeframes,
+          totalTimeframes: mtfRecommendation.totalTimeframes,
+          confidenceMultiplier: mtfRecommendation.confidenceMultiplier,
+          positionMultiplier: mtfRecommendation.positionMultiplier
+        }
+      }
+    };
+
+
     // Add metadata for performance tracking
-    (signal as any).dominantSource = dominantSource;
-    (signal as any).primaryPattern = primaryClassification;
+    (finalSignal as any).dominantSource = dominantSource;
+    (finalSignal as any).primaryPattern = primaryClassification;
 
     // Track signal for future performance weighting
-    signalPerformanceTracker.trackSignal(signal);
+    signalPerformanceTracker.trackSignal(finalSignal);
 
     // Cache result
-    this.cache.set(cacheKey, { data: signal, timestamp: Date.now() });
+    this.cache.set(cacheKey, { data: finalSignal, timestamp: Date.now() });
 
-    return signal;
+    return finalSignal;
   }
 
   /**
@@ -438,9 +526,9 @@ export class SignalPipeline {
     const recentWinRates = signalPerformanceTracker.getRecentWinRates(20);
     const total = recentWinRates.scanner + recentWinRates.ml + recentWinRates.rl;
     const weights = {
-      scanner: recentWinRates.scanner / total,
-      ml: recentWinRates.ml / total,
-      rl: recentWinRates.rl / total
+      scanner: total === 0 ? 1/3 : recentWinRates.scanner / total,
+      ml: total === 0 ? 1/3 : recentWinRates.ml / total,
+      rl: total === 0 ? 1/3 : recentWinRates.rl / total
     };
 
     // Scanner vote (weighted by technical score + adaptive weight)
@@ -454,7 +542,7 @@ export class SignalPipeline {
 
     // ML vote (weighted by probability + adaptive weight)
     const bestML = ml.reduce((prev, curr) =>
-      curr.probability > prev.probability ? curr : prev
+      curr.probability > prev.probability ? curr : prev, ml[0] || { probability: 0, direction: 'HOLD' } // Handle empty ml array
     );
     if (bestML.direction === 'BUY') votes.BUY += bestML.probability * weights.ml;
     else if (bestML.direction === 'SELL') votes.SELL += bestML.probability * weights.ml;
@@ -480,7 +568,7 @@ export class SignalPipeline {
     rl: RLDecision
   ): number {
     const scannerConf = scanner.technicalScore / 100 * 0.4;
-    const mlConf = Math.max(...ml.map(m => m.probability)) * 0.35;
+    const mlConf = ml.length > 0 ? Math.max(...ml.map(m => m.probability)) * 0.35 : 0;
     const rlConf = Math.min(Math.abs(rl.qValue), 1) * 0.25;
     return scannerConf + mlConf + rlConf;
   }
@@ -511,7 +599,7 @@ export class SignalPipeline {
 
     // ML contribution (30 points max)
     const bestML = ml.reduce((prev, curr) =>
-      curr.probability > prev.probability ? curr : prev
+      curr.probability > prev.probability ? curr : prev, ml[0] || { probability: 0, direction: 'HOLD' } // Handle empty ml array
     );
     if (bestML.probability >= 0.85) {
       score += 30;
@@ -771,14 +859,14 @@ export class SignalPipeline {
   }
 
   /**
-   * Calculate position size using Dynamic Position Sizer (Kelly + RL + Confidence)
+   * Calculate position size using Dynamic Position Sizer
    * ENHANCED: Uses Kelly Criterion, RL Agent, and market conditions
    * Expected: 11x better returns vs flat sizing
    */
   private async calculatePositionSize(
-    symbol: string, 
-    qualityScore: number, 
-    agreementScore: number, 
+    symbol: string,
+    qualityScore: number,
+    agreementScore: number,
     category: string,
     confidence: number,
     signalType: 'BUY' | 'SELL',
@@ -787,9 +875,8 @@ export class SignalPipeline {
     marketRegime: string,
     primaryPattern: string
   ): Promise<number> {
-    // Use Dynamic Position Sizer for optimal sizing
     const { dynamicPositionSizer } = await import('../services/dynamic-position-sizer');
-    
+
     const sizing = dynamicPositionSizer.calculatePositionSize({
       symbol,
       confidence,
@@ -849,7 +936,7 @@ export const buildSignalsPageResponse = memoize(
       totalSignals: signals.length,
       buySignals: signals.filter(s => s.type === 'BUY').length,
       sellSignals: signals.filter(s => s.type === 'SELL').length,
-      avgQuality: signals.reduce((sum, s) => sum + s.quality.score, 0) / Math.max(signals.length, 1),
+      avgQuality: signals.length > 0 ? signals.reduce((sum, s) => sum + s.quality.score, 0) / signals.length : 0,
       topPatterns: getTopPatterns(signals)
     };
 
