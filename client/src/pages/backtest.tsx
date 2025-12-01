@@ -1,85 +1,121 @@
+
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Play, Download, Settings, BarChart3, TrendingUp, TrendingDown, Calendar, Clock } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, Play, Download, Settings, BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-// Mock backtest data - replace with real data from API
-const mockBacktestData = {
-  results: [
-    {
-      id: '1',
-      name: 'BTC/USDT Momentum Strategy',
-      symbol: 'BTC/USDT',
-      timeframe: '1h',
-      period: '2024-01-01 to 2024-10-19',
-      totalReturn: 45.2,
-      annualizedReturn: 38.7,
-      maxDrawdown: -12.3,
-      sharpeRatio: 1.85,
-      winRate: 68.5,
-      totalTrades: 156,
-      profitFactor: 2.1,
-      status: 'completed',
-      createdAt: new Date('2024-10-15')
-    },
-    {
-      id: '2',
-      name: 'ETH/USDT Mean Reversion',
-      symbol: 'ETH/USDT',
-      timeframe: '4h',
-      period: '2024-06-01 to 2024-10-19',
-      totalReturn: 23.8,
-      annualizedReturn: 28.4,
-      maxDrawdown: -8.7,
-      sharpeRatio: 1.42,
-      winRate: 72.1,
-      totalTrades: 89,
-      profitFactor: 1.8,
-      status: 'completed',
-      createdAt: new Date('2024-10-10')
-    },
-    {
-      id: '3',
-      name: 'SOL/USDT Breakout Strategy',
-      symbol: 'SOL/USDT',
-      timeframe: '1d',
-      period: '2024-03-01 to 2024-10-19',
-      totalReturn: 67.9,
-      annualizedReturn: 52.3,
-      maxDrawdown: -15.2,
-      sharpeRatio: 2.1,
-      winRate: 61.2,
-      totalTrades: 234,
-      profitFactor: 2.4,
-      status: 'running',
-      createdAt: new Date('2024-10-18')
-    }
-  ],
-  strategies: [
-    { id: 'momentum', name: 'Momentum Strategy', description: 'Follows trend direction' },
-    { id: 'mean_reversion', name: 'Mean Reversion', description: 'Trades against extremes' },
-    { id: 'breakout', name: 'Breakout Strategy', description: 'Trades breakouts' },
-    { id: 'scalping', name: 'Scalping Strategy', description: 'Quick profit trades' }
-  ]
-};
+interface BacktestResult {
+  id: string;
+  strategyId: string;
+  name?: string;
+  symbol?: string;
+  timeframe?: string;
+  period?: string;
+  startDate: string;
+  endDate: string;
+  initialCapital: number;
+  finalCapital: number;
+  totalReturn?: number;
+  annualizedReturn?: number;
+  maxDrawdown?: number;
+  sharpeRatio?: number;
+  winRate?: number;
+  totalTrades?: number;
+  profitFactor?: number;
+  status?: string;
+  createdAt: string;
+  metrics: {
+    totalReturn?: number;
+    annualizedReturn?: number;
+    maxDrawdown?: number;
+    sharpeRatio?: number;
+    winRate?: number;
+    totalTrades?: number;
+    profitFactor?: number;
+    sortinoRatio?: number;
+    calmarRatio?: number;
+  };
+  performance: any;
+  equityCurve: any[];
+  monthlyReturns: any[];
+  trades: any[];
+}
+
+interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+}
 
 export default function BacktestPage() {
   const [, setLocation] = useLocation();
   const [selectedStrategy, setSelectedStrategy] = useState('');
-  const [selectedSymbol, setSelectedSymbol] = useState('');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
+  const [startDate, setStartDate] = useState('2024-01-01');
+  const [endDate, setEndDate] = useState('2024-12-31');
+  const [initialCapital, setInitialCapital] = useState(10000);
+  const queryClient = useQueryClient();
 
-  // Fetch backtest data from API
-  const { data: backtestData, isLoading, error, refetch } = useQuery({
-    queryKey: ['backtest-data'],
+  // Fetch available strategies
+  const { data: strategiesData } = useQuery({
+    queryKey: ['strategies'],
     queryFn: async () => {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/backtest/results');
-      // return response.json();
-      return mockBacktestData;
+      const response = await fetch('/api/strategies');
+      if (!response.ok) throw new Error('Failed to fetch strategies');
+      return response.json();
     },
-    refetchInterval: 5000, // Refresh every 5 seconds for running backtests
+  });
+
+  // Fetch backtest results
+  const { data: backtestData, isLoading, error, refetch } = useQuery<{ results: BacktestResult[] }>({
+    queryKey: ['backtest-results'],
+    queryFn: async () => {
+      const response = await fetch('/api/strategies/backtest/results');
+      if (!response.ok) throw new Error('Failed to fetch backtest results');
+      return response.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  // Run backtest mutation
+  const runBacktestMutation = useMutation({
+    mutationFn: async (params: {
+      strategyId: string;
+      symbol: string;
+      timeframe: string;
+      startDate: string;
+      endDate: string;
+      initialCapital: number;
+    }) => {
+      const response = await fetch('/api/strategies/backtest/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to run backtest');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['backtest-results'] });
+    },
+  });
+
+  // Delete backtest mutation
+  const deleteBacktestMutation = useMutation({
+    mutationFn: async (backtestId: string) => {
+      const response = await fetch(`/api/strategies/backtest/${backtestId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete backtest');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['backtest-results'] });
+    },
   });
 
   const handleRunBacktest = async () => {
@@ -88,24 +124,30 @@ export default function BacktestPage() {
       return;
     }
 
-    setIsRunning(true);
     try {
-      // TODO: Implement actual backtest API call
-      // await fetch('/api/backtest/run', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ strategy: selectedStrategy, symbol: selectedSymbol, timeframe: selectedTimeframe })
-      // });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await refetch();
-    } finally {
-      setIsRunning(false);
+      await runBacktestMutation.mutateAsync({
+        strategyId: selectedStrategy,
+        symbol: selectedSymbol,
+        timeframe: selectedTimeframe,
+        startDate,
+        endDate,
+        initialCapital,
+      });
+    } catch (error: any) {
+      alert(error.message || 'Failed to run backtest');
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const handleDeleteBacktest = async (backtestId: string) => {
+    if (!confirm('Are you sure you want to delete this backtest?')) return;
+    try {
+      await deleteBacktestMutation.mutateAsync(backtestId);
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete backtest');
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed': return 'text-green-500 bg-green-100 dark:bg-green-900';
       case 'running': return 'text-blue-500 bg-blue-100 dark:bg-blue-900';
@@ -114,8 +156,14 @@ export default function BacktestPage() {
     }
   };
 
-  const getReturnColor = (returnValue: number) => {
+  const getReturnColor = (returnValue?: number) => {
+    if (!returnValue) return 'text-gray-500';
     return returnValue >= 0 ? 'text-green-500' : 'text-red-500';
+  };
+
+  const formatMetric = (value?: number, decimals = 2) => {
+    if (value === undefined || value === null) return 'N/A';
+    return value.toFixed(decimals);
   };
 
   if (isLoading) {
@@ -135,7 +183,7 @@ export default function BacktestPage() {
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-xl font-semibold text-white mb-2">Error Loading Backtests</h2>
-          <p className="text-slate-400 mb-4">Failed to load backtest results</p>
+          <p className="text-slate-400 mb-4">{error.message}</p>
           <button
             onClick={() => refetch()}
             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all text-white font-semibold shadow-lg shadow-blue-500/20"
@@ -146,6 +194,9 @@ export default function BacktestPage() {
       </div>
     );
   }
+
+  const strategies = strategiesData?.strategies || [];
+  const results = backtestData?.results || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -159,7 +210,6 @@ export default function BacktestPage() {
       <div className="relative border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Back Button */}
             <button
               onClick={() => setLocation('/')}
               className="flex items-center text-slate-400 hover:text-white transition-all hover:translate-x-[-2px]"
@@ -168,7 +218,6 @@ export default function BacktestPage() {
               <span className="font-medium">Back to Dashboard</span>
             </button>
 
-            {/* Page Title */}
             <div className="flex-1 text-center">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Strategy Backtesting
@@ -176,19 +225,13 @@ export default function BacktestPage() {
               <p className="text-xs text-slate-500 mt-0.5">Test your strategies with historical data</p>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex items-center space-x-2">
               <button
+                onClick={() => refetch()}
                 className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
-                title="Export Results"
+                title="Refresh Results"
               >
                 <Download className="w-4 h-4" />
-              </button>
-              <button
-                className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
-                title="Backtest Settings"
-              >
-                <Settings className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -204,19 +247,17 @@ export default function BacktestPage() {
             <BarChart3 className="w-5 h-5 text-slate-400" />
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             {/* Strategy Selection */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Strategy
-              </label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Strategy</label>
               <select
                 value={selectedStrategy}
                 onChange={(e) => setSelectedStrategy(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
               >
                 <option value="">Select Strategy</option>
-                {backtestData?.strategies.map(strategy => (
+                {strategies.map((strategy: Strategy) => (
                   <option key={strategy.id} value={strategy.id}>{strategy.name}</option>
                 ))}
               </select>
@@ -224,15 +265,12 @@ export default function BacktestPage() {
 
             {/* Symbol Selection */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Symbol
-              </label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Symbol</label>
               <select
                 value={selectedSymbol}
                 onChange={(e) => setSelectedSymbol(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
               >
-                <option value="">Select Symbol</option>
                 <option value="BTC/USDT">BTC/USDT</option>
                 <option value="ETH/USDT">ETH/USDT</option>
                 <option value="SOL/USDT">SOL/USDT</option>
@@ -243,15 +281,12 @@ export default function BacktestPage() {
 
             {/* Timeframe Selection */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Timeframe
-              </label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Timeframe</label>
               <select
                 value={selectedTimeframe}
                 onChange={(e) => setSelectedTimeframe(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
               >
-                <option value="">Select Timeframe</option>
                 <option value="1m">1 Minute</option>
                 <option value="5m">5 Minutes</option>
                 <option value="15m">15 Minutes</option>
@@ -261,14 +296,49 @@ export default function BacktestPage() {
               </select>
             </div>
 
+            {/* Initial Capital */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Initial Capital ($)</label>
+              <input
+                type="number"
+                value={initialCapital}
+                onChange={(e) => setInitialCapital(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Start Date */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
+              />
+            </div>
+
             {/* Run Button */}
             <div className="flex items-end">
               <button
                 onClick={handleRunBacktest}
-                disabled={isRunning || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
+                disabled={runBacktestMutation.isPending || !selectedStrategy || !selectedSymbol || !selectedTimeframe}
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg font-medium transition-all flex items-center justify-center shadow-lg shadow-blue-500/20"
               >
-                {isRunning ? (
+                {runBacktestMutation.isPending ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     Running...
@@ -286,96 +356,99 @@ export default function BacktestPage() {
 
         {/* Backtest Results */}
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold text-white">Backtest Results</h2>
+          <h2 className="text-lg font-semibold text-white">Backtest Results ({results.length})</h2>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {backtestData?.results.map((result) => (
-              <div key={result.id} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
-                {/* Result Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">{result.name}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(result.status)}`}>
-                    {result.status}
-                  </span>
-                </div>
-
-                {/* Symbol and Timeframe */}
-                <div className="flex items-center space-x-4 mb-4 text-sm text-slate-400">
-                  <span className="flex items-center">
-                    <BarChart3 className="w-4 h-4 mr-1" />
-                    {result.symbol}
-                  </span>
-                  <span className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {result.timeframe}
-                  </span>
-                </div>
-
-                {/* Performance Metrics */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total Return</span>
-                    <span className={`font-semibold ${getReturnColor(result.totalReturn)}`}>
-                      {result.totalReturn >= 0 ? '+' : ''}{result.totalReturn}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Annualized Return</span>
-                    <span className={`font-semibold ${getReturnColor(result.annualizedReturn)}`}>
-                      {result.annualizedReturn >= 0 ? '+' : ''}{result.annualizedReturn}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Max Drawdown</span>
-                    <span className="font-semibold text-red-500">{result.maxDrawdown}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Sharpe Ratio</span>
-                    <span className="font-semibold text-white">{result.sharpeRatio}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Win Rate</span>
-                    <span className="font-semibold text-white">{result.winRate}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Total Trades</span>
-                    <span className="font-semibold text-white">{result.totalTrades}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Profit Factor</span>
-                    <span className="font-semibold text-white">{result.profitFactor}</span>
-                  </div>
-                </div>
-
-                {/* Period */}
-                <div className="mb-4 pt-4 border-t border-slate-700/30">
-                  <div className="flex items-center text-sm text-slate-400">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    {result.period}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2">
-                  <button className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium transition-all shadow-lg shadow-blue-500/20">
-                    View Details
-                  </button>
-                  <button className="flex-1 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 text-white py-2 px-4 rounded-lg text-sm font-medium transition-all">
-                    Export
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {backtestData?.results.length === 0 && (
+          {results.length === 0 ? (
             <div className="text-center py-12">
               <div className="inline-block p-6 bg-slate-800/30 rounded-2xl border border-slate-700/50 mb-6">
                 <BarChart3 className="w-16 h-16 text-slate-600 mx-auto" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">No Backtest Results</h3>
               <p className="text-slate-500">Run your first backtest to see results here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {results.map((result) => {
+                const metrics = result.metrics || {};
+                const totalReturn = metrics.totalReturn ?? result.totalReturn ?? 
+                  ((result.finalCapital - result.initialCapital) / result.initialCapital * 100);
+                
+                return (
+                  <div key={result.id} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
+                    {/* Result Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-white truncate flex-1">
+                        {result.name || strategies.find(s => s.id === result.strategyId)?.name || 'Unknown Strategy'}
+                      </h3>
+                      <button
+                        onClick={() => handleDeleteBacktest(result.id)}
+                        className="p-1.5 hover:bg-red-500/20 rounded-lg transition-all text-red-400 hover:text-red-300"
+                        title="Delete backtest"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Symbol and Timeframe */}
+                    <div className="flex items-center space-x-4 mb-4 text-sm text-slate-400">
+                      <span className="flex items-center">
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                        {result.symbol || 'N/A'}
+                      </span>
+                      <span className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        {result.timeframe || 'N/A'}
+                      </span>
+                    </div>
+
+                    {/* Performance Metrics */}
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Total Return</span>
+                        <span className={`font-semibold ${getReturnColor(totalReturn)}`}>
+                          {totalReturn >= 0 ? '+' : ''}{formatMetric(totalReturn)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Sharpe Ratio</span>
+                        <span className="font-semibold text-white">{formatMetric(metrics.sharpeRatio)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Max Drawdown</span>
+                        <span className="font-semibold text-red-500">{formatMetric(metrics.maxDrawdown)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Win Rate</span>
+                        <span className="font-semibold text-white">{formatMetric(metrics.winRate)}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Total Trades</span>
+                        <span className="font-semibold text-white">{metrics.totalTrades || 0}</span>
+                      </div>
+                    </div>
+
+                    {/* Period */}
+                    <div className="mb-4 pt-4 border-t border-slate-700/30">
+                      <div className="flex items-center text-sm text-slate-400">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        {new Date(result.startDate).toLocaleDateString()} - {new Date(result.endDate).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    {/* Capital Summary */}
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+                      <div>
+                        <span className="text-slate-500">Initial</span>
+                        <p className="text-white font-semibold">${formatMetric(result.initialCapital, 0)}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Final</span>
+                        <p className="text-white font-semibold">${formatMetric(result.finalCapital, 0)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

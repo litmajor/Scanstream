@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { Request, Response } from 'express'; // Ensure Request and Response are imported
 
 const router = Router();
 
@@ -163,7 +164,7 @@ const STRATEGIES: StrategyMetadata[] = [
 ];
 
 // GET /api/strategies - List all strategies
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     res.json({
       success: true,
@@ -177,10 +178,10 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/strategies/signals - Get all strategy signals (for UnifiedSignalDisplay)
-router.get('/signals', async (req, res) => {
+router.get('/signals', async (req: Request, res: Response) => {
   try {
     const signals = await storage.getSignals({ limit: 50 });
-    
+
     // Filter for strategy-generated signals and format for frontend
     const strategySignals = signals
       .filter(s => s.source === 'strategy' || s.strategyId)
@@ -201,7 +202,7 @@ router.get('/signals', async (req, res) => {
         reasoning: s.reasoning,
         indicators: {}
       }));
-    
+
     res.json({
       success: true,
       signals: strategySignals
@@ -213,15 +214,15 @@ router.get('/signals', async (req, res) => {
 });
 
 // GET /api/strategies/:id - Get strategy details
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const strategy = STRATEGIES.find(s => s.id === id);
-    
+
     if (!strategy) {
       return res.status(404).json({ success: false, error: 'Strategy not found' });
     }
-    
+
     res.json({ success: true, strategy });
   } catch (error) {
     console.error('Error fetching strategy:', error);
@@ -230,19 +231,19 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/strategies/:id/execute - Execute strategy and create signal
-router.post('/:id/execute', async (req, res) => {
+router.post('/:id/execute', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { symbol, timeframe, parameters } = req.body;
-    
+
     const strategy = STRATEGIES.find(s => s.id === id);
     if (!strategy) {
       return res.status(404).json({ success: false, error: 'Strategy not found' });
     }
-    
+
     // Execute strategy via Python
     const result = await executeStrategy(id, symbol, timeframe, parameters);
-    
+
     // If strategy generated a signal, store it in the database
     if (result.success && result.signal && result.signal !== 'HOLD') {
       const signalData = {
@@ -262,11 +263,11 @@ router.post('/:id/execute', async (req, res) => {
         source: 'strategy',
         strategyId: strategy.name
       };
-      
+
       await storage.createSignal(signalData);
       console.log(`[Strategy ${strategy.name}] Signal created: ${result.signal} ${symbol} @ ${result.price}`);
     }
-    
+
     res.json({
       success: true,
       result: {
@@ -284,13 +285,13 @@ router.post('/:id/execute', async (req, res) => {
 });
 
 // POST /api/strategies/consensus - Get consensus trade from all strategies
-router.post('/consensus', async (req, res) => {
+router.post('/consensus', async (req: Request, res: Response) => {
   try {
     const { symbol, timeframes, equity } = req.body;
-    
+
     // Execute consensus analysis via strategy_coop.py
     const result = await executeConsensus(symbol, timeframes || ['D1', 'H4', 'H1'], equity || 10000);
-    
+
     res.json({
       success: true,
       consensus: result
@@ -302,19 +303,19 @@ router.post('/consensus', async (req, res) => {
 });
 
 // POST /api/strategies/:id/backtest - Backtest strategy
-router.post('/:id/backtest', async (req, res) => {
+router.post('/:id/backtest', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { symbol, timeframe, startDate, endDate, parameters } = req.body;
-    
+
     const strategy = STRATEGIES.find(s => s.id === id);
     if (!strategy) {
       return res.status(404).json({ success: false, error: 'Strategy not found' });
     }
-    
+
     // Run backtest via Python
     const result = await backtestStrategy(id, symbol, timeframe, startDate, endDate, parameters);
-    
+
     res.json({
       success: true,
       backtest: {
@@ -340,7 +341,7 @@ async function executeStrategy(
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(process.cwd(), 'strategies', 'executor.py');
-    
+
     const args = [
       pythonScript,
       '--strategy', strategyId,
@@ -348,20 +349,20 @@ async function executeStrategy(
       '--timeframe', timeframe,
       '--params', JSON.stringify(parameters || {})
     ];
-    
+
     const python = spawn('python', args);
-    
+
     let output = '';
     let errorOutput = '';
-    
+
     python.stdout.on('data', (data) => {
       output += data.toString();
     });
-    
+
     python.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
-    
+
     python.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`Python script failed: ${errorOutput}`));
@@ -385,27 +386,27 @@ async function executeConsensus(
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(process.cwd(), 'strategies', 'consensus_executor.py');
-    
+
     const args = [
       pythonScript,
       '--symbol', symbol,
       '--timeframes', JSON.stringify(timeframes),
       '--equity', equity.toString()
     ];
-    
+
     const python = spawn('python', args);
-    
+
     let output = '';
     let errorOutput = '';
-    
+
     python.stdout.on('data', (data) => {
       output += data.toString();
     });
-    
+
     python.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
-    
+
     python.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`Consensus script failed: ${errorOutput}`));
@@ -432,7 +433,7 @@ async function backtestStrategy(
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(process.cwd(), 'strategies', 'backtest_executor.py');
-    
+
     const args = [
       pythonScript,
       '--strategy', strategyId,
@@ -442,20 +443,20 @@ async function backtestStrategy(
       '--end', endDate,
       '--params', JSON.stringify(parameters || {})
     ];
-    
+
     const python = spawn('python', args);
-    
+
     let output = '';
     let errorOutput = '';
-    
+
     python.stdout.on('data', (data) => {
       output += data.toString();
     });
-    
+
     python.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
-    
+
     python.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`Backtest script failed: ${errorOutput}`));
@@ -472,20 +473,20 @@ async function backtestStrategy(
 }
 
 // POST /api/strategies/execute-all - Execute all active strategies
-router.post('/execute-all', async (req, res) => {
+router.post('/execute-all', async (req: Request, res: Response) => {
   try {
     const { symbols, timeframe } = req.body;
     const symbolsToScan = symbols || ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
     const tf = timeframe || '1h';
-    
+
     const activeStrategies = STRATEGIES.filter(s => s.isActive);
     const results = [];
-    
+
     for (const strategy of activeStrategies) {
       for (const symbol of symbolsToScan) {
         try {
           const result = await executeStrategy(strategy.id, symbol, tf, {});
-          
+
           // Store signals in database
           if (result.success && result.signal && result.signal !== 'HOLD') {
             const signalData = {
@@ -505,10 +506,10 @@ router.post('/execute-all', async (req, res) => {
               source: 'strategy',
               strategyId: strategy.name
             };
-            
+
             await storage.createSignal(signalData);
           }
-          
+
           results.push({
             strategy: strategy.name,
             symbol,
@@ -520,7 +521,7 @@ router.post('/execute-all', async (req, res) => {
         }
       }
     }
-    
+
     res.json({
       success: true,
       results,
@@ -532,5 +533,165 @@ router.post('/execute-all', async (req, res) => {
   }
 });
 
-export default router;
+/**
+ * POST /api/strategies/backtest/run
+ * Run a backtest for a strategy
+ */
+router.post('/backtest/run', async (req: Request, res: Response) => {
+  try {
+    const { strategyId, symbol, timeframe, startDate, endDate, initialCapital } = req.body;
 
+    if (!strategyId || !symbol || !timeframe || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // Fetch historical market data
+    const { ExchangeDataFeed } = await import('../trading-engine');
+    const dataFeed = await ExchangeDataFeed.create();
+
+    // Calculate how many candles we need based on date range
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const limit = Math.min(1000, Math.max(100, daysDiff * 24)); // Rough estimate
+
+    const marketFrames = await dataFeed.fetchMarketData(symbol, timeframe, limit);
+
+    // Filter frames to date range
+    const filteredFrames = marketFrames.filter(frame => {
+      const frameDate = new Date(frame.timestamp);
+      return frameDate >= start && frameDate <= end;
+    });
+
+    if (filteredFrames.length === 0) {
+      return res.status(400).json({ error: 'No market data available for the specified date range' });
+    }
+
+    // Get strategy
+    const strategy = await storage.getStrategy(strategyId);
+    if (!strategy) {
+      return res.status(404).json({ error: 'Strategy not found' });
+    }
+
+    // Run backtest using the backtest runner
+    const { runBacktest } = await import('../backtest-runner');
+    const { SignalEngine } = await import('../trading-engine');
+    const config = (await import('../../config/trading-config.json', { with: { type: 'json' } })).default;
+
+    const signalEngine = new SignalEngine(config);
+    const signals = [];
+
+    // Generate signals from market frames
+    for (let i = 0; i < filteredFrames.length; i++) {
+      const signal = await signalEngine.generateSignal(filteredFrames, i);
+      if (signal) {
+        signals.push({
+          ...signal,
+          timestamp: filteredFrames[i].timestamp,
+        });
+      }
+    }
+
+    // Run backtest with generated signals
+    const result = await runBacktest({
+      initialCapital: initialCapital || 10000,
+      signals,
+      marketFrames: filteredFrames,
+    });
+
+    // Calculate metrics
+    const metrics = result.metrics;
+    const totalReturn = ((result.portfolio.getBalance() - initialCapital) / initialCapital) * 100;
+
+    // Store backtest result
+    const backtestResult = await storage.createBacktestResult({
+      strategyId,
+      startDate: start,
+      endDate: end,
+      initialCapital: initialCapital || 10000,
+      finalCapital: result.portfolio.getBalance(),
+      performance: {
+        totalReturn,
+        ...metrics,
+      },
+      equityCurve: result.portfolio.getEquityCurve?.() || [],
+      monthlyReturns: [],
+      metrics: {
+        totalReturn,
+        totalTrades: metrics.totalTrades,
+        winRate: metrics.winRate,
+        sharpeRatio: metrics.sharpeRatio,
+        maxDrawdown: metrics.maxDrawdown,
+        profitFactor: metrics.profitFactor,
+      },
+      trades: result.trades.map(trade => ({
+        symbol: trade.symbol,
+        side: trade.side,
+        entryTime: trade.entryTime,
+        exitTime: trade.exitTime,
+        entryPrice: trade.entryPrice,
+        exitPrice: trade.exitPrice,
+        quantity: trade.quantity,
+        pnl: trade.pnl,
+      })),
+    });
+
+    res.json({
+      success: true,
+      backtest: {
+        ...backtestResult,
+        name: strategy.name,
+        symbol,
+        timeframe,
+      },
+    });
+  } catch (error: any) {
+    console.error('Failed to run backtest:', error);
+    res.status(500).json({ error: error.message || 'Failed to run backtest' });
+  }
+});
+
+/**
+ * GET /api/strategies/backtest/results
+ * Get all backtest results
+ */
+router.get('/backtest/results', async (req: Request, res: Response) => {
+  try {
+    const { strategyId } = req.query;
+    const results = await storage.getBacktestResults(strategyId as string | undefined);
+
+    // Get strategies to add names
+    const strategies = await storage.getStrategies();
+
+    // Enrich results with strategy names
+    const enrichedResults = results.map(result => {
+      const strategy = strategies.find(s => s.id === result.strategyId);
+      return {
+        ...result,
+        name: strategy?.name || 'Unknown Strategy',
+      };
+    });
+
+    res.json({ results: enrichedResults });
+  } catch (error: any) {
+    console.error('Failed to fetch backtest results:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/strategies/backtest/:id
+ * Delete a backtest result
+ */
+router.delete('/backtest/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await storage.deleteBacktestResult(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Failed to delete backtest:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;

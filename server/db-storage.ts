@@ -167,7 +167,7 @@ export class DbStorage implements IStorage {
     // Ensure all required fields are present in returned results
     const results = await this.prisma.backtestResult.findMany({
       where: strategyId ? { strategyId } : undefined,
-      orderBy: { id: 'desc' }, // fallback to id for ordering
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         strategyId: true,
@@ -198,6 +198,12 @@ export class DbStorage implements IStorage {
       trades: r.trades ?? [],
       createdAt: r.createdAt,
     }));
+  }
+
+  async deleteBacktestResult(id: string): Promise<void> {
+    await this.prisma.backtestResult.delete({
+      where: { id },
+    });
   }
 
   async createBacktestResult(result: InsertBacktestResult): Promise<BacktestResult> {
