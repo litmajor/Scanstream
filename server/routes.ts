@@ -19,6 +19,12 @@ import notificationRoutes from './routes/notifications';
 // Import user preferences routes
 import userPreferencesRoutes from './routes/user-preferences';
 
+// Import ML routes
+import mlPredictionsRouter from './routes/ml-predictions';
+import mlTrainingRouter from './routes/ml-training';
+import mlSignalsRouter from './routes/ml-signals';
+import mlAdvancedRouter from './routes/ml-advanced';
+
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -1630,6 +1636,13 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/notifications', notificationRoutes);
   console.log('[express] Notifications API registered at /api/notifications');
   app.use('/api/user', userPreferencesRoutes);
+
+  // Mount ML routes
+  app.use('/api/ml', mlPredictionsRouter);
+  app.use('/api/ml-training', mlTrainingRouter);
+  app.use('/api/ml-engine', mlSignalsRouter);
+  app.use('/api/ml/advanced', mlAdvancedRouter);
+
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {

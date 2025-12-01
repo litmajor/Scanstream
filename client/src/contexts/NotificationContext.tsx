@@ -65,15 +65,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   useEffect(() => {
     const handleWebSocketNotification = (event: CustomEvent) => {
       const notification = event.detail;
-      
+
       // Add the notification to state
       setNotifications(prev => [notification, ...prev]);
-      
+
       // Play sound for medium+ priority
       if (notification.priority !== 'low') {
         playNotificationSound();
       }
-      
+
       // Show desktop notification for high+ priority
       if (notification.priority === 'high' || notification.priority === 'urgent') {
         showDesktopNotification(notification.title, notification.message, notification.priority);
@@ -81,7 +81,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     };
 
     window.addEventListener('ws-notification', handleWebSocketNotification as EventListener);
-    
+
     return () => {
       window.removeEventListener('ws-notification', handleWebSocketNotification as EventListener);
     };
@@ -92,29 +92,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
-    if (!settings.soundEnabled) return;
-    
-    // Create a simple beep sound using Web Audio API
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.error('Error playing notification sound:', error);
-    }
-  }, [settings.soundEnabled]);
+    const audio = new Audio('/notification.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(() => {
+      // Ignore audio errors (browser might block autoplay)
+    });
+  }, []);
 
   // Show desktop notification
   const showDesktopNotification = useCallback((title: string, message: string, priority: NotificationPriority) => {
@@ -123,7 +106,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     const icon = '/favicon.svg';
     const urgencyTag = priority === 'urgent' ? '🚨 ' : priority === 'high' ? '⚠️ ' : '';
-    
+
     new Notification(`${urgencyTag}${title}`, {
       body: message,
       icon,
@@ -158,12 +141,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     };
 
     setNotifications(prev => [newNotification, ...prev]);
-    
+
     // Play sound for medium+ priority
     if (priority !== 'low') {
       playNotificationSound();
     }
-    
+
     // Show desktop notification for high+ priority
     if (priority === 'high' || priority === 'urgent') {
       showDesktopNotification(title, message, priority);
@@ -243,4 +226,3 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     </NotificationContext.Provider>
   );
 }
-
