@@ -8,8 +8,57 @@
  * 4. Risk Assessor - Predicts risk levels
  */
 
-import type { ChartDataPoint } from './ml-predictions';
 import { MLModelStorage } from './ml-model-storage';
+
+// Type definitions
+export interface ChartDataPoint {
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+  rsi?: number;
+  macd?: number;
+  ema?: number;
+  timestamp?: number;
+}
+
+export interface MLPredictions {
+  direction: {
+    prediction: 'BULLISH' | 'BEARISH';
+    probability: number;
+    confidence: number;
+    strength: number;
+  };
+  price: {
+    predicted: number;
+    change: number;
+    changePercent: number;
+    target: 'UP' | 'DOWN' | 'NEUTRAL';
+  };
+  volatility: {
+    predicted: number;
+    level: 'low' | 'medium' | 'high' | 'extreme';
+    confidence: number;
+  };
+  holdingPeriod: {
+    candles: number;
+    days: number;
+    hours: number;
+    confidence: number;
+    reason: string;
+  };
+  risk: {
+    score: number;
+    level: 'low' | 'medium' | 'high' | 'extreme';
+    factors: string[];
+  };
+  metadata: {
+    timestamp: number;
+    dataPoints: number;
+    features: number;
+    horizon: string;
+  };
+}
 
 /**
  * ML Prediction Service

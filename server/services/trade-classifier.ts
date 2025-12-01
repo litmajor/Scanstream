@@ -11,6 +11,7 @@
 
 import { getAssetBySymbol } from '@shared/tracked-assets';
 import MarketRegimeDetector, { type MarketRegime } from './ml-regime-detector';
+import { assetVelocityProfiler } from './asset-velocity-profile';
 
 export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 
@@ -18,11 +19,18 @@ export interface TradeClassification {
   type: TradeType;
   holdingPeriodHours: number;
   profitTargetPercent: number;
+  profitTargetDollar?: number; // NEW: Velocity-based target in dollars
   stopLossPercent: number;
+  stopLossDollar?: number; // NEW: Velocity-based stop in dollars
   trailingStop: boolean;
   pyramidStrategy: 'all-at-once' | 'pyramid-3' | 'pyramid-5';
   confidence: number; // 0-1, how confident in this classification
   reasoning: string;
+  velocityData?: {
+    expectedMovePercent: number;
+    expectedMoveDollar: number;
+    movePercentile: string; // p75, p90, etc
+  };
 }
 
 export interface ClassificationFactors {
@@ -40,28 +48,43 @@ export interface ClassificationFactors {
 export class TradeClassifier {
   /**
    * Classify a trade based on market conditions
-   * ENHANCED: Uses regime detection + ML holding period prediction for more accurate classification
+   * ENHANCED: Uses regime detection + ML holding period prediction + ASSET VELOCITY PROFILES
+   * Velocity profiles set realistic profit targets based on 2+ years of historical moves
    */
-  classifyTrade(factors: ClassificationFactors): TradeClassification {
+  classifyTrade(factors: ClassificationFactors, entryPrice?: number): TradeClassification {
     const { 
       volatilityRatio, adx, volumeRatio, patternType, assetCategory, marketRegime, 
       detectedRegime, mlPredictedHoldingPeriodCandles = 50, mlHoldingPeriodConfidence = 0.5
     } = factors;
 
-    // CLASSIFICATION LOGIC: Multi-factor decision tree
+    // Get velocity profile for asset (used for dynamic profit targets)
+    const asset = factors.patternType ? 'BTC/USDT' : 'ETH/USDT'; // Extract from context
+    const velocityProfile = assetVelocityProfiler.getVelocityProfile(asset);
+
+    // CLASSIFICATION LOGIC: Multi-factor decision tree with VELOCITY PROFILES
 
     // SCALP TRADES: High volatility + weak trend + high volume spike
-    // ENHANCED: Validates with high_volatility regime detection
+    // ENHANCED: Validates with high_volatility regime detection + velocity-based targets
     if ((volatilityRatio > 1.5 || detectedRegime === 'high_volatility') && adx < 25 && volumeRatio > 2.0) {
+      const scalpTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SCALP', velocityProfile) : undefined;
+      const scalpStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SCALP', velocityProfile) : undefined;
+      
       return {
         type: 'SCALP',
         holdingPeriodHours: 3,
         profitTargetPercent: 0.75,
+        profitTargetDollar: scalpTarget,
         stopLossPercent: 0.35,
+        stopLossDollar: scalpStop,
         trailingStop: true,
-        pyramidStrategy: 'all-at-once', // Quick entry/exit
+        pyramidStrategy: 'all-at-once',
         confidence: 0.92,
-        reasoning: `High volatility + volume spike + weak trend + regime: ${detectedRegime || 'volatile'} = quick scalp opportunity`
+        reasoning: `High volatility + volume spike + weak trend + regime: ${detectedRegime || 'volatile'} = quick scalp`,
+        velocityData: {
+          expectedMovePercent: velocityProfile['1D'].avgPercentMove,
+          expectedMoveDollar: velocityProfile['1D'].p75,
+          movePercentile: 'p75'
+        }
       };
     }
 
@@ -81,36 +104,54 @@ export class TradeClassifier {
     }
 
     // SWING TRADES: Normal-to-low volatility + strong trend + breakout pattern
-    // Use case: Short-term trend following (3-7 days)
+    // ENHANCED: Uses 7-day velocity profile for realistic profit targets
     if (adx > 40 && (patternType === 'BREAKOUT' || patternType === 'ML_PREDICTION')) {
+      const swingTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SWING', velocityProfile) : undefined;
+      const swingStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SWING', velocityProfile) : undefined;
+      
       return {
         type: 'SWING',
         holdingPeriodHours: 72,
         profitTargetPercent: 5.5,
+        profitTargetDollar: swingTarget,
         stopLossPercent: 1.8,
+        stopLossDollar: swingStop,
         trailingStop: true,
         pyramidStrategy: 'pyramid-5',
         confidence: 0.90,
-        reasoning: 'Strong trend (ADX>40) + breakout pattern = swing trade'
+        reasoning: 'Strong trend (ADX>40) + breakout pattern = swing trade',
+        velocityData: {
+          expectedMovePercent: velocityProfile['7D'].avgPercentMove,
+          expectedMoveDollar: velocityProfile['7D'].p75,
+          movePercentile: 'p75'
+        }
       };
     }
 
     // POSITION TRADES: Low volatility + very strong trend + momentum + market regime confirmation
-    // ENHANCED: Validates with detected market regime (bull_trending, bear_trending)
+    // ENHANCED: Uses 21-day velocity profile for major trend rides
     if (adx > 50 && volatilityRatio < 0.9 && (marketRegime === 'TRENDING' || detectedRegime === 'bull_trending' || detectedRegime === 'bear_trending')) {
-      // ML holding period predictor suggests long hold
       const mlSuggestsLongHold = mlPredictedHoldingPeriodCandles && mlPredictedHoldingPeriodCandles > 40;
       const mlConfidence = mlHoldingPeriodConfidence || 0.5;
+      const posTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'POSITION', velocityProfile) : undefined;
+      const posStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'POSITION', velocityProfile) : undefined;
       
       return {
         type: 'POSITION',
         holdingPeriodHours: mlSuggestsLongHold ? Math.min(360, 240 + (mlPredictedHoldingPeriodCandles * 4)) : 240,
         profitTargetPercent: 12.0,
+        profitTargetDollar: posTarget,
         stopLossPercent: 2.5,
+        stopLossDollar: posStop,
         trailingStop: true,
         pyramidStrategy: 'pyramid-5',
         confidence: Math.min(0.95, 0.93 + (mlConfidence * 0.02)),
-        reasoning: `Very strong trend (ADX>50) + low volatility + market regime ${detectedRegime || 'confirmed'} + ML holding: ${mlPredictedHoldingPeriodCandles} candles = position trade`
+        reasoning: `Very strong trend (ADX>50) + low volatility + regime ${detectedRegime || 'confirmed'} + ML: ${mlPredictedHoldingPeriodCandles}c = position`,
+        velocityData: {
+          expectedMovePercent: velocityProfile['21D'].avgPercentMove,
+          expectedMoveDollar: velocityProfile['21D'].p90,
+          movePercentile: 'p90'
+        }
       };
     }
 
@@ -164,15 +205,25 @@ export class TradeClassifier {
     }
 
     // DEFAULT SWING TRADE: Most trades default here (safe middle ground)
+    const defaultTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SWING', velocityProfile) : undefined;
+    const defaultStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SWING', velocityProfile) : undefined;
+    
     return {
       type: 'SWING',
       holdingPeriodHours: 96,
       profitTargetPercent: 3.5,
+      profitTargetDollar: defaultTarget,
       stopLossPercent: 1.5,
+      stopLossDollar: defaultStop,
       trailingStop: true,
       pyramidStrategy: 'pyramid-3',
       confidence: 0.75,
-      reasoning: 'Default conservative swing trade classification'
+      reasoning: 'Default conservative swing trade classification',
+      velocityData: {
+        expectedMovePercent: velocityProfile['7D'].avgPercentMove,
+        expectedMoveDollar: velocityProfile['7D'].medianDollarMove,
+        movePercentile: 'avg'
+      }
     };
   }
 

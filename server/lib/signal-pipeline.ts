@@ -282,7 +282,7 @@ export class SignalPipeline {
     // Use boosted confidence if available
     const finalConfidence = correlationBoost.boostedConfidence;
 
-    // Step 8.7: Classify trade type for adaptive holding period (only for BUY/SELL signals)
+    // Step 8.7: Classify trade type + VELOCITY-BASED PROFIT TARGETS (only for BUY/SELL signals)
     let classification: any = null;
     let adjustedStopLoss = positions.stopLoss;
     let adjustedTakeProfit = positions.takeProfit;
@@ -295,15 +295,16 @@ export class SignalPipeline {
         patternType: primaryClassification,
         assetCategory: assetCategory,
         marketRegime: (accuracy as any).marketRegime || 'RANGING'
-      });
+      }, marketData.price); // PASS ENTRY PRICE for velocity-based targets
 
-      adjustedStopLoss = tradeClassifier.calculateStopLoss(
+      // Use velocity-based targets if available, otherwise fall back to percent-based
+      adjustedStopLoss = classification.stopLossDollar || tradeClassifier.calculateStopLoss(
         marketData.price,
         classification.stopLossPercent,
         signalType as 'BUY' | 'SELL'
       );
 
-      adjustedTakeProfit = tradeClassifier.calculateTakeProfit(
+      adjustedTakeProfit = classification.profitTargetDollar || tradeClassifier.calculateTakeProfit(
         marketData.price,
         classification.profitTargetPercent,
         signalType as 'BUY' | 'SELL'
