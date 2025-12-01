@@ -94,6 +94,16 @@ import modelPerformanceRouter from './routes/model-performance';
 app.use('/api/model-performance', modelPerformanceRouter);
 console.log('[express] Model Performance API registered at /api/model-performance');
 
+// Register Signal Backtesting routes
+import backtestingRouter from './routes/signal-backtesting';
+app.use('/api/backtest', backtestingRouter);
+console.log('[express] Signal Backtesting API registered at /api/backtest');
+
+// Register Health Check route
+import healthRouter from './routes/health';
+app.use('/api/health', healthRouter);
+console.log('[express] Health Check API registered at /api/health');
+
 // Register Gateway routes
 import gatewayRouter, { getGatewayServices } from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
