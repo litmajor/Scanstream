@@ -1,289 +1,400 @@
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
-  BarChart3, 
-  Target,
-  AlertCircle,
-  Zap,
-  ArrowUp,
-  ArrowDown
-} from 'lucide-react';
+import { ArrowLeft, Brain, TrendingUp, Activity, Zap, Target, BarChart3, AlertCircle, CheckCircle } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { useTheme } from '../contexts/ThemeContext';
+import { LineChart, Line, ScatterChart, Scatter, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
-interface CandleCluster {
-  startIndex: number;
-  direction: 'bullish' | 'bearish';
+interface ClusterData {
+  clusterId: number;
   candles: number;
-  totalVolume: number;
+  avgReturn: number;
+  volatility: number;
+  centroid: {
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  };
 }
 
-interface ClusteringAnalysis {
-  clusters: CandleCluster[];
-  totalClusters: number;
-  bullishClusters: number;
-  bearishClusters: number;
-  directionalRatio: number;
-  trendFormation: boolean;
-  dominantDirection: 'bullish' | 'bearish';
+interface PatternDetection {
+  pattern: string;
+  confidence: number;
+  timeframe: string;
+  predictedMove: number;
+  historicalAccuracy: number;
+}
+
+interface MarketRegime {
+  regime: 'BULL_EARLY' | 'BULL_LATE' | 'BEAR_EARLY' | 'BEAR_LATE' | 'SIDEWAYS' | 'VOLATILE';
+  confidence: number;
+  characteristics: {
+    trend: number;
+    volatility: number;
+    volume: number;
+  };
+  duration: number;
+  transitionProbability: Record<string, number>;
 }
 
 export default function AdvancedAnalytics() {
+  const [, setLocation] = useLocation();
+  const { colors } = useTheme();
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
   const [timeframe, setTimeframe] = useState('1h');
 
-  // Fetch market data for clustering
-  const { data: marketData, isLoading: loadingMarket } = useQuery({
-    queryKey: ['market-data', selectedSymbol, timeframe],
+  // Fetch candle clustering analysis
+  const { data: clusterData, isLoading: clustersLoading } = useQuery({
+    queryKey: ['analytics-clusters', selectedSymbol, timeframe],
     queryFn: async () => {
-      const response = await fetch(`/api/gateway/market-data/${selectedSymbol}?timeframe=${timeframe}&limit=100`);
-      if (!response.ok) throw new Error('Failed to fetch market data');
+      const response = await fetch(`/api/analytics/clusters?symbol=${selectedSymbol}&timeframe=${timeframe}`);
+      if (!response.ok) throw new Error('Failed to fetch cluster data');
       return response.json();
     },
+    refetchInterval: 60000
   });
 
-  // Fetch candle clustering analysis
-  const { data: clustering, isLoading: loadingClustering, refetch: refetchClustering } = useQuery({
-    queryKey: ['candle-clustering', selectedSymbol],
+  // Fetch pattern detection
+  const { data: patternData, isLoading: patternsLoading } = useQuery({
+    queryKey: ['analytics-patterns', selectedSymbol, timeframe],
     queryFn: async () => {
-      if (!marketData?.data) return null;
-      
-      const response = await fetch('/api/analytics/candle-clustering', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: marketData.data }),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch clustering');
-      return response.json() as Promise<ClusteringAnalysis>;
+      const response = await fetch(`/api/analytics/patterns?symbol=${selectedSymbol}&timeframe=${timeframe}`);
+      if (!response.ok) throw new Error('Failed to fetch pattern data');
+      return response.json();
     },
-    enabled: !!marketData?.data,
+    refetchInterval: 60000
   });
 
-  const symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'LINK/USDT'];
-  const timeframes = ['5m', '15m', '1h', '4h', '1d'];
+  // Fetch market regime analysis
+  const { data: regimeData, isLoading: regimeLoading } = useQuery({
+    queryKey: ['analytics-regime', selectedSymbol],
+    queryFn: async () => {
+      const response = await fetch(`/api/analytics/regime?symbol=${selectedSymbol}`);
+      if (!response.ok) throw new Error('Failed to fetch regime data');
+      return response.json();
+    },
+    refetchInterval: 30000
+  });
+
+  const getRegimeColor = (regime: string) => {
+    const colors = {
+      'BULL_EARLY': '#22c55e',
+      'BULL_LATE': '#84cc16',
+      'BEAR_EARLY': '#f59e0b',
+      'BEAR_LATE': '#ef4444',
+      'SIDEWAYS': '#8b5cf6',
+      'VOLATILE': '#ec4899'
+    };
+    return colors[regime as keyof typeof colors] || '#6b7280';
+  };
+
+  const clusterColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <BarChart3 className="w-10 h-10 text-blue-400" />
-            Advanced Analytics Engine
-          </h1>
-          <p className="text-slate-400">Candle Clustering, Pattern Detection & Market Regime Analysis</p>
+    <div className="min-h-screen transition-colors duration-300" style={{ backgroundColor: colors.background }}>
+      {/* Header */}
+      <div className="border-b" style={{ backgroundColor: colors.surface, borderBottomColor: colors.border }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <button
+              onClick={() => setLocation('/')}
+              className="flex items-center transition-all hover:translate-x-[-2px]"
+              style={{ color: colors.textSecondary }}
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              <span className="font-medium">Back to Dashboard</span>
+            </button>
+
+            <div className="flex-1 text-center">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Advanced Analytics Engine
+              </h1>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                Candle Clustering • Pattern Detection • Market Regime Analysis
+              </p>
+            </div>
+
+            <div className="w-32" />
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Symbol & Timeframe Selector */}
+        <div className="mb-6 rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <div className="flex items-center space-x-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>Symbol</label>
+              <select
+                value={selectedSymbol}
+                onChange={(e) => setSelectedSymbol(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+              >
+                <option>BTC/USDT</option>
+                <option>ETH/USDT</option>
+                <option>SOL/USDT</option>
+                <option>AVAX/USDT</option>
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>Timeframe</label>
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+              >
+                <option>1m</option>
+                <option>5m</option>
+                <option>15m</option>
+                <option>1h</option>
+                <option>4h</option>
+                <option>1d</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex gap-4 mb-8 flex-wrap">
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="px-4 py-2 bg-slate-800 text-white rounded border border-slate-700 hover:border-slate-500"
-          >
-            {symbols.map(s => <option key={s}>{s}</option>)}
-          </select>
-          
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
-            className="px-4 py-2 bg-slate-800 text-white rounded border border-slate-700 hover:border-slate-500"
-          >
-            {timeframes.map(t => <option key={t}>{t}</option>)}
-          </select>
+        {/* Market Regime Analysis */}
+        <div className="mb-6 rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Activity className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            Market Regime Analysis
+          </h2>
 
-          <Button
-            onClick={() => refetchClustering()}
-            disabled={loadingClustering || loadingMarket}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Analyze Clusters
-          </Button>
-        </div>
-
-        {/* Market Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Candles Analyzed</span>
-              <Activity className="w-5 h-5 text-blue-400" />
+          {regimeLoading ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-20 rounded-lg" style={{ backgroundColor: colors.surface }} />
             </div>
-            <p className="text-3xl font-bold text-white">
-              {marketData?.data?.length || 0}
-            </p>
-          </Card>
-
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Total Clusters</span>
-              <Target className="w-5 h-5 text-purple-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {clustering?.totalClusters || 0}
-            </p>
-          </Card>
-
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Directional Ratio</span>
-              <BarChart3 className="w-5 h-5 text-amber-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {clustering ? `${(clustering.directionalRatio * 100).toFixed(0)}%` : 'N/A'}
-            </p>
-          </Card>
-
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Trend Formation</span>
-              <AlertCircle className="w-5 h-5 text-green-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {clustering?.trendFormation ? 'YES' : 'NO'}
-            </p>
-          </Card>
-        </div>
-
-        {/* Clustering Summary */}
-        {clustering && (
-          <Card className="p-6 bg-slate-800/50 border-slate-700 mb-8">
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Activity className="w-6 h-6 text-blue-400" />
-              Clustering Analysis Summary
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Bullish Clusters */}
-              <div className="bg-slate-700/30 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-green-400 flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5" />
-                    Bullish Clusters
-                  </h3>
-                  <Badge className="bg-green-500/20 text-green-400 border-green-700">
-                    {clustering.bullishClusters}
-                  </Badge>
-                </div>
-                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-green-600 to-green-400"
-                    style={{ width: `${(clustering.bullishClusters / clustering.totalClusters) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Bearish Clusters */}
-              <div className="bg-slate-700/30 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-red-400 flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5" />
-                    Bearish Clusters
-                  </h3>
-                  <Badge className="bg-red-500/20 text-red-400 border-red-700">
-                    {clustering.bearishClusters}
-                  </Badge>
-                </div>
-                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-red-600 to-red-400"
-                    style={{ width: `${(clustering.bearishClusters / clustering.totalClusters) * 100}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Dominant Direction */}
-            <div className="mt-6 p-4 bg-slate-700/30 rounded-lg">
+          ) : regimeData?.regime ? (
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-400 text-sm mb-1">Dominant Direction</p>
-                  <p className={`text-2xl font-bold ${clustering.dominantDirection === 'bullish' ? 'text-green-400' : 'text-red-400'}`}>
-                    {clustering.dominantDirection.toUpperCase()}
-                  </p>
+                  <div className="text-2xl font-bold" style={{ color: getRegimeColor(regimeData.regime.regime) }}>
+                    {regimeData.regime.regime.replace('_', ' ')}
+                  </div>
+                  <div className="text-sm" style={{ color: colors.textSecondary }}>
+                    Confidence: {(regimeData.regime.confidence * 100).toFixed(1)}%
+                  </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-slate-400 text-sm mb-1">Trend Strength</p>
-                  <div className="flex items-center gap-2">
-                    {clustering.trendFormation ? (
-                      <>
-                        <Badge className="bg-green-500/20 text-green-400 border-green-700">STRONG</Badge>
-                        <ArrowUp className="w-6 h-6 text-green-400" />
-                      </>
-                    ) : (
-                      <>
-                        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-700">WEAK</Badge>
-                        <ArrowDown className="w-6 h-6 text-yellow-400" />
-                      </>
-                    )}
+                  <div className="text-sm" style={{ color: colors.textSecondary }}>Duration</div>
+                  <div className="font-semibold" style={{ color: colors.text }}>
+                    {regimeData.regime.duration} candles
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        )}
 
-        {/* Detailed Clusters List */}
-        {clustering && clustering.clusters.length > 0 && (
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Target className="w-6 h-6 text-purple-400" />
-              Detected Clusters ({clustering.clusters.length})
-            </h2>
-            
-            <div className="space-y-3">
-              {clustering.clusters.map((cluster, idx) => (
-                <div 
-                  key={idx}
-                  className={`p-4 rounded-lg border ${
-                    cluster.direction === 'bullish' 
-                      ? 'bg-green-500/10 border-green-700' 
-                      : 'bg-red-500/10 border-red-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {cluster.direction === 'bullish' ? (
-                        <TrendingUp className="w-5 h-5 text-green-400" />
-                      ) : (
-                        <TrendingDown className="w-5 h-5 text-red-400" />
-                      )}
-                      <div>
-                        <p className={`font-semibold ${cluster.direction === 'bullish' ? 'text-green-400' : 'text-red-400'}`}>
-                          {cluster.direction.toUpperCase()} Cluster #{idx + 1}
-                        </p>
-                        <p className="text-sm text-slate-400">
-                          Starting at candle {cluster.startIndex}
-                        </p>
+              {/* Characteristics */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="rounded-lg border p-3" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  <div className="text-xs" style={{ color: colors.textSecondary }}>Trend</div>
+                  <div className="text-lg font-semibold" style={{ color: colors.text }}>
+                    {(regimeData.regime.characteristics.trend * 100).toFixed(0)}%
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  <div className="text-xs" style={{ color: colors.textSecondary }}>Volatility</div>
+                  <div className="text-lg font-semibold" style={{ color: colors.text }}>
+                    {(regimeData.regime.characteristics.volatility * 100).toFixed(0)}%
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  <div className="text-xs" style={{ color: colors.textSecondary }}>Volume</div>
+                  <div className="text-lg font-semibold" style={{ color: colors.text }}>
+                    {(regimeData.regime.characteristics.volume * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Transition Probabilities */}
+              <div>
+                <div className="text-sm font-medium mb-2" style={{ color: colors.text }}>Transition Probabilities</div>
+                <div className="space-y-2">
+                  {Object.entries(regimeData.regime.transitionProbability || {}).map(([regime, prob]) => (
+                    <div key={regime} className="flex items-center justify-between">
+                      <span className="text-sm" style={{ color: colors.textSecondary }}>{regime}</span>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-32 h-2 rounded-full overflow-hidden" style={{ backgroundColor: colors.surface }}>
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${(prob as number) * 100}%`, backgroundColor: colors.accent }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium w-12 text-right" style={{ color: colors.text }}>
+                          {((prob as number) * 100).toFixed(0)}%
+                        </span>
                       </div>
                     </div>
-                    
-                    <div className="text-right">
-                      <p className="text-sm text-slate-400">Candles: <span className="text-white font-semibold">{cluster.candles}</span></p>
-                      <p className="text-sm text-slate-400">Volume: <span className="text-white font-semibold">{cluster.totalVolume.toFixed(0)}</span></p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No regime data available
+            </div>
+          )}
+        </div>
+
+        {/* Candle Clustering */}
+        <div className="mb-6 rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Brain className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            Candle Clustering Analysis
+          </h2>
+
+          {clustersLoading ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-64 rounded-lg" style={{ backgroundColor: colors.surface }} />
+            </div>
+          ) : clusterData?.clusters ? (
+            <div className="space-y-4">
+              <ResponsiveContainer width="100%" height={300}>
+                <ScatterChart>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+                  <XAxis dataKey="volatility" name="Volatility" stroke={colors.textSecondary} />
+                  <YAxis dataKey="avgReturn" name="Avg Return" stroke={colors.textSecondary} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: '8px' }}
+                    labelStyle={{ color: colors.text }}
+                  />
+                  <Scatter name="Clusters" data={clusterData.clusters} fill={colors.accent}>
+                    {clusterData.clusters.map((entry: ClusterData, index: number) => (
+                      <Cell key={`cell-${index}`} fill={clusterColors[index % clusterColors.length]} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {clusterData.clusters.map((cluster: ClusterData, index: number) => (
+                  <div
+                    key={cluster.clusterId}
+                    className="rounded-lg border p-4"
+                    style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div
+                        className="text-sm font-semibold"
+                        style={{ color: clusterColors[index % clusterColors.length] }}
+                      >
+                        Cluster {cluster.clusterId}
+                      </div>
+                      <div className="text-xs" style={{ color: colors.textSecondary }}>
+                        {cluster.candles} candles
+                      </div>
                     </div>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span style={{ color: colors.textSecondary }}>Avg Return:</span>
+                        <span
+                          className="font-semibold"
+                          style={{ color: cluster.avgReturn >= 0 ? colors.success : colors.error }}
+                        >
+                          {cluster.avgReturn >= 0 ? '+' : ''}{cluster.avgReturn.toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: colors.textSecondary }}>Volatility:</span>
+                        <span style={{ color: colors.text }}>{cluster.volatility.toFixed(2)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No cluster data available
+            </div>
+          )}
+        </div>
+
+        {/* Pattern Detection */}
+        <div className="rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Target className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            Pattern Detection
+          </h2>
+
+          {patternsLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-20 rounded-lg" style={{ backgroundColor: colors.surface }} />
+              ))}
+            </div>
+          ) : patternData?.patterns && patternData.patterns.length > 0 ? (
+            <div className="space-y-3">
+              {patternData.patterns.map((pattern: PatternDetection, index: number) => (
+                <div
+                  key={index}
+                  className="rounded-lg border p-4"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="text-lg font-semibold" style={{ color: colors.text }}>
+                          {pattern.pattern}
+                        </div>
+                        <div
+                          className="px-2 py-0.5 rounded text-xs font-medium"
+                          style={{
+                            backgroundColor: pattern.confidence >= 0.7 ? `${colors.success}20` : `${colors.warning}20`,
+                            color: pattern.confidence >= 0.7 ? colors.success : colors.warning
+                          }}
+                        >
+                          {(pattern.confidence * 100).toFixed(0)}% confidence
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span style={{ color: colors.textSecondary }}>Timeframe:</span>
+                          <span className="ml-2 font-medium" style={{ color: colors.text }}>
+                            {pattern.timeframe}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ color: colors.textSecondary }}>Predicted Move:</span>
+                          <span
+                            className="ml-2 font-semibold"
+                            style={{ color: pattern.predictedMove >= 0 ? colors.success : colors.error }}
+                          >
+                            {pattern.predictedMove >= 0 ? '+' : ''}{pattern.predictedMove.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ color: colors.textSecondary }}>Historical Accuracy:</span>
+                          <span className="ml-2 font-medium" style={{ color: colors.text }}>
+                            {(pattern.historicalAccuracy * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {pattern.confidence >= 0.7 ? (
+                      <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: colors.success }} />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" style={{ color: colors.warning }} />
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </Card>
-        )}
-
-        {/* Loading State */}
-        {(loadingMarket || loadingClustering) && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-              <p className="text-slate-400">Analyzing market data...</p>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No patterns detected
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

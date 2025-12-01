@@ -1,313 +1,338 @@
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { 
-  Brain, 
-  Target, 
-  TrendingUp, 
-  TrendingDown,
-  Shield,
-  Zap,
-  Activity,
-  BarChart3,
-  ArrowUp,
-  ArrowDown,
-  Minus
-} from 'lucide-react';
+import { ArrowLeft, Brain, Target, Shield, TrendingUp, Activity, Zap } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { useTheme } from '../contexts/ThemeContext';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface RLSignal {
   symbol: string;
-  signal: 'BUY' | 'SELL' | 'HOLD';
-  strength: number;
-  price: number;
-  timestamp: string;
+  action: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number;
   positionSize: number;
   stopLoss: number;
   takeProfit: number;
-  riskReward: number;
-  confidence: number;
-  reasoning: string[];
+  riskRewardRatio: number;
+  expectedReturn: number;
+  maxDrawdown: number;
+  qValue: number;
 }
 
 interface RLStats {
-  qTableSize: number;
-  experienceCount: number;
+  totalExperiences: number;
   epsilon: number;
-  actionSpaceSize: number;
+  avgReward: number;
+  episodeCount: number;
+  successRate: number;
+  avgPositionSize: number;
+  avgRiskReward: number;
+  bestEpisodeReward: number;
+  recentPerformance: Array<{ episode: number; reward: number; avgReturn: number }>;
 }
 
 export default function RLPositionAgent() {
-  const [selectedSymbol, setSelectedSymbol] = useState('all');
+  const [, setLocation] = useLocation();
+  const { colors } = useTheme();
+  const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+  const [baseSize, setBaseSize] = useState(1.0);
 
   // Fetch RL signals
-  const { data: signalsData, isLoading: loadingSignals, refetch: refetchSignals } = useQuery({
-    queryKey: ['rl-signals'],
+  const { data: signalsData, isLoading: signalsLoading } = useQuery({
+    queryKey: ['rl-signals', selectedSymbol],
     queryFn: async () => {
-      const response = await fetch('/api/rl-agent/signals');
+      const response = await fetch(`/api/rl-agent/signals?symbols=${selectedSymbol}`);
       if (!response.ok) throw new Error('Failed to fetch RL signals');
       return response.json();
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 10000
   });
 
   // Fetch RL stats
-  const { data: statsData, isLoading: loadingStats } = useQuery({
+  const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['rl-stats'],
     queryFn: async () => {
       const response = await fetch('/api/rl-agent/stats');
       if (!response.ok) throw new Error('Failed to fetch RL stats');
       return response.json();
     },
+    refetchInterval: 30000
   });
 
-  const signals: RLSignal[] = signalsData?.signals || [];
-  const stats: RLStats = statsData?.stats || {
-    qTableSize: 0,
-    experienceCount: 0,
-    epsilon: 0,
-    actionSpaceSize: 0,
-  };
-
-  // Filter signals by symbol
-  const filteredSignals = selectedSymbol === 'all' 
-    ? signals 
-    : signals.filter(s => s.symbol === selectedSymbol);
-
-  const uniqueSymbols = Array.from(new Set(signals.map(s => s.symbol)));
-
-  const getSignalIcon = (type: string) => {
-    if (type === 'BUY') return <ArrowUp className="w-5 h-5 text-green-400" />;
-    if (type === 'SELL') return <ArrowDown className="w-5 h-5 text-red-400" />;
-    return <Minus className="w-5 h-5 text-gray-400" />;
-  };
-
-  const getSignalColor = (type: string) => {
-    if (type === 'BUY') return 'bg-green-500/20 text-green-400 border-green-700';
-    if (type === 'SELL') return 'bg-red-500/20 text-red-400 border-red-700';
-    return 'bg-gray-500/20 text-gray-400 border-gray-700';
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'BUY': return colors.success;
+      case 'SELL': return colors.error;
+      case 'HOLD': return colors.warning;
+      default: return colors.textSecondary;
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <Brain className="w-10 h-10 text-purple-400" />
-            RL Position Agent
-          </h1>
-          <p className="text-slate-400">AI-Powered Position Sizing & Risk Management</p>
-        </div>
+    <div className="min-h-screen transition-colors duration-300" style={{ backgroundColor: colors.background }}>
+      {/* Header */}
+      <div className="border-b" style={{ backgroundColor: colors.surface, borderBottomColor: colors.border }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <button
+              onClick={() => setLocation('/')}
+              className="flex items-center transition-all hover:translate-x-[-2px]"
+              style={{ color: colors.textSecondary }}
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              <span className="font-medium">Back to Dashboard</span>
+            </button>
 
-        {/* Controls */}
-        <div className="flex gap-4 mb-8 flex-wrap">
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="px-4 py-2 bg-slate-800 text-white rounded border border-slate-700 hover:border-slate-500"
-          >
-            <option value="all">All Symbols ({signals.length})</option>
-            {uniqueSymbols.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          <Button
-            onClick={() => refetchSignals()}
-            disabled={loadingSignals}
-            className="bg-purple-600 hover:bg-purple-700"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Refresh Signals
-          </Button>
-        </div>
-
-        {/* RL Agent Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Q-Table Size</span>
-              <BarChart3 className="w-5 h-5 text-blue-400" />
+            <div className="flex-1 text-center">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                RL Position Agent
+              </h1>
+              <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                Reinforcement Learning • Dynamic Position Sizing • Risk Optimization
+              </p>
             </div>
-            <p className="text-3xl font-bold text-white">
-              {stats.qTableSize.toLocaleString()}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">State-action pairs learned</p>
-          </Card>
 
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Experience Buffer</span>
-              <Activity className="w-5 h-5 text-green-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {stats.experienceCount.toLocaleString()}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">Training experiences</p>
-          </Card>
-
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Exploration Rate</span>
-              <Target className="w-5 h-5 text-purple-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {(stats.epsilon * 100).toFixed(1)}%
-            </p>
-            <p className="text-xs text-slate-500 mt-1">Epsilon-greedy</p>
-          </Card>
-
-          <Card className="p-6 bg-slate-800/50 border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400 text-sm">Action Space</span>
-              <Shield className="w-5 h-5 text-amber-400" />
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {stats.actionSpaceSize}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">Available strategies</p>
-          </Card>
-        </div>
-
-        {/* Active Signals */}
-        <Card className="p-6 bg-slate-800/50 border-slate-700 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Zap className="w-6 h-6 text-purple-400" />
-              Active Position Recommendations ({filteredSignals.length})
-            </h2>
-            <Badge className="bg-purple-500/20 text-purple-400 border-purple-700">
-              Real-time
-            </Badge>
+            <div className="w-32" />
           </div>
+        </div>
+      </div>
 
-          {loadingSignals ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto mb-4"></div>
-                <p className="text-slate-400">Loading RL signals...</p>
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Agent Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {statsLoading ? (
+            Array(4).fill(0).map((_, i) => (
+              <div key={i} className="animate-pulse rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <div className="h-16 rounded" style={{ backgroundColor: colors.surface }} />
               </div>
-            </div>
-          ) : filteredSignals.length === 0 ? (
-            <div className="text-center py-12">
-              <Shield className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-400">No active signals at the moment</p>
-              <p className="text-sm text-slate-500 mt-2">The RL agent is analyzing market conditions</p>
-            </div>
+            ))
           ) : (
+            <>
+              <div className="rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm" style={{ color: colors.textSecondary }}>Success Rate</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.success }}>
+                      {((statsData?.stats?.successRate || 0) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <Target className="w-8 h-8" style={{ color: colors.success }} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm" style={{ color: colors.textSecondary }}>Avg Reward</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.accent }}>
+                      {(statsData?.stats?.avgReward || 0).toFixed(2)}
+                    </div>
+                  </div>
+                  <TrendingUp className="w-8 h-8" style={{ color: colors.accent }} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm" style={{ color: colors.textSecondary }}>Avg R:R Ratio</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.text }}>
+                      {(statsData?.stats?.avgRiskReward || 0).toFixed(2)}
+                    </div>
+                  </div>
+                  <Shield className="w-8 h-8" style={{ color: colors.warning }} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-4" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm" style={{ color: colors.textSecondary }}>Experiences</div>
+                    <div className="text-2xl font-bold" style={{ color: colors.text }}>
+                      {statsData?.stats?.totalExperiences || 0}
+                    </div>
+                  </div>
+                  <Brain className="w-8 h-8" style={{ color: colors.info }} />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Performance Chart */}
+        <div className="mb-6 rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Activity className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            Training Performance
+          </h2>
+
+          {statsLoading ? (
+            <div className="animate-pulse h-64 rounded-lg" style={{ backgroundColor: colors.surface }} />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={statsData?.stats?.recentPerformance || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
+                <XAxis dataKey="episode" stroke={colors.textSecondary} />
+                <YAxis stroke={colors.textSecondary} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: colors.surface, border: `1px solid ${colors.border}`, borderRadius: '8px' }}
+                  labelStyle={{ color: colors.text }}
+                />
+                <Legend />
+                <Line type="monotone" dataKey="reward" stroke={colors.accent} strokeWidth={2} name="Episode Reward" />
+                <Line type="monotone" dataKey="avgReturn" stroke={colors.success} strokeWidth={2} strokeDasharray="5 5" name="Avg Return" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Signal Configuration */}
+        <div className="mb-6 rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Zap className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            Signal Configuration
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>Symbol</label>
+              <select
+                value={selectedSymbol}
+                onChange={(e) => setSelectedSymbol(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+              >
+                <option>BTC/USDT</option>
+                <option>ETH/USDT</option>
+                <option>SOL/USDT</option>
+                <option>AVAX/USDT</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.text }}>Base Position Size</label>
+              <input
+                type="number"
+                value={baseSize}
+                onChange={(e) => setBaseSize(parseFloat(e.target.value))}
+                min="0.1"
+                max="10"
+                step="0.1"
+                className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* RL Signals */}
+        <div className="rounded-xl border p-6" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+          <h2 className="text-lg font-semibold mb-4 flex items-center" style={{ color: colors.text }}>
+            <Target className="w-5 h-5 mr-2" style={{ color: colors.accent }} />
+            RL Position Recommendations
+          </h2>
+
+          {signalsLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-32 rounded-lg" style={{ backgroundColor: colors.surface }} />
+              ))}
+            </div>
+          ) : signalsData?.signals && signalsData.signals.length > 0 ? (
             <div className="space-y-4">
-              {filteredSignals.map((signal, idx) => (
-                <div key={idx} className="bg-slate-700/30 p-5 rounded-lg border border-slate-600">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      {getSignalIcon(signal.signal)}
-                      <div>
-                        <h3 className="font-bold text-white text-lg">{signal.symbol}</h3>
-                        <p className="text-sm text-slate-400">
-                          {new Date(signal.timestamp).toLocaleString()}
-                        </p>
+              {signalsData.signals.map((signal: RLSignal, index: number) => (
+                <div
+                  key={index}
+                  className="rounded-lg border p-4"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="text-lg font-bold" style={{ color: colors.text }}>{signal.symbol}</div>
+                      <div
+                        className="inline-block px-3 py-1 rounded-full text-sm font-semibold mt-1"
+                        style={{
+                          backgroundColor: `${getActionColor(signal.action)}20`,
+                          color: getActionColor(signal.action)
+                        }}
+                      >
+                        {signal.action}
                       </div>
                     </div>
-                    
+
                     <div className="text-right">
-                      <Badge className={`mb-2 ${getSignalColor(signal.signal)}`}>
-                        {signal.signal}
-                      </Badge>
-                      <p className="text-sm text-slate-400">
-                        Strength: <span className="text-white font-semibold">{signal.strength.toFixed(0)}%</span>
-                      </p>
+                      <div className="text-sm" style={{ color: colors.textSecondary }}>Confidence</div>
+                      <div className="text-2xl font-bold" style={{ color: colors.accent }}>
+                        {(signal.confidence * 100).toFixed(0)}%
+                      </div>
                     </div>
                   </div>
 
-                  {/* Position Parameters */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <p className="text-xs text-slate-400 mb-1">Current Price</p>
-                      <p className="text-lg font-bold text-white">${signal.price.toFixed(2)}</p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Position Size</div>
+                      <div className="font-semibold" style={{ color: colors.text }}>
+                        {(signal.positionSize * 100).toFixed(1)}%
+                      </div>
                     </div>
-                    
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <p className="text-xs text-slate-400 mb-1">Position Size</p>
-                      <p className="text-lg font-bold text-blue-400">${signal.positionSize.toFixed(2)}</p>
+
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Stop Loss</div>
+                      <div className="font-semibold" style={{ color: colors.error }}>
+                        ${signal.stopLoss.toFixed(2)}
+                      </div>
                     </div>
-                    
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <p className="text-xs text-slate-400 mb-1">Stop Loss</p>
-                      <p className="text-lg font-bold text-red-400">${signal.stopLoss.toFixed(2)}</p>
+
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Take Profit</div>
+                      <div className="font-semibold" style={{ color: colors.success }}>
+                        ${signal.takeProfit.toFixed(2)}
+                      </div>
                     </div>
-                    
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <p className="text-xs text-slate-400 mb-1">Take Profit</p>
-                      <p className="text-lg font-bold text-green-400">${signal.takeProfit.toFixed(2)}</p>
-                    </div>
-                    
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <p className="text-xs text-slate-400 mb-1">Risk/Reward</p>
-                      <p className="text-lg font-bold text-purple-400">{signal.riskReward.toFixed(2)}x</p>
+
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>R:R Ratio</div>
+                      <div className="font-semibold" style={{ color: colors.text }}>
+                        1:{signal.riskRewardRatio.toFixed(2)}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Confidence & Reasoning */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-slate-400">Agent Confidence</span>
-                      <span className="text-sm font-semibold text-white">{(signal.confidence * 100).toFixed(0)}%</span>
+                  <div className="mt-3 pt-3 border-t grid grid-cols-3 gap-4 text-sm" style={{ borderTopColor: colors.border }}>
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Expected Return</div>
+                      <div
+                        className="font-semibold"
+                        style={{ color: signal.expectedReturn >= 0 ? colors.success : colors.error }}
+                      >
+                        {signal.expectedReturn >= 0 ? '+' : ''}{signal.expectedReturn.toFixed(2)}%
+                      </div>
                     </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-purple-600 to-purple-400"
-                        style={{ width: `${signal.confidence * 100}%` }}
-                      />
+
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Max Drawdown</div>
+                      <div className="font-semibold" style={{ color: colors.error }}>
+                        {signal.maxDrawdown.toFixed(2)}%
+                      </div>
                     </div>
-                    
-                    <div className="mt-3 p-3 bg-slate-800/50 rounded">
-                      <p className="text-xs text-slate-400 mb-2 font-semibold">AI Reasoning:</p>
-                      <ul className="space-y-1">
-                        {signal.reasoning.map((reason, ridx) => (
-                          <li key={ridx} className="text-xs text-slate-300 flex items-start gap-2">
-                            <span className="text-purple-400">•</span>
-                            <span>{reason}</span>
-                          </li>
-                        ))}
-                      </ul>
+
+                    <div>
+                      <div style={{ color: colors.textSecondary }}>Q-Value</div>
+                      <div className="font-semibold" style={{ color: colors.text }}>
+                        {signal.qValue.toFixed(3)}
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </Card>
-
-        {/* Info Card */}
-        <Card className="p-6 bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-700/50">
-          <div className="flex items-start gap-4">
-            <Brain className="w-8 h-8 text-purple-400 flex-shrink-0" />
-            <div>
-              <h3 className="font-bold text-white mb-2">How RL Position Agent Works</h3>
-              <ul className="space-y-2 text-sm text-slate-300">
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-400">•</span>
-                  <span>Uses Q-learning to optimize position sizing based on market conditions</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-400">•</span>
-                  <span>Dynamically adjusts stop-loss and take-profit levels using ATR multiples</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-400">•</span>
-                  <span>Learns from experience replay to improve risk-reward ratios over time</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-purple-400">•</span>
-                  <span>Adapts to volatility, trend, momentum, and market regime</span>
-                </li>
-              </ul>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No RL signals available
             </div>
-          </div>
-        </Card>
+          )}
+        </div>
       </div>
     </div>
   );
