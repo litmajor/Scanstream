@@ -96,8 +96,11 @@ console.log('[express] Model Performance API registered at /api/model-performanc
 
 // Register Signal Backtesting routes
 import backtestingRouter from './routes/signal-backtesting';
+import historicalBacktestRouter from './routes/historical-backtest';
 app.use('/api/backtest', backtestingRouter);
+app.use('/api/backtest', historicalBacktestRouter);
 console.log('[express] Signal Backtesting API registered at /api/backtest');
+console.log('[express] Historical Backtesting API registered at /api/backtest/historical');
 
 // Register Health Check route
 import healthRouter from './routes/health';
