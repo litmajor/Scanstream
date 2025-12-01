@@ -1746,19 +1746,53 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     });
   });
 
-  // Market Sentiment endpoint - aggregates recent signals to determine market sentiment
+  // Market Sentiment endpoint - aggregates signals and CoinGecko global market data
   app.get('/api/market-sentiment', async (req: Request, res: Response) => {
     try {
+      // Get signal-based sentiment
       const signals = await storage.getLatestSignals(20);
       const buyCount = signals.filter((s: any) => s.type === 'BUY' || s.signal === 'BUY').length;
       const sellCount = signals.filter((s: any) => s.type === 'SELL' || s.signal === 'SELL').length;
       const sentiment = buyCount > sellCount ? 'bullish' : sellCount > buyCount ? 'bearish' : 'neutral';
+      
+      // Get CoinGecko global market data
+      let fearGreedIndex = 50; // Default neutral value
+      let btcDominance = 0;
+      let totalMarketCap = 0;
+      let volume24h = 0;
+      
+      try {
+        // Fetch Fear & Greed Index from Alternative.me
+        const fearGreedResponse = await axios.get('https://api.alternative.me/fng/', { timeout: 5000 });
+        if (fearGreedResponse.data?.data?.[0]) {
+          fearGreedIndex = parseInt(fearGreedResponse.data.data[0].value) || 50;
+        }
+      } catch (err) {
+        console.warn('[Market Sentiment] Failed to fetch Fear & Greed index, using default');
+      }
+      
+      try {
+        // Fetch CoinGecko global data
+        const globalResponse = await axios.get('https://api.coingecko.com/api/v3/global', { timeout: 5000 });
+        if (globalResponse.data?.data) {
+          const global = globalResponse.data.data;
+          btcDominance = global.market_cap_percentage?.btc || 0;
+          totalMarketCap = (global.total_market_cap?.usd || 0) / 1e12; // Convert to trillions
+          volume24h = (global.total_volume?.usd || 0) / 1e9; // Convert to billions
+        }
+      } catch (err) {
+        console.warn('[Market Sentiment] Failed to fetch CoinGecko global data');
+      }
       
       res.json({
         sentiment,
         buySignals: buyCount,
         sellSignals: sellCount,
         totalSignals: signals.length,
+        fearGreedIndex,
+        btcDominance,
+        totalMarketCap,
+        volume24h,
         timestamp: new Date().toISOString()
       });
     } catch (error: any) {

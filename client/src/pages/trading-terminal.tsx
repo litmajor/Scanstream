@@ -666,8 +666,9 @@ export default function TradingTerminal() {
     if (marketSentiment) {
       setFearGreedIndex(marketSentiment.fearGreedIndex || 0);
       setBtcDominance(marketSentiment.btcDominance || 0);
-      setTotalMarketCap((marketSentiment.totalMarketCap || 0) / 1e12);
-      setVolume24h((marketSentiment.volume24h || 0) / 1e9);
+      // Backend already returns values in trillions (T) and billions (B)
+      setTotalMarketCap(marketSentiment.totalMarketCap || 0);
+      setVolume24h(marketSentiment.volume24h || 0);
     }
   }, [marketSentiment, sentimentLoading, sentimentError]);
 

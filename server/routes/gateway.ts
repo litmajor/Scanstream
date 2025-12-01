@@ -76,7 +76,7 @@ setInterval(() => {
   // Check rate limit usage
   ['binance', 'coinbase', 'kraken', 'kucoinfutures', 'okx', 'bybit'].forEach(exchange => {
     const stats = rateLimiter.getStats(exchange);
-    if (stats) {
+    if (stats && typeof stats.usage === 'number') {
       gatewayAlertSystem.checkRateLimitUsage(exchange, stats.usage);
     }
   });
