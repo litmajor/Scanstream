@@ -1,4 +1,3 @@
-
 import { Router } from 'express';
 import { z } from 'zod';
 
@@ -35,11 +34,23 @@ const FilterPresetSchema = z.object({
 router.get('/preferences', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'] as string || 'default';
-    const prefs = userPreferences.get(userId) || {
-      filterPresets: [],
-      theme: 'dark',
-      defaultTimeframe: '1h',
-    };
+    let prefs = userPreferences.get(userId);
+
+    // If no preferences found for the user, set default preferences
+    if (!prefs) {
+      prefs = {
+        filterPresets: [],
+        theme: 'dark',
+        defaultTimeframe: '1h',
+        defaultExchange: 'binance', // Added default exchange
+        notificationsEnabled: true, // Added notification settings
+        emailAlerts: false,
+        priceAlerts: true,
+        signalAlerts: true,
+        soundEnabled: true,
+      };
+      userPreferences.set(userId, prefs);
+    }
 
     res.json(prefs);
   } catch (error) {
@@ -56,7 +67,7 @@ router.post('/preferences/filter-presets', async (req, res) => {
 
     const prefs = userPreferences.get(userId) || { filterPresets: [] };
     const existing = prefs.filterPresets || [];
-    
+
     // Check if preset with same ID exists
     const index = existing.findIndex((p: any) => p.id === preset.id);
     if (index >= 0) {

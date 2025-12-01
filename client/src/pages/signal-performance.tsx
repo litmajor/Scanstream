@@ -53,9 +53,9 @@ export default function SignalPerformance() {
     refetchInterval: 30000,
   });
 
-  const filteredSignals = recentPerformance?.filter(s => 
-    selectedStatus === 'all' || s.status === selectedStatus
-  ) || [];
+  const filteredSignals = Array.isArray(recentPerformance) 
+    ? recentPerformance.filter(s => selectedStatus === 'all' || s.status === selectedStatus)
+    : [];
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -17,29 +17,21 @@ const router = express.Router();
  */
 router.post('/train', async (req: Request, res: Response) => {
   try {
-    const { chartData, modelType } = req.body;
+    const { symbol = 'BTC/USDT', lookbackDays = 30, validationSplit = 0.2, epochs = 50 } = req.body;
     
-    if (!chartData || !Array.isArray(chartData)) {
-      return res.status(400).json({ 
-        error: 'Invalid request',
-        message: 'chartData must be an array'
-      });
-    }
+    const MLModelTrainer = (await import('../services/ml-model-trainer')).default;
     
-    if (chartData.length < 100) {
-      return res.status(400).json({ 
-        error: 'Insufficient data',
-        message: 'At least 100 data points required for training'
-      });
-    }
-    
-    // Trigger model training
-    await (MLPredictionService as any).trainModels(chartData);
+    const result = await MLModelTrainer.trainModels({
+      symbol,
+      lookbackDays,
+      validationSplit,
+      epochs
+    });
     
     res.json({
       success: true,
       message: 'Models trained successfully',
-      dataPoints: chartData.length,
+      metrics: result.metrics,
       timestamp: new Date().toISOString()
     });
     

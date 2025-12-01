@@ -8,58 +8,31 @@
  * 4. Risk Assessor - Predicts risk levels
  */
 
-interface ChartDataPoint {
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  rsi?: number | null;
-  macd?: number | null;
-  ema?: number | null;
-}
+import type { ChartDataPoint } from './ml-predictions';
+import { MLModelStorage } from './ml-model-storage';
 
-export interface MLPredictions {
-  direction: {
-    prediction: 'bullish' | 'bearish';
-    probability: number; // 0-1 (probability of bullish)
-    confidence: number; // 0-1
-    signal: 1 | 0; // 1 = bullish, 0 = bearish
-  };
-  price: {
-    predicted: number;
-    high: number;
-    low: number;
-    confidence: number;
-    percentChange: number;
-  };
-  volatility: {
-    predicted: number; // ATR-like metric
-    level: 'low' | 'medium' | 'high' | 'extreme';
-    confidence: number;
-  };
-  holdingPeriod: {
-    candles: number;
-    days: number;
-    hours: number;
-    confidence: number;
-    reason: string;
-  };
-  risk: {
-    score: number; // 0-100
-    level: 'low' | 'medium' | 'high' | 'extreme';
-    factors: string[];
-  };
-  metadata: {
-    timestamp: number;
-    dataPoints: number;
-    features: number;
-    horizon: string; // '1 candle', '5 candles', etc.
-  };
-}
+/**
+ * ML Prediction Service
+ */
+class MLPredictionService {
+  private trainedWeights: any = null;
 
-export class MLPredictionService {
+  constructor() {
+    this.loadTrainedWeights();
+  }
+
+  private async loadTrainedWeights() {
+    try {
+      const loaded = await MLModelStorage.loadLatestWeights();
+      if (loaded) {
+        this.trainedWeights = loaded.weights;
+        console.log('[ML Predictions] Loaded trained weights from:', loaded.metadata.trainedAt);
+      }
+    } catch (err) {
+      console.log('[ML Predictions] No trained weights found, using baseline models');
+    }
+  }
+
   /**
    * Generate comprehensive ML predictions from chart data
    */
