@@ -23,7 +23,8 @@ import userPreferencesRoutes from './routes/user-preferences';
 import mlPredictionsRouter from './routes/ml-predictions';
 import mlTrainingRouter from './routes/ml-training';
 import mlSignalsRouter from './routes/ml-signals';
-import mlAdvancedRouter from './routes/ml-advanced';
+import mlAdvancedRoutes from './routes/ml-advanced';
+import mlAdvancedModelsRoutes from './routes/ml-advanced-models';
 
 
 // Create prisma instance
@@ -1641,7 +1642,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/ml', mlPredictionsRouter);
   app.use('/api/ml-training', mlTrainingRouter);
   app.use('/api/ml-engine', mlSignalsRouter);
-  app.use('/api/ml/advanced', mlAdvancedRouter);
+  app.use('/api/ml/advanced', mlAdvancedRoutes);
+  app.use('/api/ml-advanced', mlAdvancedModelsRoutes);
 
 
   // Health check endpoint
