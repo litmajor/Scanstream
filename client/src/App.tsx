@@ -33,6 +33,7 @@ import SignalPerformance from './pages/signal-performance';
 import LandingPage from "@/pages/landing";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
+import WatchlistPage from "@/pages/watchlist";
 import GatewayAlertsPage from "@/pages/gateway-alerts";
 import { useEffect } from "react";
 import AppLayout from "./components/AppLayout";
@@ -63,6 +64,7 @@ function AuthenticatedRouter() {
         <Route path="/signal-performance" component={SignalPerformance} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/profile" component={ProfilePage} />
+        <Route path="/watchlist" component={WatchlistPage} />
         <Route path="/gateway-alerts" component={GatewayAlertsPage} />
         <Route component={NotFound} />
       </Switch>

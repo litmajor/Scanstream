@@ -34,6 +34,7 @@ model Signal {
   regimeState         String?
   legacyLabel         String?
   signalStrengthScore Float?
+  userId              String?
 }
 
 model Trade {
@@ -88,6 +89,27 @@ model PortfolioSummary {
   data      Json
 }
 
+model Watchlist {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol    String
+  addedAt   DateTime @default(now())
+  notes     String?
+
+  @@unique([userId, symbol])
+  @@index([userId])
+}
+
+model Portfolio {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings  Json     @default("[]")
+  totalCost Float    @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 model User {
   id              String   @id @default(uuid())
   email           String?  @unique
@@ -98,6 +120,8 @@ model User {
   updatedAt       DateTime @default(now()) @updatedAt
   preferences     UserPreference?
   apiKeys         ApiKey[]
+  watchlist       Watchlist[]
+  portfolio       Portfolio?
 }
 
 model Session {
@@ -135,6 +159,7 @@ model ApiKey {
   isTestnet   Boolean  @default(false)
   isActive    Boolean  @default(true)
   permissions Json     @default("[]")
+  lastValidated DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
