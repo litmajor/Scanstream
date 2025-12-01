@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { assetVelocityProfiler } from '../services/asset-velocity-profile';
-import { trackedAssets } from '@shared/tracked-assets';
+import { ALL_TRACKED_ASSETS } from '@shared/tracked-assets';
 
 export function registerVelocityProfileRoutes(app: Express) {
   /**
@@ -9,7 +9,7 @@ export function registerVelocityProfileRoutes(app: Express) {
    */
   app.get('/api/velocity/all', (req, res) => {
     try {
-      const assets = trackedAssets;
+      const assets = ALL_TRACKED_ASSETS;
       const profiles: Record<string, any> = {};
 
       for (const asset of assets) {
