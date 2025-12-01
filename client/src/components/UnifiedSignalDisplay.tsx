@@ -186,7 +186,18 @@ export function UnifiedSignalDisplay() {
       const res = await fetch('/api/scanner/signals');
       if (!res.ok) return [];
       const data = await res.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'scanner' as const }));
+      return (data.signals || []).map((s: any) => ({
+        symbol: s.symbol,
+        exchange: s.exchange || 'scanner',
+        signal: s.signal as 'BUY' | 'SELL' | 'HOLD',
+        strength: s.strength || 0,
+        price: s.price || s.currentPrice || 0,
+        change: s.change || s.priceChange || 0,
+        change24h: s.change24h || s.change || 0,
+        timestamp: s.timestamp || Date.now(),
+        source: 'scanner' as const,
+        indicators: s.indicators,
+      }));
     },
     refetchInterval: 30000,
   });
@@ -197,7 +208,22 @@ export function UnifiedSignalDisplay() {
       const res = await fetch('/api/gateway/signals');
       if (!res.ok) return [];
       const data = await res.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'gateway' as const }));
+      return (data.signals || []).map((s: any) => ({
+        symbol: s.symbol,
+        exchange: s.exchange || 'aggregated',
+        signal: s.signal as 'BUY' | 'SELL' | 'HOLD',
+        strength: s.strength || 0,
+        price: s.price || 0,
+        change: s.change || 0,
+        change24h: s.change24h || s.change || 0,
+        timestamp: s.timestamp || Date.now(),
+        source: 'gateway' as const,
+        indicators: {
+          rsi: s.indicators?.rsi,
+          macd: s.indicators?.macd,
+          volumeRatio: s.indicators?.volumeRatio,
+        },
+      }));
     },
     refetchInterval: 30000,
   });
@@ -227,7 +253,19 @@ export function UnifiedSignalDisplay() {
       const res = await fetch('/api/strategies/signals');
       if (!res.ok) return [];
       const data = await res.json();
-      return (data.signals || []).map((s: any) => ({ ...s, source: 'strategy' as const }));
+      return (data.signals || []).map((s: any) => ({
+        symbol: s.symbol,
+        exchange: s.exchange || 'strategy',
+        signal: s.signal || s.type || 'HOLD',
+        strength: s.strength || s.confidence * 100 || 0,
+        price: s.price || s.currentPrice || 0,
+        change: s.change || s.priceChange || 0,
+        change24h: s.change24h || s.change || 0,
+        timestamp: s.timestamp || Date.now(),
+        source: 'strategy' as const,
+        strategyName: s.strategyName || s.name,
+        indicators: s.indicators,
+      }));
     },
     refetchInterval: 30000,
   });
