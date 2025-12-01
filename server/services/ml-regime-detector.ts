@@ -25,7 +25,7 @@ export class MarketRegimeDetector {
    * Calculate regime metrics
    */
   private calculateMetrics(frames: MarketFrame[]): RegimeMetrics {
-    const prices = frames.map(f => f.price.close);
+    const prices = frames.map(f => (f.price as any).close || f.price);
     const volumes = frames.map(f => f.volume);
     
     // Trend strength (linear regression slope)

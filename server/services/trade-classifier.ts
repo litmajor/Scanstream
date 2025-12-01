@@ -1,10 +1,16 @@
 /**
- * Trade Classifier - Adaptive Holding Period Intelligence
+ * Trade Classifier - Adaptive Holding Period Intelligence v2
  * Classifies trades as SCALP, DAY, SWING, or POSITION based on market conditions
- * Optimizes holding period, profit targets, stop losses, and exit strategy per trade type
+ * ENHANCED WITH: Market Regime Detection + ML Holding Period Prediction
+ * 
+ * Integration:
+ * 1. MarketRegimeDetector - Identifies bull/bear/ranging/volatile markets
+ * 2. ML Holding Period Predictor - Predicts optimal hold time based on momentum
+ * 3. Multi-factor analysis - Combines volatility, ADX, volume, pattern, regime, holding period
  */
 
 import { getAssetBySymbol } from '@shared/tracked-assets';
+import MarketRegimeDetector, { type MarketRegime } from './ml-regime-detector';
 
 export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 
@@ -25,21 +31,28 @@ export interface ClassificationFactors {
   volumeRatio: number; // current_volume / avg_volume_20d (1.0 = normal, 2.0 = spike)
   patternType: string; // BREAKOUT, REVERSAL, MA_CROSSOVER, etc
   assetCategory: string; // tier-1, fundamental, meme, ai/ml, rwa
-  marketRegime: 'TRENDING' | 'RANGING' | 'VOLATILE' | 'CONSOLIDATING';
+  marketRegime: 'TRENDING' | 'RANGING' | 'VOLATILE' | 'CONSOLIDATING' | string;
+  detectedRegime?: MarketRegime; // From MarketRegimeDetector (bull_trending, bear_trending, etc)
+  mlPredictedHoldingPeriodCandles?: number; // From ML predictor
+  mlHoldingPeriodConfidence?: number; // Confidence in ML prediction
 }
 
 export class TradeClassifier {
   /**
    * Classify a trade based on market conditions
+   * ENHANCED: Uses regime detection + ML holding period prediction for more accurate classification
    */
   classifyTrade(factors: ClassificationFactors): TradeClassification {
-    const { volatilityRatio, adx, volumeRatio, patternType, assetCategory, marketRegime } = factors;
+    const { 
+      volatilityRatio, adx, volumeRatio, patternType, assetCategory, marketRegime, 
+      detectedRegime, mlPredictedHoldingPeriodCandles = 50, mlHoldingPeriodConfidence = 0.5
+    } = factors;
 
     // CLASSIFICATION LOGIC: Multi-factor decision tree
 
     // SCALP TRADES: High volatility + weak trend + high volume spike
-    // Use case: Quick momentum capture, tight stops, fast exits (2-4 hours)
-    if (volatilityRatio > 1.5 && adx < 25 && volumeRatio > 2.0) {
+    // ENHANCED: Validates with high_volatility regime detection
+    if ((volatilityRatio > 1.5 || detectedRegime === 'high_volatility') && adx < 25 && volumeRatio > 2.0) {
       return {
         type: 'SCALP',
         holdingPeriodHours: 3,
@@ -48,7 +61,7 @@ export class TradeClassifier {
         trailingStop: true,
         pyramidStrategy: 'all-at-once', // Quick entry/exit
         confidence: 0.92,
-        reasoning: 'High volatility + volume spike + weak trend = quick scalp opportunity'
+        reasoning: `High volatility + volume spike + weak trend + regime: ${detectedRegime || 'volatile'} = quick scalp opportunity`
       };
     }
 
@@ -82,24 +95,28 @@ export class TradeClassifier {
       };
     }
 
-    // POSITION TRADES: Low volatility + very strong trend + momentum
-    // Use case: Major trend rides (7-21 days, sometimes longer)
-    if (adx > 50 && volatilityRatio < 0.9 && (marketRegime === 'TRENDING')) {
+    // POSITION TRADES: Low volatility + very strong trend + momentum + market regime confirmation
+    // ENHANCED: Validates with detected market regime (bull_trending, bear_trending)
+    if (adx > 50 && volatilityRatio < 0.9 && (marketRegime === 'TRENDING' || detectedRegime === 'bull_trending' || detectedRegime === 'bear_trending')) {
+      // ML holding period predictor suggests long hold
+      const mlSuggestsLongHold = mlPredictedHoldingPeriodCandles && mlPredictedHoldingPeriodCandles > 40;
+      const mlConfidence = mlHoldingPeriodConfidence || 0.5;
+      
       return {
         type: 'POSITION',
-        holdingPeriodHours: 240,
+        holdingPeriodHours: mlSuggestsLongHold ? Math.min(360, 240 + (mlPredictedHoldingPeriodCandles * 4)) : 240,
         profitTargetPercent: 12.0,
         stopLossPercent: 2.5,
         trailingStop: true,
         pyramidStrategy: 'pyramid-5',
-        confidence: 0.93,
-        reasoning: 'Very strong trend (ADX>50) + low volatility = position trade'
+        confidence: Math.min(0.95, 0.93 + (mlConfidence * 0.02)),
+        reasoning: `Very strong trend (ADX>50) + low volatility + market regime ${detectedRegime || 'confirmed'} + ML holding: ${mlPredictedHoldingPeriodCandles} candles = position trade`
       };
     }
 
     // CONSOLIDATION BREAK: Moderate conditions + consolidation break pattern
-    // Use case: Break from consolidation zone (3-5 days)
-    if (marketRegime === 'CONSOLIDATING' && volumeRatio > 1.8) {
+    // ENHANCED: Uses regime detector to catch accumulation/distribution phases
+    if ((marketRegime === 'CONSOLIDATING' || detectedRegime === 'accumulation' || detectedRegime === 'distribution') && volumeRatio > 1.8) {
       return {
         type: 'SWING',
         holdingPeriodHours: 96,
@@ -108,7 +125,7 @@ export class TradeClassifier {
         trailingStop: true,
         pyramidStrategy: 'pyramid-3',
         confidence: 0.82,
-        reasoning: 'Consolidation break with volume spike = swing breakout'
+        reasoning: `Consolidation break with volume spike + regime: ${detectedRegime || 'consolidating'} = swing breakout`
       };
     }
 
@@ -251,4 +268,9 @@ export class TradeClassifier {
   }
 }
 
+// Export singleton
 export const tradeClassifier = new TradeClassifier();
+
+// Export regime detector for use in signal pipeline
+export { MarketRegimeDetector };
+export type { MarketRegime };
