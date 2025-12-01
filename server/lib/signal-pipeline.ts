@@ -238,27 +238,37 @@ export class SignalPipeline {
   ): 'BUY' | 'SELL' | 'HOLD' {
     let votes = { BUY: 0, SELL: 0, HOLD: 0 };
 
-    // Scanner vote (weighted by technical score)
+    // ADAPTIVE WEIGHTS: Use recent performance instead of static 40/35/25
+    const { signalPerformanceTracker } = require('../services/signal-performance-tracker');
+    const recentWinRates = signalPerformanceTracker.getRecentWinRates(20);
+    const total = recentWinRates.scanner + recentWinRates.ml + recentWinRates.rl;
+    const weights = {
+      scanner: recentWinRates.scanner / total,
+      ml: recentWinRates.ml / total,
+      rl: recentWinRates.rl / total
+    };
+
+    // Scanner vote (weighted by technical score + adaptive weight)
     if (scanner.technicalScore > 65) {
-      votes.BUY += scanner.technicalScore / 100;
+      votes.BUY += (scanner.technicalScore / 100) * weights.scanner;
     } else if (scanner.technicalScore < 35) {
-      votes.SELL += (100 - scanner.technicalScore) / 100;
+      votes.SELL += ((100 - scanner.technicalScore) / 100) * weights.scanner;
     } else {
-      votes.HOLD += 0.5;
+      votes.HOLD += 0.5 * weights.scanner;
     }
 
-    // ML vote (weighted by probability)
+    // ML vote (weighted by probability + adaptive weight)
     const bestML = ml.reduce((prev, curr) =>
       curr.probability > prev.probability ? curr : prev
     );
-    if (bestML.direction === 'BUY') votes.BUY += bestML.probability;
-    else if (bestML.direction === 'SELL') votes.SELL += bestML.probability;
-    else votes.HOLD += bestML.probability;
+    if (bestML.direction === 'BUY') votes.BUY += bestML.probability * weights.ml;
+    else if (bestML.direction === 'SELL') votes.SELL += bestML.probability * weights.ml;
+    else votes.HOLD += bestML.probability * weights.ml;
 
-    // RL vote (weighted by Q-value)
-    if (rl.qValue > 0.2) votes.BUY += Math.min(rl.qValue, 1);
-    else if (rl.qValue < -0.2) votes.SELL += Math.min(Math.abs(rl.qValue), 1);
-    else votes.HOLD += 0.5;
+    // RL vote (weighted by Q-value + adaptive weight)
+    if (rl.qValue > 0.2) votes.BUY += Math.min(rl.qValue, 1) * weights.rl;
+    else if (rl.qValue < -0.2) votes.SELL += Math.min(Math.abs(rl.qValue), 1) * weights.rl;
+    else votes.HOLD += 0.5 * weights.rl;
 
     // Determine majority
     if (votes.BUY > votes.SELL && votes.BUY > votes.HOLD) return 'BUY';

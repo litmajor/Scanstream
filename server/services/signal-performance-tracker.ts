@@ -13,6 +13,8 @@ interface SignalPerformance {
   status: 'active' | 'hit_target' | 'hit_stop' | 'expired';
   createdAt: Date;
   closedAt?: Date;
+  source?: 'scanner' | 'ml' | 'rl'; // Track which source generated this signal
+  correct?: boolean; // Whether signal was correct
 }
 
 export class SignalPerformanceTracker {
@@ -29,7 +31,9 @@ export class SignalPerformanceTracker {
       pnl: 0,
       pnlPercent: 0,
       status: 'active',
-      createdAt: new Date()
+      createdAt: new Date(),
+      source: signal.dominantSource || 'scanner', // Track which source dominated
+      correct: undefined // Will be set when signal closes
     };
 
     this.performances.set(performance.signalId, performance);
@@ -53,9 +57,11 @@ export class SignalPerformanceTracker {
     // Check if target or stop hit
     if (currentPrice >= perf.targetPrice) {
       perf.status = 'hit_target';
+      perf.correct = true; // Signal was correct
       perf.closedAt = new Date();
     } else if (currentPrice <= perf.stopLoss) {
       perf.status = 'hit_stop';
+      perf.correct = false; // Signal was wrong
       perf.closedAt = new Date();
     }
 
@@ -93,6 +99,36 @@ export class SignalPerformanceTracker {
     return Array.from(this.performances.values())
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
+  }
+
+  /**
+   * Get recent win rates by source (last N signals)
+   * Used for adaptive weighting in consensus engine
+   */
+  getRecentWinRates(lookback: number = 20): { scanner: number; ml: number; rl: number } {
+    const recentSignals = Array.from(this.performances.values())
+      .filter(p => p.correct !== undefined)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, lookback);
+
+    if (recentSignals.length === 0) {
+      return { scanner: 1, ml: 1, rl: 1 };
+    }
+
+    const winsBySource = { scanner: 0, ml: 0, rl: 0 };
+    const countBySource = { scanner: 0, ml: 0, rl: 0 };
+
+    for (const signal of recentSignals) {
+      const source = (signal.source || 'scanner') as 'scanner' | 'ml' | 'rl';
+      if (signal.correct) winsBySource[source]++;
+      countBySource[source]++;
+    }
+
+    return {
+      scanner: countBySource.scanner > 0 ? winsBySource.scanner / countBySource.scanner : 0.5,
+      ml: countBySource.ml > 0 ? winsBySource.ml / countBySource.ml : 0.5,
+      rl: countBySource.rl > 0 ? winsBySource.rl / countBySource.rl : 0.5
+    };
   }
 }
 
