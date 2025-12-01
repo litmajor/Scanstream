@@ -50,6 +50,8 @@ export const signals = pgTable("signals", {
   signalStrengthScore: real("signal_strength_score"),
   patternDetails: jsonb("pattern_details"), // Array of patterns with details
   timeframeAlignment: real("timeframe_alignment"), // 0-1 score
+  agreementScore: real("agreement_score").default(50), // 0-100, consensus between sources
+  positionSize: real("position_size").default(0.5), // 0-1 scale, percentage of max position
 });
 
 export const trades = pgTable("trades", {

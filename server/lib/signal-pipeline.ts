@@ -209,7 +209,36 @@ export class SignalPipeline {
     // Step 7: Calculate position targets
     const positions = this.calculatePositionTargets(marketData);
 
-    // Step 8: Build pattern details for frontend
+    // Step 7.5: Calculate agreement score (how much sources agree)
+    // 3/3 agreement = 100 × avgConfidence, 2/3 = 65 × avgConfidence, 1/3 = 30 × avgConfidence
+    const avgSourceConfidence = (
+      (scannerOutput.technicalScore / 100) +
+      Math.max(...mlPredictions.map(m => m.probability)) +
+      Math.min(Math.abs(rlDecision.qValue), 1)
+    ) / 3;
+    
+    // Determine agreement type from signal consensus
+    let agreementBase = 30; // Conservative default
+    const scannerDir = scannerOutput.technicalScore > 65 ? 'BUY' : scannerOutput.technicalScore < 35 ? 'SELL' : 'HOLD';
+    const mlDir = mlPredictions[0]?.direction || 'HOLD';
+    const rlDir = rlDecision.qValue > 0.2 ? 'BUY' : rlDecision.qValue < -0.2 ? 'SELL' : 'HOLD';
+    
+    if (scannerDir === mlDir && mlDir === rlDir) {
+      agreementBase = 100; // 3/3 agreement
+    } else if (
+      (scannerDir === mlDir) ||
+      (mlDir === rlDir) ||
+      (scannerDir === rlDir)
+    ) {
+      agreementBase = 65; // 2/3 agreement
+    }
+    
+    const agreementScore = Math.round(Math.min(100, agreementBase * avgSourceConfidence));
+
+    // Step 8: Calculate position size based on quality and agreement
+    const positionSize = this.calculatePositionSize(quality.score, agreementScore);
+
+    // Step 9: Build pattern details for frontend
     const patternDetails = scannerOutput.patterns.map(p => {
       const stats = this.accuracyEngine.getPatternStats(p.type as any);
       return {
@@ -222,7 +251,7 @@ export class SignalPipeline {
       };
     });
 
-    // Step 9: Assemble aggregated signal
+    // Step 10: Assemble aggregated signal
     const signal: AggregatedSignal = {
       id: `${symbol}-${Date.now()}`,
       symbol,
@@ -239,7 +268,9 @@ export class SignalPipeline {
       takeProfit: positions.takeProfit,
       riskRewardRatio: positions.riskRewardRatio,
       patternDetails,
-      timeframes: this.estimateTimeframeAlignment(marketData, scannerOutput)
+      timeframes: this.estimateTimeframeAlignment(marketData, scannerOutput),
+      agreementScore,
+      positionSize
     };
 
     // Cache result
@@ -593,6 +624,34 @@ export class SignalPipeline {
       takeProfit: market.price + (atr * 2),
       riskRewardRatio: (market.price + (atr * 2)) / (market.price - atr)
     };
+  }
+
+  /**
+   * Calculate position size based on quality and agreement
+   * Position = maxPosition × (quality_score / 100) × agreement_multiplier
+   * Max position = 1%
+   */
+  private calculatePositionSize(qualityScore: number, agreementScore: number): number {
+    const MAX_POSITION = 1.0; // 1% maximum position
+    
+    // Agreement multiplier: 3/3 = 1.0x, 2/3 = 0.7x, 1/3 = 0.3x
+    let agreementMultiplier = 0.3; // Default: low agreement
+    if (agreementScore >= 95) {
+      agreementMultiplier = 1.0; // 3/3 unanimous with high confidence
+    } else if (agreementScore >= 60) {
+      agreementMultiplier = 0.7; // 2/3 agreement
+    } else if (agreementScore >= 35) {
+      agreementMultiplier = 0.5; // Weak 2/3 agreement
+    }
+
+    // Quality score contribution (0-100 → 0-1 scale)
+    const qualityMultiplier = Math.max(0.3, qualityScore / 100); // Minimum 0.3 (30% of max)
+
+    // Final position size: max × quality × agreement
+    const positionSize = (MAX_POSITION * qualityMultiplier * agreementMultiplier) / 100;
+
+    // Return as percentage (0-1 scale)
+    return Math.min(MAX_POSITION, Math.max(0.1, positionSize * 100)) / 100;
   }
 
   /**
