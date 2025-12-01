@@ -1,0 +1,66 @@
+Concept 4: Pattern Combination Intelligence
+Problem: You Have 5 Patterns, All ~50% Win Rate
+Instead of treating them equally, weight them dynamically based on:
+
+Market regime
+Asset velocity
+Historical performance in similar conditions
+
+pythonclass SmartPatternCombination:
+    
+    def calculate_weighted_confidence(self, signals, asset, market_state):
+        """
+        Don't just add pattern scores
+        Weight them based on context
+        """
+        
+        weights = {}
+        
+        # REGIME-BASED WEIGHTING
+        regime = market_state['regime']
+        
+        if regime == 'TRENDING':
+            weights = {
+                'BREAKOUT': 1.5,      # Breakouts work great in trends
+                'MA_CROSSOVER': 1.3,   # MA crossovers confirm trends
+                'REVERSAL': 0.7,       # Reversals fail in strong trends
+                'SUPPORT_BOUNCE': 0.8,
+                'ML_PREDICTION': 1.2
+            }
+        
+        elif regime == 'CHOPPY':
+            weights = {
+                'BREAKOUT': 0.6,       # False breakouts common
+                'MA_CROSSOVER': 0.7,   # Whipsaws common
+                'REVERSAL': 1.4,       # Reversals work in range
+                'SUPPORT_BOUNCE': 1.5, # Bounces work great
+                'ML_PREDICTION': 1.1
+            }
+        
+        elif regime == 'VOLATILE':
+            weights = {
+                'BREAKOUT': 1.2,
+                'MA_CROSSOVER': 0.8,
+                'REVERSAL': 1.1,
+                'SUPPORT_BOUNCE': 0.9,
+                'ML_PREDICTION': 1.4   # ML best in volatile conditions
+            }
+        
+        # CALCULATE WEIGHTED SCORE
+        total_score = 0
+        total_weight = 0
+        
+        for pattern, signal_strength in signals.items():
+            weight = weights.get(pattern, 1.0)
+            total_score += signal_strength * weight
+            total_weight += weight
+        
+        # Normalize
+        final_confidence = (total_score / total_weight)
+        
+        # BOOST if multiple strong patterns align
+        strong_patterns = sum(1 for s in signals.values() if s > 70)
+        if strong_patterns >= 3:
+            final_confidence *= 1.15  # 15% boost for 3+ strong alignments
+        
+        return min(final_confidence, 95)  # Cap at 95%
