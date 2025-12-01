@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   // Main Section - Core functionality
   { name: 'Dashboard', path: '/', icon: LayoutDashboard, section: 'main' },
   { name: 'Signals', path: '/signals', icon: Zap, section: 'main' },
+  { name: 'Watchlist', path: '/watchlist', icon: Search, section: 'main' },
   { name: 'Positions', path: '/positions', icon: Activity, section: 'main' },
   { name: 'Portfolio', path: '/portfolio', icon: Wallet, section: 'main' },
 
