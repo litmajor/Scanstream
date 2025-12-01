@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Brain, Play, Download, Settings, TrendingUp, BarChart3, Zap, Target } from 'lucide-react';
+import { ArrowLeft, Brain, Play, Download, Settings, TrendingUp, BarChart3, Zap, Target, Activity, AlertCircle, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Mock ML data - replace with real data from API
 const mockMLData = {
@@ -72,29 +73,33 @@ export default function MLEnginePage() {
   const [, setLocation] = useLocation();
   const [selectedModel, setSelectedModel] = useState('');
   const [isTraining, setIsTraining] = useState(false);
+  const [activeTab, setActiveTab] = useState('models');
 
-  // Fetch ML data from API
+  // Fetch comprehensive ML data from ALL endpoints
   const { data: mlData, isLoading, error, refetch } = useQuery({
-    queryKey: ['ml-data'],
+    queryKey: ['ml-comprehensive-data'],
     queryFn: async () => {
-      const [predictionsRes, statusRes, performanceRes, ensembleRes] = await Promise.all([
+      const [predictionsRes, statusRes, performanceRes, ensembleRes, healthRes, backtestRes, logsRes] = await Promise.all([
         fetch('/api/ml-engine/predictions'),
         fetch('/api/ml-engine/status'),
         fetch('/api/model-performance/metrics'),
-        fetch('/api/model-performance/ensemble-status')
+        fetch('/api/model-performance/ensemble-status'),
+        fetch('/api/health'),
+        fetch('/api/backtest/stats'),
+        fetch('/api/health/logs?limit=20')
       ]);
 
-      if (!predictionsRes.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
+      const predictions = await predictionsRes.json().catch(() => ({ predictions: [] }));
+      const status = await statusRes.json().catch(() => ({}));
+      const performance = await performanceRes.json().catch(() => ({ metrics: {} }));
+      const ensemble = await ensembleRes.json().catch(() => ({ ensemble: {} }));
+      const health = await healthRes.json().catch(() => ({ health: {} }));
+      const backtest = await backtestRes.json().catch(() => ({ stats: {} }));
+      const logs = await logsRes.json().catch(() => ({ logs: [] }));
 
-      const predictions = await predictionsRes.json();
-      const status = statusRes.ok ? await statusRes.json() : {};
-      const performance = performanceRes.ok ? await performanceRes.json() : { metrics: {} };
-      const ensemble = ensembleRes.ok ? await ensembleRes.json() : { ensemble: {} };
-
-      // Transform to expected format with real performance metrics
       const metrics = performance.metrics || {};
+      const backtestStats = backtest.stats || {};
+      const healthData = health.health || {};
       
       return {
         models: (predictions.predictions || []).slice(0, 3).map((p: any, i: number) => ({
@@ -124,7 +129,26 @@ export default function MLEnginePage() {
           avgConfidence: (metrics.avgConfidence || 0.75).toFixed(2),
           winRate: (metrics.winRate || 0).toFixed(1),
           precision: (metrics.precision || 0).toFixed(1)
-        }
+        },
+        backtest: {
+          totalSignals: backtestStats.totalSignals || 0,
+          winningSignals: backtestStats.winningSignals || 0,
+          losingSignals: backtestStats.losingSignals || 0,
+          backtestWinRate: (backtestStats.winRate || 0).toFixed(1),
+          averageROI: (backtestStats.averageROI || 0).toFixed(2),
+          profitFactor: (backtestStats.profitFactor || 0).toFixed(2),
+          largestWin: (backtestStats.largestWin || 0).toFixed(2),
+          largestLoss: (backtestStats.largestLoss || 0).toFixed(2)
+        },
+        health: {
+          uptime: Math.round(healthData.system?.uptime || 0),
+          memory: healthData.system?.memoryUsage || {},
+          modelReady: healthData.models?.ready || false,
+          backtestReady: healthData.backtesting?.ready || false,
+          systemHealthy: healthData.status?.healthy || false,
+          totalErrors: healthData.errors?.totalLast24h || 0
+        },
+        logs: (logs.logs || []).slice(-10)
       };
     },
     refetchInterval: 15000,
@@ -202,7 +226,7 @@ export default function MLEnginePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" data-testid="ml-engine-page">
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
@@ -251,6 +275,18 @@ export default function MLEnginePage() {
 
       {/* ML Engine Content */}
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Tabs for different views */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="models" data-testid="tab-models">Models</TabsTrigger>
+            <TabsTrigger value="backtest" data-testid="tab-backtest">Backtesting</TabsTrigger>
+            <TabsTrigger value="health" data-testid="tab-health">Health</TabsTrigger>
+            <TabsTrigger value="logs" data-testid="tab-logs">Logs</TabsTrigger>
+            <TabsTrigger value="ensemble" data-testid="tab-ensemble">Ensemble</TabsTrigger>
+          </TabsList>
+
+          {/* Models Tab */}
+          <TabsContent value="models">
         {/* Performance Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
@@ -462,6 +498,152 @@ export default function MLEnginePage() {
             ))}
           </div>
         </div>
+          </TabsContent>
+
+          {/* Backtesting Tab */}
+          <TabsContent value="backtest">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <Target className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-400">Total Signals</p>
+                    <p className="text-2xl font-semibold text-white" data-testid="backtest-total-signals">
+                      {mlData?.backtest.totalSignals}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-500/10 rounded-lg">
+                    <TrendingUp className="w-6 h-6 text-green-400" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-400">Win Rate</p>
+                    <p className="text-2xl font-semibold text-green-400" data-testid="backtest-win-rate">
+                      {mlData?.backtest.backtestWinRate}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-purple-500/10 rounded-lg">
+                    <BarChart3 className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-400">Avg ROI</p>
+                    <p className="text-2xl font-semibold text-white" data-testid="backtest-avg-roi">
+                      {mlData?.backtest.averageROI}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-orange-500/10 rounded-lg">
+                    <Zap className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-slate-400">Profit Factor</p>
+                    <p className="text-2xl font-semibold text-white" data-testid="backtest-profit-factor">
+                      {mlData?.backtest.profitFactor}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Health Tab */}
+          <TabsContent value="health">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center mb-4">
+                  {mlData?.health.systemHealthy ? 
+                    <CheckCircle className="w-6 h-6 text-green-400" /> :
+                    <AlertCircle className="w-6 h-6 text-red-400" />
+                  }
+                  <h3 className="ml-3 text-lg font-semibold text-white">System Status</h3>
+                </div>
+                <p className="text-slate-400 mb-2">Uptime: {mlData?.health.uptime}s</p>
+                <p className="text-slate-400">Memory: {mlData?.health.memory.heapUsed}MB / {mlData?.health.memory.heapTotal}MB</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center mb-4">
+                  <Brain className="w-6 h-6 text-blue-400" />
+                  <h3 className="ml-3 text-lg font-semibold text-white">Models</h3>
+                </div>
+                <p className="text-slate-400">Models Ready: {mlData?.health.modelReady ? 'Yes' : 'Warming up'}</p>
+                <p className="text-slate-400">Backtest Ready: {mlData?.health.backtestReady ? 'Yes' : 'Insufficient data'}</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+                <div className="flex items-center mb-4">
+                  <AlertCircle className="w-6 h-6 text-yellow-400" />
+                  <h3 className="ml-3 text-lg font-semibold text-white">Errors (24h)</h3>
+                </div>
+                <p className="text-2xl font-semibold text-white" data-testid="health-total-errors">
+                  {mlData?.health.totalErrors}
+                </p>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Logs Tab */}
+          <TabsContent value="logs">
+            <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Recent Logs</h3>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {mlData?.logs && mlData.logs.length > 0 ? (
+                  mlData.logs.map((log: any, idx: number) => (
+                    <div key={idx} className="text-sm text-slate-400 border-b border-slate-700/30 pb-2" data-testid={`log-entry-${idx}`}>
+                      <span className="text-slate-500">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                      <span className={`ml-2 font-medium ${
+                        log.level === 'error' ? 'text-red-400' : 
+                        log.level === 'warn' ? 'text-yellow-400' : 
+                        'text-green-400'
+                      }`}>
+                        [{log.level}]
+                      </span>
+                      <span className="ml-2">{log.message}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500">No logs available</p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Ensemble Tab */}
+          <TabsContent value="ensemble">
+            <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Ensemble Status</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700/30">
+                  <p className="text-slate-400">Total Predictions</p>
+                  <p className="text-2xl font-semibold text-white" data-testid="ensemble-total-predictions">
+                    {mlData?.performance.totalPredictions}
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700/30">
+                  <p className="text-slate-400">Ensemble Accuracy</p>
+                  <p className="text-2xl font-semibold text-white" data-testid="ensemble-accuracy">
+                    {mlData?.performance.accuracy}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
