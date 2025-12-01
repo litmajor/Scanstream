@@ -13,6 +13,7 @@
 import { SignalAccuracyEngine } from './signal-accuracy';
 import { assetCorrelationAnalyzer } from '../services/asset-correlation-analyzer';
 import { executionOptimizer } from '../services/execution-optimizer';
+import { tradeClassifier, TradeClassification } from '../services/trade-classifier';
 import { getAssetBySymbol, getAssetsByCategory } from '@shared/tracked-assets';
 import { getAssetThresholds, meetsQualityThreshold, getMaxPositionForCategory } from '../config/asset-thresholds';
 import memoize from 'memoizee';
@@ -131,6 +132,12 @@ export interface AggregatedSignal {
     profitLeakage: number; // % loss from fees/slippage
     recommendedStrategy: 'all-at-once' | 'pyramid-3' | 'pyramid-5';
     executionRecommendation: string;
+  };
+
+  // Adaptive holding period classification
+  tradeClassification?: TradeClassification & {
+    adjustedStopLoss: number; // Calculated from trade type
+    adjustedTakeProfit: number; // Calculated from trade type
   };
 }
 
@@ -275,13 +282,41 @@ export class SignalPipeline {
     // Use boosted confidence if available
     const finalConfidence = correlationBoost.boostedConfidence;
 
-    // Step 8.7: Optimize execution (model slippage, fees, entry timing)
+    // Step 8.7: Classify trade type for adaptive holding period (only for BUY/SELL signals)
+    let classification: any = null;
+    let adjustedStopLoss = positions.stopLoss;
+    let adjustedTakeProfit = positions.takeProfit;
+
+    if (signalType !== 'HOLD') {
+      classification = tradeClassifier.classifyTrade({
+        volatilityRatio: Math.max(0.5, Math.min(2.5, ((marketData.high - marketData.low) / marketData.price) * 10)),
+        adx: Math.max(20, Math.min(80, scannerOutput.technicalScore)),
+        volumeRatio: marketData.volume > 0 && marketData.prevVolume > 0 ? marketData.volume / marketData.prevVolume : 1.0,
+        patternType: primaryClassification,
+        assetCategory: assetCategory,
+        marketRegime: (accuracy as any).marketRegime || 'RANGING'
+      });
+
+      adjustedStopLoss = tradeClassifier.calculateStopLoss(
+        marketData.price,
+        classification.stopLossPercent,
+        signalType as 'BUY' | 'SELL'
+      );
+
+      adjustedTakeProfit = tradeClassifier.calculateTakeProfit(
+        marketData.price,
+        classification.profitTargetPercent,
+        signalType as 'BUY' | 'SELL'
+      );
+    }
+
+    // Step 8.8: Optimize execution (model slippage, fees, entry timing)
     const executionOpt = executionOptimizer.optimizeExecution({
       symbol,
       entryPrice: marketData.price,
       positionSize,
       marketVolume24h: marketData.volume * 24, // Estimate 24h from current candle
-      orderType: 'all-at-once', // Can be overridden by user
+      orderType: classification.pyramidStrategy,
       exchangeFeePercentage: 0.1 // Standard exchange fee
     });
 
@@ -293,12 +328,14 @@ export class SignalPipeline {
         accuracy: stats?.winRate ?? 0.5,
         levels: [
           { name: 'Support', value: marketData.low },
-          { name: 'Resistance', value: marketData.high }
+          { name: 'Resistance', value: marketData.high },
+          { name: 'Adaptive Stop Loss', value: adjustedStopLoss },
+          { name: 'Adaptive Take Profit', value: adjustedTakeProfit }
         ]
       };
     });
 
-    // Step 10: Assemble aggregated signal
+    // Step 10: Assemble aggregated signal with adaptive trade classification
     const signal: AggregatedSignal = {
       id: `${symbol}-${Date.now()}`,
       symbol,
@@ -311,9 +348,9 @@ export class SignalPipeline {
       sources,
       quality,
       price: marketData.price,
-      stopLoss: positions.stopLoss,
-      takeProfit: positions.takeProfit,
-      riskRewardRatio: positions.riskRewardRatio,
+      stopLoss: adjustedStopLoss, // Use adaptive stops
+      takeProfit: adjustedTakeProfit, // Use adaptive targets
+      riskRewardRatio: (adjustedTakeProfit - marketData.price) / (marketData.price - adjustedStopLoss),
       patternDetails,
       timeframes: this.estimateTimeframeAlignment(marketData, scannerOutput),
       agreementScore,
@@ -327,7 +364,14 @@ export class SignalPipeline {
         profitLeakage: executionOpt.profitLeakage,
         recommendedStrategy: executionOpt.recommendedStrategy,
         executionRecommendation: executionOpt.recommendation
-      }
+      },
+      ...(classification && {
+        tradeClassification: {
+          ...classification,
+          adjustedStopLoss,
+          adjustedTakeProfit
+        }
+      })
     };
 
     // Cache result
