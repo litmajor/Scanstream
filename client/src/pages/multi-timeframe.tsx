@@ -22,30 +22,33 @@ export default function MultiTimeframePage() {
       return {
         symbol: data.symbol,
         analysis: {
-          overallTrend: data.overallTrend.toLowerCase(),
+          overallTrend: (data.overallTrend || 'neutral').toLowerCase(),
           confluenceScore: data.multiTimeframeAnalysis?.confluenceScore || 0,
-          timeframeAnalysis: data.multiTimeframeAnalysis?.timeframeAnalysis?.map((tf: any) => ({
+          timeframeAnalysis: (data.multiTimeframeAnalysis?.timeframeAnalysis || []).map((tf: any) => ({
             timeframe: tf.timeframe,
-            trend: tf.trend.toLowerCase(),
-            strength: tf.strength,
-            signals: tf.signals.map((s: any) => s.type),
-            price: tf.signals[0]?.price || 0,
-            change: ((tf.signals[0]?.price || 0) / (tf.signals[0]?.stopLoss || 1) - 1) * 100
-          })) || []
+            trend: (tf.trend || 'neutral').toLowerCase(),
+            strength: tf.strength || 0.5,
+            signals: tf.signals || [],
+            price: tf.price || 0,
+            change: tf.change || 0,
+            support: tf.support || [],
+            resistance: tf.resistance || [],
+            volume: tf.volume || {}
+          }))
         },
-        recommendations: data.multiTimeframeAnalysis?.timeframeAnalysis
-          ?.filter((tf: any) => tf.signals.length > 0)
+        recommendations: (data.multiTimeframeAnalysis?.timeframeAnalysis || [])
+          .filter((tf: any) => tf.signals && tf.signals.length > 0)
           .map((tf: any) => {
             const signal = tf.signals[0];
             return {
-              action: signal.type,
-              confidence: signal.confidence,
+              action: signal.type || 'HOLD',
+              confidence: signal.confidence || 0.5,
               timeframe: tf.timeframe,
               reason: signal.reasoning?.join(', ') || 'Multi-timeframe confluence detected',
-              target: signal.takeProfit,
-              stopLoss: signal.stopLoss
+              target: signal.takeProfit || (tf.price * 1.02),
+              stopLoss: signal.stopLoss || (tf.price * 0.98)
             };
-          }) || []
+          })
       };
     },
     refetchInterval: 30000, // Refresh every 30 seconds

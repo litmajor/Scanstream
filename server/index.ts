@@ -104,6 +104,11 @@ import healthRouter from './routes/health';
 app.use('/api/health', healthRouter);
 console.log('[express] Health Check API registered at /api/health');
 
+// Register Multi-Timeframe Analysis routes
+import multiTimeframeRouter from './routes/multi-timeframe-analysis';
+app.use('/api/analysis/multi-timeframe', multiTimeframeRouter);
+console.log('[express] Multi-Timeframe Analysis API registered at /api/analysis/multi-timeframe');
+
 // Register Gateway routes
 import gatewayRouter, { getGatewayServices } from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
