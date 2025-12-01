@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Loader2, Star } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { ALL_TRACKED_ASSETS, TOP_15_ASSETS, FUNDAMENTAL_15_ASSETS } from '@shared/tracked-assets';
 
 interface WatchlistItem {
   id: string;
@@ -19,12 +20,19 @@ interface WatchlistItem {
   price?: number;
 }
 
+interface AssetSuggestion {
+  symbol: string;
+  name: string;
+  category: 'tier-1' | 'fundamental';
+}
+
 export default function WatchlistPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [newSymbol, setNewSymbol] = useState('');
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [activeTab, setActiveTab] = useState<'all' | 'tier1' | 'fundamental'>('all');
 
   // Fetch watchlist
   const { data: watchlist, isLoading } = useQuery<WatchlistItem[]>({
@@ -100,6 +108,19 @@ export default function WatchlistPage() {
     const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, [watchlist]);
+
+  const getFilteredAssets = () => {
+    if (activeTab === 'tier1') return TOP_15_ASSETS;
+    if (activeTab === 'fundamental') return FUNDAMENTAL_15_ASSETS;
+    return ALL_TRACKED_ASSETS;
+  };
+
+  const getUnaddedAssets = (): AssetSuggestion[] => {
+    const addedSymbols = new Set(watchlist?.map(w => w.symbol.toUpperCase()) || []);
+    return ALL_TRACKED_ASSETS
+      .filter(a => !addedSymbols.has(a.symbol.toUpperCase()))
+      .map(a => ({ symbol: a.symbol, name: a.name, category: a.category }));
+  };
 
   if (authLoading) {
     return (
