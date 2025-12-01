@@ -26,32 +26,32 @@ export interface ThemeColors {
 
 const themePresets: Record<ThemePreset, ThemeColors> = {
   dark: {
-    background: '#0f172a', // slate-900
-    surface: '#1e293b', // slate-800
-    card: '#334155', // slate-700
-    border: '#475569',
-    text: '#f1f5f9', // slate-100
-    textSecondary: '#cbd5e1', // slate-300
-    accent: '#3b82f6', // blue-500
-    accentHover: '#2563eb', // blue-600
-    success: '#22c55e',
+    background: '#0a0e27', // true dark
+    surface: '#141829', // darker surface
+    card: '#1a1f3a', // darker card
+    border: '#2d3454',
+    text: '#e8ebf0', // off-white
+    textSecondary: '#a8b1c9', // subtle secondary
+    accent: '#5b9bff', // brighter blue for contrast
+    accentHover: '#3b82f6', // darker on hover
+    success: '#10b981',
     warning: '#f59e0b',
-    error: '#ef4444',
+    error: '#ff5555',
     info: '#06b6d4',
   },
   light: {
-    background: '#ffffff',
-    surface: '#f8fafc', // slate-50
-    card: '#e2e8f0', // slate-200
-    border: '#cbd5e1', // slate-300
-    text: '#0f172a', // slate-900
-    textSecondary: '#475569', // slate-600
-    accent: '#3b82f6',
-    accentHover: '#2563eb',
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#06b6d4',
+    background: '#f5f7fa', // very light gray
+    surface: '#ffffff', // pure white
+    card: '#eef1f6', // light gray-blue
+    border: '#d1dae5', // subtle border
+    text: '#1a202c', // near black
+    textSecondary: '#4a5568', // medium gray
+    accent: '#2563eb', // strong blue
+    accentHover: '#1d4ed8', // darker blue
+    success: '#059669',
+    warning: '#d97706',
+    error: '#dc2626',
+    info: '#0891b2',
   },
   oled: {
     background: '#000000',

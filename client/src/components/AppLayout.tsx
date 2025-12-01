@@ -69,15 +69,28 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const devItems = navItems.filter(item => item.section === 'dev');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white dark:bg-slate-950 dark:text-white transition-colors duration-300 flex">
+    <div 
+      className="min-h-screen transition-colors duration-300 flex"
+      style={{
+        backgroundColor: colors.background,
+        color: colors.text,
+      }}
+    >
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col backdrop-blur-sm transition-all duration-300 ${
           isSidebarOpen ? 'w-64' : 'w-16'
         }`}
+        style={{
+          backgroundColor: colors.surface,
+          borderRightColor: colors.border,
+        }}
       >
         {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-800 px-4">
+        <div 
+          className="flex h-16 items-center justify-between border-b px-4"
+          style={{ borderBottomColor: colors.border }}
+        >
           {isSidebarOpen && (
             <div className="flex items-center space-x-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
@@ -90,7 +103,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           )}
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="rounded-lg p-2 hover:bg-slate-800 transition-colors"
+            className="rounded-lg p-2 transition-colors"
+            style={{ color: colors.text }}
             aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
             {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -102,7 +116,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Main Section */}
             <div>
               {isSidebarOpen && (
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                   Main
                 </h3>
               )}
@@ -113,11 +127,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   return (
                     <Link key={item.path} href={item.path}>
                       <span
-                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        } ${!isSidebarOpen && 'justify-center'}`}
+                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                        style={{
+                          backgroundColor: isActive ? colors.accent : 'transparent',
+                          color: isActive ? colors.background : colors.textSecondary,
+                        }}
                         title={!isSidebarOpen ? item.name : undefined}
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
@@ -132,7 +146,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Trading Section */}
             <div>
               {isSidebarOpen && (
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                   Trading
                 </h3>
               )}
@@ -143,11 +157,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   return (
                     <Link key={item.path} href={item.path}>
                       <span
-                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        } ${!isSidebarOpen && 'justify-center'}`}
+                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                        style={{
+                          backgroundColor: isActive ? colors.accent : 'transparent',
+                          color: isActive ? colors.background : colors.textSecondary,
+                        }}
                         title={!isSidebarOpen ? item.name : undefined}
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
@@ -162,7 +176,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Advanced Section */}
             <div>
               {isSidebarOpen && (
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                   Advanced
                 </h3>
               )}
@@ -173,11 +187,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   return (
                     <Link key={item.path} href={item.path}>
                       <span
-                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        } ${!isSidebarOpen && 'justify-center'}`}
+                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                        style={{
+                          backgroundColor: isActive ? colors.accent : 'transparent',
+                          color: isActive ? colors.background : colors.textSecondary,
+                        }}
                         title={!isSidebarOpen ? item.name : undefined}
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
@@ -192,7 +206,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* Dev Section */}
             <div>
               {isSidebarOpen && (
-                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                   Dev
                 </h3>
               )}
@@ -203,11 +217,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   return (
                     <Link key={item.path} href={item.path}>
                       <span
-                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                        } ${!isSidebarOpen && 'justify-center'}`}
+                        className={`flex items-center space-x-3 rounded-lg px-3 py-2.5 transition-all cursor-pointer ${!isSidebarOpen && 'justify-center'}`}
+                        style={{
+                          backgroundColor: isActive ? colors.accent : 'transparent',
+                          color: isActive ? colors.background : colors.textSecondary,
+                        }}
                         title={!isSidebarOpen ? item.name : undefined}
                       >
                         <Icon className="h-5 w-5 flex-shrink-0" />
@@ -221,13 +235,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </nav>
 
           {/* Theme Toggle at Bottom */}
-          <div className="border-t border-slate-800 p-3 space-y-2">
+          <div 
+            className="border-t p-3 space-y-2"
+            style={{ borderTopColor: colors.border }}
+          >
             {/* Modern theme toggle */}
             <button
               onClick={() => setPreset(preset === 'dark' ? 'light' : 'dark')}
-              className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 transition-all hover:bg-slate-800 text-slate-400 hover:text-white ${
+              className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2.5 transition-all ${
                 !isSidebarOpen && 'justify-center'
               }`}
+              style={{ color: colors.textSecondary }}
               title={preset === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               data-testid="button-theme-toggle"
             >
@@ -246,9 +264,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             {/* Advanced theme selector */}
             {isSidebarOpen && (
-              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-lg bg-slate-900/50">
+              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-lg" style={{ backgroundColor: `${colors.card}66` }}>
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-slate-400">Theme: {preset}</p>
+                  <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>Theme: {preset}</p>
                 </div>
                 <ThemeSelector />
               </div>
