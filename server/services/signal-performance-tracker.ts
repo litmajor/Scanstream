@@ -15,6 +15,11 @@ interface SignalPerformance {
   closedAt?: Date;
   source?: 'scanner' | 'ml' | 'rl'; // Track which source generated this signal
   correct?: boolean; // Whether signal was correct
+  
+  // Drawdown metrics
+  peakPrice?: number; // Highest price reached during signal lifetime
+  maxDrawdown?: number; // Maximum drawdown in % from peak
+  recoveryFactor?: number; // Final PnL / max drawdown (risk-adjusted return)
 }
 
 export class SignalPerformanceTracker {
@@ -33,7 +38,10 @@ export class SignalPerformanceTracker {
       status: 'active',
       createdAt: new Date(),
       source: signal.dominantSource || 'scanner', // Track which source dominated
-      correct: undefined // Will be set when signal closes
+      correct: undefined, // Will be set when signal closes
+      peakPrice: signal.price, // Start tracking from entry price
+      maxDrawdown: 0,
+      recoveryFactor: 0
     };
 
     this.performances.set(performance.signalId, performance);
@@ -53,6 +61,24 @@ export class SignalPerformanceTracker {
     perf.currentPrice = currentPrice;
     perf.pnl = currentPrice - perf.entryPrice;
     perf.pnlPercent = (perf.pnl / perf.entryPrice) * 100;
+
+    // Track peak price for drawdown calculation
+    if (!perf.peakPrice) perf.peakPrice = perf.entryPrice;
+    if (currentPrice > perf.peakPrice) {
+      perf.peakPrice = currentPrice;
+    }
+
+    // Calculate maximum drawdown from peak
+    const drawdownPercent = ((perf.peakPrice - currentPrice) / perf.peakPrice) * 100;
+    if (!perf.maxDrawdown || drawdownPercent > perf.maxDrawdown) {
+      perf.maxDrawdown = drawdownPercent;
+    }
+
+    // Calculate recovery factor = cumulative_returns / max_drawdown
+    // Avoid division by zero
+    perf.recoveryFactor = perf.maxDrawdown > 0 
+      ? perf.pnlPercent / perf.maxDrawdown 
+      : (perf.pnlPercent > 0 ? Infinity : 0);
 
     // Check if target or stop hit
     if (currentPrice >= perf.targetPrice) {
@@ -81,17 +107,41 @@ export class SignalPerformanceTracker {
     winRate: number;
     avgPnl: number;
     avgPnlPercent: number;
+    avgMaxDrawdown: number;
+    recoveryFactor: number; // Cumulative returns / max drawdown
+    riskAdjustedScore: number; // Combined metric: winRate * recoveryFactor
   } {
     const all = Array.from(this.performances.values());
     const closed = all.filter(p => p.status === 'hit_target' || p.status === 'hit_stop');
     const winners = closed.filter(p => p.status === 'hit_target');
 
+    const winRate = closed.length > 0 ? (winners.length / closed.length) * 100 : 0;
+    const avgPnlPercent = closed.length > 0 ? closed.reduce((sum, p) => sum + p.pnlPercent, 0) / closed.length : 0;
+    
+    // Calculate drawdown metrics
+    const avgMaxDrawdown = closed.length > 0 
+      ? closed.reduce((sum, p) => sum + (p.maxDrawdown || 0), 0) / closed.length 
+      : 0;
+    
+    // Recovery factor = total cumulative returns / average max drawdown
+    const totalCumulativeReturns = closed.reduce((sum, p) => sum + p.pnlPercent, 0);
+    const recoveryFactor = avgMaxDrawdown > 0 
+      ? totalCumulativeReturns / avgMaxDrawdown 
+      : (totalCumulativeReturns > 0 ? 1.0 : 0);
+
+    // Risk-adjusted score combines both metrics
+    // Considers both win rate and recovery efficiency
+    const riskAdjustedScore = (winRate / 100) * Math.max(0.5, recoveryFactor);
+
     return {
       totalSignals: all.length,
       activeSignals: all.filter(p => p.status === 'active').length,
-      winRate: closed.length > 0 ? (winners.length / closed.length) * 100 : 0,
+      winRate,
       avgPnl: closed.length > 0 ? closed.reduce((sum, p) => sum + p.pnl, 0) / closed.length : 0,
-      avgPnlPercent: closed.length > 0 ? closed.reduce((sum, p) => sum + p.pnlPercent, 0) / closed.length : 0
+      avgPnlPercent,
+      avgMaxDrawdown: Math.round(avgMaxDrawdown * 100) / 100,
+      recoveryFactor: Math.round(recoveryFactor * 100) / 100,
+      riskAdjustedScore: Math.round(riskAdjustedScore * 100) / 100
     };
   }
 

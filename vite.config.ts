@@ -42,7 +42,12 @@ export default defineConfig({
     port: 5000,
     strictPort: true,
     hmr: false,
+    middlewareMode: false,
     allowedHosts: true,
+    watch: {
+      usePolling: false,
+      ignored: ['**/node_modules/**', '**/.git/**']
+    },
     proxy: {
       '/api/scanner': {
         target: 'http://localhost:5001',
