@@ -3,36 +3,28 @@
  * Identifies MULTIPLE trading patterns and mechanisms in a single signal
  */
 
-export type SignalClassification = 
-  | "BREAKOUT" 
-  | "REVERSAL" 
-  | "CONTINUATION" 
-  | "PULLBACK" 
-  | "DIVERGENCE"
-  | "SUPPORT_BOUNCE"
-  | "RESISTANCE_BREAK"
-  | "TREND_CONFIRMATION"
-  | "CONSOLIDATION_BREAK"
-  | "MA_CROSSOVER"
-  | "RSI_EXTREME"
-  | "MACD_SIGNAL"
-  | "CONFLUENCE"
-  | "ML_PREDICTION"
-  | "PARABOLIC"
-  | "BULL_EARLY"
-  | "BEAR_EARLY"
-  | "ACCUMULATION"
-  | "DISTRIBUTION"
-  | "SPIKE"
-  | "TOPPING"
-  | "BOTTOMING"
-  | "RANGING"
-  | "LAGGING"
-  | "LEADING"
-  | "TREND_EXHAUSTION"
-  | "TREND_ESTABLISHMENT"
-  | "RETEST"
-  | "FLIP";
+export type SignalClassification =
+  | 'BREAKOUT'
+  | 'REVERSAL'
+  | 'CONTINUATION'
+  | 'PULLBACK'
+  | 'DIVERGENCE'
+  | 'SUPPORT_BOUNCE'
+  | 'RESISTANCE_BREAK'
+  | 'TREND_CONFIRMATION'
+  | 'CONSOLIDATION_BREAK'
+  | 'MA_CROSSOVER'
+  | 'RSI_EXTREME'
+  | 'MACD_SIGNAL'
+  | 'CONFLUENCE'
+  | 'ML_PREDICTION'
+  | 'PARABOLIC'
+  | 'BULL_EARLY'
+  | 'BEAR_EARLY'
+  | 'ACCUMULATION'
+  | 'DISTRIBUTION'
+  | 'SPIKE';
+  // Removed redundant patterns: TOPPING, BOTTOMING, RANGING, LAGGING, LEADING, TREND_EXHAUSTION, TREND_ESTABLISHMENT, RETEST, FLIP
 
 export interface PatternMatch {
   pattern: SignalClassification;
@@ -104,7 +96,7 @@ export class SignalClassifier {
       let volumeConfirmed = false;
       let priceActionConfirmed = false;
       let reasoning = "Price bounced from support level";
-      
+
       // VOLUME CONFIRMATION: Volume spike validates institutional buying at support
       if (indicators.volume && indicators.prevVolume && indicators.volume > indicators.prevVolume * 1.5) {
         confidence += 0.05; // Boost to 0.80
@@ -112,7 +104,7 @@ export class SignalClassifier {
         volumeConfirmed = true;
         reasoning += " + volume confirmation";
       }
-      
+
       // PRICE ACTION REVERSAL: Price moves meaningfully away from support (strong recovery)
       const priceStrength = (indicators.price - indicators.support) / indicators.support;
       if (priceStrength > 0.02) { // Price moved >2% above support = strong recovery
@@ -121,11 +113,11 @@ export class SignalClassifier {
         priceActionConfirmed = true;
         reasoning += " + strong price action recovery";
       }
-      
+
       // Cap confidence at 0.90 (excellent quality)
       confidence = Math.min(0.90, confidence);
       strength = Math.min(100, strength);
-      
+
       // Only add if at least one confirmation present (volume OR price action)
       // This filters out weak bounces without institutional support
       if (volumeConfirmed || priceActionConfirmed) {
@@ -254,36 +246,6 @@ export class SignalClassifier {
       });
     }
 
-    // Check RETEST
-    if (indicators.support && Math.abs(indicators.price - indicators.support) < indicators.support * 0.01) {
-      patterns.push({
-        pattern: "RETEST",
-        confidence: 0.68,
-        strength: 68,
-        reasoning: "Price retesting support level"
-      });
-    }
-
-    // Check TREND_ESTABLISHMENT
-    if (indicators.ema20 && indicators.ema50 && indicators.ema20 > indicators.ema50 * 1.02) {
-      patterns.push({
-        pattern: "TREND_ESTABLISHMENT",
-        confidence: 0.7,
-        strength: 70,
-        reasoning: "Trend establishing - EMAs in strong uptrend"
-      });
-    }
-
-    // Check RANGING
-    if (indicators.resistance && indicators.support && ((indicators.resistance - indicators.support) / indicators.support) < 0.03) {
-      patterns.push({
-        pattern: "RANGING",
-        confidence: 0.6,
-        strength: 60,
-        reasoning: "Price ranging in tight consolidation"
-      });
-    }
-
     // If multiple patterns detected, add CONFLUENCE
     if (patterns.length > 2) {
       patterns.unshift({
@@ -297,11 +259,11 @@ export class SignalClassifier {
     // Build result
     const classifications = patterns.map(p => p.pattern);
     const primaryPattern = patterns.length > 0 ? patterns[0].pattern : "CONFLUENCE";
-    const avgConfidence = patterns.length > 0 
-      ? patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length 
+    const avgConfidence = patterns.length > 0
+      ? patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length
       : 0.5;
-    const avgStrength = patterns.length > 0 
-      ? patterns.reduce((sum, p) => sum + p.strength, 0) / patterns.length 
+    const avgStrength = patterns.length > 0
+      ? patterns.reduce((sum, p) => sum + p.strength, 0) / patterns.length
       : 50;
 
     patterns.forEach(p => reasoning.push(p.reasoning));
@@ -354,15 +316,6 @@ export class SignalClassifier {
       ACCUMULATION: "Price accumulating at support - large buyers accumulating positions",
       DISTRIBUTION: "Price distributing at resistance - large sellers offloading positions",
       SPIKE: "Sharp vertical move detected - spike or flash move pattern",
-      TOPPING: "Price forming top - sellers gaining control, reversal likely",
-      BOTTOMING: "Price forming bottom - buyers gaining control, reversal likely",
-      RANGING: "Price ranging in consolidation - breakout potential in either direction",
-      LAGGING: "Signal lagging price action - less reliable, entry timing poor",
-      LEADING: "Leading signal ahead of price - early entry opportunity detected",
-      TREND_EXHAUSTION: "Trend showing signs of exhaustion - reversal or correction probable",
-      TREND_ESTABLISHMENT: "Trend establishing with strong confirmation - trend is solidifying",
-      RETEST: "Price retesting previous level - support/resistance confirmation signal",
-      FLIP: "Level flipped from resistance to support or vice versa - major shift"
     };
     return descriptions[classification] || "Signal detected";
   }

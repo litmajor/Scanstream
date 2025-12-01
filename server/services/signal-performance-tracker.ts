@@ -180,6 +180,36 @@ export class SignalPerformanceTracker {
       rl: countBySource.rl > 0 ? winsBySource.rl / countBySource.rl : 0.5
     };
   }
+
+  /**
+   * Get win rates by pattern type for adaptive pattern weighting
+   */
+  getPatternWinRates(lookback: number = 50): Map<string, number> {
+    const patternStats = new Map<string, { wins: number; total: number }>();
+    
+    const recentSignals = Array.from(this.performances.values())
+      .filter(p => p.correct !== undefined)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, lookback);
+
+    for (const signal of recentSignals) {
+      const pattern = (signal as any).primaryPattern || 'UNKNOWN';
+      if (!patternStats.has(pattern)) {
+        patternStats.set(pattern, { wins: 0, total: 0 });
+      }
+      
+      const stats = patternStats.get(pattern)!;
+      stats.total++;
+      if (signal.correct) stats.wins++;
+    }
+
+    const winRates = new Map<string, number>();
+    for (const [pattern, stats] of patternStats.entries()) {
+      winRates.set(pattern, stats.total > 0 ? stats.wins / stats.total : 0.5);
+    }
+
+    return winRates;
+  }
 }
 
 export const signalPerformanceTracker = new SignalPerformanceTracker();
