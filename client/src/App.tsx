@@ -22,7 +22,8 @@ import MarketIntelligence from "@/pages/market-intelligence";
 import StrategySynthesisPage from './pages/strategy-synthesis';
 import AnalyticsDashboard from '@/pages/analytics-dashboard';
 import AdvancedAnalytics from '@/pages/advanced-analytics';
-import RLPositionAgent from '@/pages/rl-position-agent';
+import RLPositionAgent from './pages/rl-position-agent';
+import PositionSizingDashboard from './pages/position-sizing-dashboard';
 import PaperTradingPage from "@/pages/paper-trading";
 import PositionsPage from "@/pages/positions";
 import SignalsPage from "@/pages/signals";
@@ -56,7 +57,8 @@ function AuthenticatedRouter() {
         <Route path="/strategy-synthesis" component={StrategySynthesisPage} />
         <Route path="/analytics" component={AnalyticsDashboard} />
         <Route path="/advanced-analytics" component={AdvancedAnalytics} />
-        <Route path="/rl-position-agent" component={RLPositionAgent} />
+        <Route path="/rl-position-agent" element={<RLPositionAgent />} />
+        <Route path="/position-sizing" element={<PositionSizingDashboard />} />
         <Route path="/market-intelligence" component={MarketIntelligence} />
         <Route path="/paper-trading" component={PaperTradingPage} />
         <Route path="/card-showcase" component={CardShowcase} />

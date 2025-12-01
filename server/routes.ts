@@ -34,6 +34,9 @@ import flowFieldRouter from './routes/flow-field';
 // Import velocity profiles routes
 import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
 
+// Import Position Sizing API routes (Phase 2)
+import positionSizingRouter from './routes/position-sizing';
+
 // Create prisma instance
 const prisma = new PrismaClient();
 
@@ -1705,6 +1708,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/ml/advanced', mlAdvancedRoutes);
   app.use('/api/ml-advanced', mlAdvancedModelsRouter);
   app.use('/api/portfolio', portfolioRouter);
+
+  // Mount Position Sizing API routes (Phase 2)
+  app.use('/api/position-sizing', positionSizingRouter);
 
   // Mount flow field analytics routes
   app.use('/api/analytics', flowFieldRouter);
