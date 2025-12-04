@@ -40,6 +40,10 @@ import compositeQualityRouter from './routes/composite-quality';
 // Import Live Trading routes
 import liveTradingRouter from './routes/live-trading';
 
+// Import Portfolio Risk and Source Analytics routes
+import portfolioRiskRouter from './routes/portfolio-risk';
+import sourceAnalyticsRouter from './routes/source-analytics';
+
 
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
@@ -1757,14 +1761,14 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   // Register MTF confirmation routes
   app.use('/api/mtf-confirmation', mtfConfirmationRouter);
+  // Mount position sizing v2 endpoint
+  app.use('/api/position-sizing-v2', positionSizingRouter); // Assuming positionSizingRouter is intended for v2 as well
+  // Mount live trading routes
+  app.use('/api/live-trading', liveTradingRouter);
 
-  // Register intelligent exits routes
-  app.use('/api/intelligent-exits', intelligentExitsRouter);
-  // Mount correlation hedge endpoint
-  app.use('/api/correlation-hedge', correlationHedgeRouter);
-  // Mount velocity profiles endpoint
-  app.use('/api/velocity-profiles', velocityProfilesRouter);
-
+  // Register portfolio risk and source analytics routes
+  app.use('/api/portfolio-risk', portfolioRiskRouter);
+  app.use('/api/source-analytics', sourceAnalyticsRouter);
 
   console.log('[Routes] All routes registered successfully');
 
