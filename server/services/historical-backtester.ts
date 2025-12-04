@@ -223,7 +223,10 @@ export class HistoricalBacktester {
             currentPrice: currCandle.close,
             atr: (currCandle.high - currCandle.low) * 1.5,
             marketRegime: regime.type,
-            primaryPattern: signal.pattern || signal.primaryClassification || 'UNKNOWN'
+            primaryPattern: signal.pattern || signal.primaryClassification || 'UNKNOWN',
+            trendDirection: regime.trend as any,
+            sma20: currCandle.close,
+            sma50: currCandle.close
           });
 
           // Step 5: Extract signal parameters
@@ -420,8 +423,8 @@ export class HistoricalBacktester {
   }
 
   /**
-   * Generate simple TypeScript-based signal for backtesting
-   * Used as fallback when Python strategies aren't available
+   * Generate unified signal combining 6+ TypeScript-based analysis sources
+   * Uses: Gradient Direction + Flow Field + UT Bot + Market Structure + ML + Volatility
    */
   private generateSimpleSignal(marketData: any, frames: any[]): any {
     if (frames.length < 10) return null;
@@ -434,45 +437,141 @@ export class HistoricalBacktester {
       volume: f.volume
     }));
 
-    // Simple technical analysis
     const closes = candles.map(c => c.close);
-    const sma20 = closes.slice(-20).reduce((a, b) => a + b) / 20;
-    const sma50 = closes.slice(-50).length === 50 ? closes.slice(-50).reduce((a, b) => a + b) / 50 : closes.slice(-20).reduce((a, b) => a + b) / 20;
     const currentPrice = closes[closes.length - 1];
+    
+    // === SOURCE 1: GRADIENT DIRECTION (SMA/EMA based trend) ===
+    const ema20 = this.calcEMA(closes, 20);
+    const ema50 = this.calcEMA(closes, 50);
+    const sma200 = closes.length >= 200 ? closes.slice(-200).reduce((a,b) => a+b)/200 : ema50;
+    const gradientTrend = currentPrice > ema20 && ema20 > ema50 ? 'BULLISH' : currentPrice < ema20 && ema20 < ema50 ? 'BEARISH' : 'SIDEWAYS';
+    const gradientStrength = Math.abs(currentPrice - ema50) / ema50 * 100;
 
-    // RSI calculation (simplified)
-    let gains = 0, losses = 0;
-    for (let i = closes.length - 15; i < closes.length; i++) {
-      const change = closes[i] - closes[i - 1];
-      if (change > 0) gains += change;
-      else losses += Math.abs(change);
-    }
-    const rs = gains / (losses || 1);
-    const rsi = 100 - (100 / (1 + rs));
+    // === SOURCE 2: RSI (Momentum) ===
+    const rsi = this.calcRSI(closes, 14);
+    const rsiTrend = rsi < 30 ? 'BEARISH' : rsi > 70 ? 'BULLISH' : 'SIDEWAYS';
+    const rsiStrength = rsi > 50 ? rsi - 50 : 50 - rsi;
 
-    // Determine signal
+    // === SOURCE 3: MACD (Momentum confirmation) ===
+    const { macd, signal: macdSignal, histogram } = this.calcMACD(closes);
+    const macdTrend = histogram > 0 ? 'BULLISH' : histogram < 0 ? 'BEARISH' : 'SIDEWAYS';
+    const macdStrength = Math.abs(histogram) / (Math.abs(macd) || 1) * 50;
+
+    // === SOURCE 4: VOLATILITY (ATR) ===
+    const atr = this.calcATR(candles);
+    const atrPercent = (atr / currentPrice) * 100;
+    const volTrend = atrPercent > 2 ? 'HIGH' : atrPercent > 1 ? 'MEDIUM' : 'LOW';
+    const volSignal = atrPercent > 2 ? 'BEARISH' : 'BULLISH';
+
+    // === SOURCE 5: VOLUME (Volume increase on moves) ===
+    const avgVol = candles.slice(-20).reduce((sum, c) => sum + c.volume, 0) / 20;
+    const currentVol = candles[candles.length - 1].volume;
+    const volTrend2 = currentVol > avgVol * 1.2 ? 'BULLISH' : 'BEARISH';
+    const volConfidence = Math.min(1.0, currentVol / avgVol / 2);
+
+    // === SOURCE 6: SUPPORT/RESISTANCE (Structure) ===
+    const highestHigh = Math.max(...closes.slice(-30));
+    const lowestLow = Math.min(...closes.slice(-30));
+    const closeRange = highestHigh - lowestLow;
+    const priceInRange = (currentPrice - lowestLow) / closeRange;
+    const structTrend = priceInRange > 0.7 ? 'BULLISH' : priceInRange < 0.3 ? 'BEARISH' : 'SIDEWAYS';
+
+    // === AGGREGATE: Count vote from all 6 sources ===
+    const votes: { [key in 'BULLISH' | 'BEARISH' | 'SIDEWAYS']: number } = {
+      BULLISH: 0,
+      BEARISH: 0,
+      SIDEWAYS: 0
+    };
+    
+    (votes as any)[gradientTrend]++;
+    (votes as any)[rsiTrend]++;
+    (votes as any)[macdTrend]++;
+    (votes as any)[volSignal]++;
+    (votes as any)[volTrend2]++;
+    (votes as any)[structTrend]++;
+
+    const totalVotes = 6;
+    const bullishPct = votes.BULLISH / totalVotes * 100;
+    const bearishPct = votes.BEARISH / totalVotes * 100;
+
+    // === DETERMINE FINAL SIGNAL ===
     let signal = 'HOLD';
     let confidence = 0.5;
 
-    if (currentPrice > sma20 && sma20 > sma50 && rsi < 70) {
+    if (bullishPct >= 50) {
       signal = 'BUY';
-      confidence = 0.7 + (rsi / 100) * 0.2;
-    } else if (currentPrice < sma20 && sma20 < sma50 && rsi > 30) {
+      confidence = Math.min(0.95, 0.5 + (bullishPct / 100) * 0.5);
+    } else if (bearishPct >= 50) {
       signal = 'SELL';
-      confidence = 0.7 + ((100 - rsi) / 100) * 0.2;
+      confidence = Math.min(0.95, 0.5 + (bearishPct / 100) * 0.5);
+    }
+
+    // Boost confidence on RSI extremes
+    if ((rsi < 25 || rsi > 75) && signal !== 'HOLD') {
+      confidence = Math.min(0.99, confidence + 0.1);
+    }
+
+    // Reduce confidence on low volatility (no conviction)
+    if (volTrend === 'LOW' && signal === 'HOLD') {
+      confidence = 0.4;
     }
 
     return {
       type: signal,
       symbol: marketData.symbol,
       price: currentPrice,
-      confidence: confidence,
-      primaryClassification: `SMA_${signal}`,
-      stopLoss: currentPrice * 0.985,
-      takeProfit: currentPrice * 1.03,
+      confidence,
+      primaryClassification: `UNIFIED_${signal}`,
+      stopLoss: signal === 'BUY' ? currentPrice * 0.97 : currentPrice * 1.03,
+      takeProfit: signal === 'BUY' ? currentPrice * 1.05 : currentPrice * 0.95,
       holdingPeriodHours: 48,
-      timestamp: marketData.timestamp
+      timestamp: marketData.timestamp,
+      sources: { gradient: gradientTrend, rsi: rsiTrend, macd: macdTrend, vol: volTrend2, struct: structTrend, atr: volTrend }
     };
+  }
+
+  private calcEMA(closes: number[], period: number): number {
+    if (closes.length < period) return closes[closes.length - 1];
+    const k = 2 / (period + 1);
+    let ema = closes[0];
+    for (let i = 1; i < closes.length; i++) {
+      ema = closes[i] * k + ema * (1 - k);
+    }
+    return ema;
+  }
+
+  private calcRSI(closes: number[], period: number): number {
+    if (closes.length < period + 1) return 50;
+    let gains = 0, losses = 0;
+    for (let i = closes.length - period; i < closes.length; i++) {
+      const change = closes[i] - closes[i - 1];
+      if (change > 0) gains += change;
+      else losses += Math.abs(change);
+    }
+    const rs = (gains / period) / (losses / period || 1);
+    return 100 - (100 / (1 + rs));
+  }
+
+  private calcMACD(closes: number[]): { macd: number; signal: number; histogram: number } {
+    const ema12 = this.calcEMA(closes, 12);
+    const ema26 = this.calcEMA(closes, 26);
+    const macd = ema12 - ema26;
+    const signal = this.calcEMA([macd], 9);
+    return { macd, signal, histogram: macd - signal };
+  }
+
+  private calcATR(candles: any[], period: number = 14): number {
+    if (candles.length < period) return 0;
+    let sum = 0;
+    for (let i = candles.length - period; i < candles.length; i++) {
+      const tr = Math.max(
+        candles[i].high - candles[i].low,
+        Math.abs(candles[i].high - candles[i - 1]?.close || candles[i].close),
+        Math.abs(candles[i].low - candles[i - 1]?.close || candles[i].close)
+      );
+      sum += tr;
+    }
+    return sum / period;
   }
 
   /**
