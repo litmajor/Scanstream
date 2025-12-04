@@ -122,6 +122,11 @@ import signalGenerationRouter from './routes/api/signal-generation';
 app.use('/api/signal-generation', signalGenerationRouter);
 console.log('[express] Complete Signal Generation API registered at /api/signal-generation');
 
+// Register Trade Execution routes (Loss Limiter, Drawdown Monitor, Win Amplifier)
+import tradeExecutionRouter from './routes/trade-execution';
+app.use('/api/execution', tradeExecutionRouter);
+console.log('[express] Trade Execution API registered at /api/execution');
+
 // Initialize WebSocket service for real-time signal streaming
 import { signalWebSocketService } from './services/websocket-signals';
 import { signalPriceMonitor } from './services/signal-price-monitor';

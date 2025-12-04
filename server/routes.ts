@@ -155,7 +155,6 @@ try {
   // For hot-reload DX, use tsx --watch or nodemon --exec node -r esbuild-register
   // npm i cors helmet express-rate-limit
   import { setupAuth, isAuthenticated, getUser, getUserPreferences, updateUserPreferences, getApiKeys, addApiKey, deleteApiKey } from './replitAuth';
-  import { log } from './utils'; // Assuming a log utility function exists
 
   export async function registerRoutes(app: Express): Promise<Server> {
     // Create HTTP server
@@ -1762,7 +1761,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   // Mount live trading routes
   app.use('/api/live-trading', liveTradingRouter);
-  log('[express] Live Trading API registered at /api/live-trading');
+  console.log('[express] Live Trading API registered at /api/live-trading');
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
