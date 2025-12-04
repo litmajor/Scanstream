@@ -211,10 +211,8 @@ app.use((req, res, next) => {
 
   // Backend server on port 3000
   const port = parseInt(process.env.PORT || '3000');
-  // Bind to the IPv6 unspecified address so the server accepts both
-  // IPv6 (::1 / ::) and IPv4 (0.0.0.0 / 127.0.0.1) loopback connections.
-  // This makes `http://localhost` work even when localhost resolves to ::1.
-  const host = '::';
+  // Bind to all IPv4 addresses including localhost (127.0.0.1)
+  const host = '0.0.0.0';
 
   server.listen(port, host, () => {
     console.log(`\n╔════════════════════════════════════════════════════════╗`);
