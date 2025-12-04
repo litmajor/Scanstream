@@ -56,6 +56,7 @@ export const signals = pgTable("signals", {
 
 export const trades = pgTable("trades", {
   id: uuid("id").primaryKey().defaultRandom(),
+  signalId: uuid("signal_id"), // Links to signal that generated this trade
   symbol: text("symbol").notNull(),
   side: text("side").notNull(), // 'BUY' | 'SELL'
   entryTime: timestamp("entry_time").notNull(),
@@ -92,6 +93,29 @@ export const backtestResults = pgTable("backtest_results", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  timestamp: timestamp("timestamp").notNull().default(sql`now()`),
+  action: text("action").notNull(), // "SIGNAL_GENERATED", "TRADE_EXECUTED", "POSITION_CLOSED"
+  entityType: text("entity_type").notNull(), // "Signal", "Trade", "Portfolio"
+  entityId: text("entity_id").notNull(),
+  userId: text("user_id"),
+  details: jsonb("details").notNull(), // full context
+  severity: text("severity").notNull().default("INFO"), // "INFO", "WARNING", "ERROR"
+});
+
+export const modelMetrics = pgTable("model_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  modelName: text("model_name").notNull(), // "DirectionClassifier", "PricePredictor"
+  timestamp: timestamp("timestamp").notNull().default(sql`now()`),
+  accuracy: real("accuracy"), // last 100 predictions
+  precision: real("precision"),
+  recall: real("recall"),
+  driftScore: real("drift_score"), // 0-1, how much model has drifted
+  dataPoints: integer("data_points"), // sample size
+  isStale: boolean("is_stale").notNull().default(false), // flag when accuracy drops
+});
+
 // Insert schemas
 export const insertMarketFrameSchema = createInsertSchema(marketFrames).omit({
   id: true,
@@ -116,6 +140,16 @@ export const insertBacktestResultSchema = createInsertSchema(backtestResults).om
   createdAt: true,
 });
 
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertModelMetricSchema = createInsertSchema(modelMetrics).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Types
 export type MarketFrame = typeof marketFrames.$inferSelect;
 export type InsertMarketFrame = z.infer<typeof insertMarketFrameSchema>;
@@ -131,6 +165,12 @@ export type InsertStrategy = z.infer<typeof insertStrategySchema>;
 
 export type BacktestResult = typeof backtestResults.$inferSelect;
 export type InsertBacktestResult = z.infer<typeof insertBacktestResultSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type ModelMetric = typeof modelMetrics.$inferSelect;
+export type InsertModelMetric = z.infer<typeof insertModelMetricSchema>;
 
 // Trading-specific interfaces
 export interface RiskParameters {

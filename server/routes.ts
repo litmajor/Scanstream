@@ -44,6 +44,9 @@ import liveTradingRouter from './routes/live-trading';
 import portfolioRiskRouter from './routes/portfolio-risk';
 import sourceAnalyticsRouter from './routes/source-analytics';
 
+// Import audit logs and model drift routes
+import auditLogsRoutes from "./routes/audit-logs";
+import modelDriftRoutes from "./routes/model-drift";
 
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
@@ -1778,14 +1781,11 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/source-analytics', sourceAnalyticsRouter);
 
   // Import and register signal archive routes
-  app.use('/api/signal-archive', signalArchiveRouter);
-  console.log('[express] Signal Archive API registered at /api/signal-archive');
-
-  // Correlation analysis routes
-  app.use('/api/correlation-boost', correlationBoostRouter);
-
-  // Strategy deployment routes
-  app.use('/api/strategy-deployment', strategyDeploymentRouter);
+  app.use("/api/signal-archive", signalArchiveRoutes);
+  app.use("/api/strategy-deployment", strategyDeploymentRoutes);
+  app.use("/api/correlation-boost", correlationBoostRoutes);
+  app.use("/api/audit-logs", auditLogsRoutes);
+  app.use("/api/model-drift", modelDriftRoutes);
 
   console.log('[Routes] All routes registered successfully');
 
