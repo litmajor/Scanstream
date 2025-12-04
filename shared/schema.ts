@@ -56,7 +56,7 @@ export const signals = pgTable("signals", {
 
 export const trades = pgTable("trades", {
   id: uuid("id").primaryKey().defaultRandom(),
-  signalId: uuid("signal_id"), // Links to signal that generated this trade
+  signalId: uuid("signal_id"), // Links to signal that generated this trade (CRITICAL for attribution)
   symbol: text("symbol").notNull(),
   side: text("side").notNull(), // 'BUY' | 'SELL'
   entryTime: timestamp("entry_time").notNull(),

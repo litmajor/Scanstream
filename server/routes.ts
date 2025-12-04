@@ -154,7 +154,8 @@ try {
 
   // For hot-reload DX, use tsx --watch or nodemon --exec node -r esbuild-register
   // npm i cors helmet express-rate-limit
-  import { setupAuth, isAuthenticated, getUser, getUserPreferences, updateUserPreferences, getApiKeys, addApiKey, deleteApiKey } from './replitAuth';
+  // REPLIT AUTH DISABLED FOR TESTING
+  // import { setupAuth, isAuthenticated, getUser, getUserPreferences, updateUserPreferences, getApiKeys, addApiKey, deleteApiKey } from './replitAuth';
 
   export async function registerRoutes(app: Express): Promise<Server> {
     // Create HTTP server
@@ -174,117 +175,64 @@ try {
     }));
 
     // Setup authentication
-    await setupAuth(app);
+    // await setupAuth(app); // DISABLED FOR TESTING
 
-    // Auth routes
-    app.get('/api/auth/user', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const user = await getUser(userId);
-        res.json(user);
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        res.status(500).json({ message: "Failed to fetch user" });
+    // AUTH ROUTES DISABLED FOR TESTING
+    // Mock user for development
+    const mockUser = {
+      id: 'dev-user-001',
+      email: 'dev@test.com',
+      firstName: 'Dev',
+      lastName: 'User',
+      profileImageUrl: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      preferences: {
+        theme: 'dark',
+        defaultTimeframe: '1h',
+        defaultExchange: 'binance',
+        notificationsEnabled: true,
+        emailAlerts: false,
+        priceAlerts: true,
+        signalAlerts: true,
+        soundEnabled: true,
       }
+    };
+
+    app.get('/api/auth/user', async (req: any, res: Response) => {
+      res.json(mockUser);
     });
 
-    // User preferences routes
-    app.get('/api/user/preferences', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const prefs = await getUserPreferences(userId);
-        res.json(prefs);
-      } catch (error) {
-        console.error("Error fetching preferences:", error);
-        res.status(500).json({ message: "Failed to fetch preferences" });
-      }
+    app.get('/api/user/preferences', async (req: any, res: Response) => {
+      res.json(mockUser.preferences);
     });
 
-    app.patch('/api/user/preferences', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const prefs = await updateUserPreferences(userId, req.body);
-        res.json(prefs);
-      } catch (error) {
-        console.error("Error updating preferences:", error);
-        res.status(500).json({ message: "Failed to update preferences" });
-      }
+    app.patch('/api/user/preferences', async (req: any, res: Response) => {
+      res.json({ ...mockUser.preferences, ...req.body });
     });
 
-    // API keys routes
-    app.get('/api/user/api-keys', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const keys = await getApiKeys(userId);
-        res.json(keys);
-      } catch (error) {
-        console.error("Error fetching API keys:", error);
-        res.status(500).json({ message: "Failed to fetch API keys" });
-      }
+    app.get('/api/user/api-keys', async (req: any, res: Response) => {
+      res.json([]);
     });
 
-    app.post('/api/user/api-keys', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const key = await addApiKey(userId, req.body);
-        res.json(key);
-      } catch (error) {
-        console.error("Error adding API key:", error);
-        res.status(500).json({ message: "Failed to add API key" });
-      }
+    app.post('/api/user/api-keys', async (req: any, res: Response) => {
+      res.json({ id: 'mock-key', ...req.body });
     });
 
-    app.delete('/api/user/api-keys/:keyId', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        await deleteApiKey(userId, req.params.keyId);
-        res.json({ success: true });
-      } catch (error) {
-        console.error("Error deleting API key:", error);
-        res.status(500).json({ message: "Failed to delete API key" });
-      }
+    app.delete('/api/user/api-keys/:keyId', async (req: any, res: Response) => {
+      res.json({ success: true });
     });
 
-    // Watchlist routes
-    app.get('/api/user/watchlist', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const watchlist = await prisma.Watchlist.findMany({
-          where: { userId },
-          orderBy: { addedAt: 'desc' }
-        });
-        res.json(watchlist);
-      } catch (error) {
-        console.error("Error fetching watchlist:", error);
-        res.status(500).json({ message: "Failed to fetch watchlist" });
-      }
+    app.get('/api/user/watchlist', async (req: any, res: Response) => {
+      res.json([]);
     });
 
-    app.post('/api/user/watchlist', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        const { symbol, notes } = req.body;
-        const item = await prisma.Watchlist.create({
-          data: { userId, symbol: symbol.toUpperCase(), notes }
-        });
-        res.json(item);
-      } catch (error: any) {
-        console.error("Error adding to watchlist:", error);
-        res.status(500).json({ message: error.message || "Failed to add to watchlist" });
-      }
+    app.post('/api/user/watchlist', async (req: any, res: Response) => {
+      res.json({ id: 'mock-item', ...req.body });
     });
 
-    app.delete('/api/user/watchlist/:id', isAuthenticated, async (req: any, res: Response) => {
-      try {
-        const userId = req.user.claims.sub;
-        await prisma.Watchlist.deleteMany({
-          where: { id: req.params.id, userId }
-        });
-        res.json({ success: true });
-      } catch (error) {
-        console.error("Error removing from watchlist:", error);
-        res.status(500).json({ message: "Failed to remove from watchlist" });
-      }
+    app.delete('/api/user/watchlist/:id', async (req: any, res: Response) => {
+      res.json({ success: true });
     });
 
     // Register signal quality routes
@@ -1780,9 +1728,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/source-analytics', sourceAnalyticsRouter);
 
   // Import and register signal archive routes
-  app.use("/api/signal-archive", signalArchiveRoutes);
-  app.use("/api/strategy-deployment", strategyDeploymentRoutes);
-  app.use("/api/correlation-boost", correlationBoostRoutes);
+  app.use("/api/signal-archive", signalArchiveRouter);
+  app.use("/api/strategy-deployment", strategyDeploymentRouter);
+  app.use("/api/correlation-boost", correlationBoostRouter);
   app.use("/api/audit-logs", auditLogsRoutes);
   app.use("/api/model-drift", modelDriftRoutes);
 

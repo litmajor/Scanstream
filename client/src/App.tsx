@@ -44,6 +44,8 @@ function AuthenticatedRouter() {
   return (
     <AppLayout>
       <Switch>
+        <Route path="/login" component={lazy(() => import("@/pages/login"))} />
+        <Route path="/register" component={lazy(() => import("@/pages/register"))} />
         <Route path="/" component={TradingTerminal} />
         <Route path="/signals" component={SignalsPage} />
         <Route path="/signal-structures" component={SignalStructuresPage} />
