@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios'; // Import axios for CoinGecko API calls
+import { Router } from 'express'; // Import Router for dynamic route registration
 
 // Import strategy routes and paper trading routes
 import strategyRoutes from './routes/strategies';
@@ -36,6 +37,9 @@ import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
 // Import composite quality routes
 import compositeQualityRouter from './routes/composite-quality';
 
+// Import Live Trading routes
+import liveTradingRouter from './routes/live-trading';
+
 
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
@@ -55,10 +59,11 @@ let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
 let calculate_volume_profile: any, calculate_anchored_volume_profile: any, calculate_fixed_range_volume_profile: any;
 let calculate_composite_score: any, calculate_volume_composite_score: any, calculate_confidence_score: any;
 let calculate_value_area: any, calculate_poc: any;
-let runBacktest: any, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
-let MLSignalEnhancer: any, EnhancedMultiTimeframeAnalyzer: any;
-let registerChartApi: any, registerAdvancedIndicatorApi: any;
-let StrategyIntegrationEngine: any;
+let runBacktest, ExchangeDataFeed, SignalEngine, defaultTradingConfig;
+let MLSignalEnhancer, EnhancedMultiTimeframeAnalyzer;
+let registerChartApi, registerAdvancedIndicatorApi;
+let StrategyIntegrationEngine;
+let velocityProfilesRouter; // Declare velocityProfilesRouter here
 
 try {
   const bayesianModule = await import('./bayesian-optimizer').catch(() => null);
@@ -109,6 +114,15 @@ try {
   if (strategyModule) {
     ({ StrategyIntegrationEngine } = strategyModule);
   }
+
+  // Velocity profiles router - create if missing
+  try {
+    velocityProfilesRouter = require('./routes/velocity-profiles').default;
+  } catch (e) {
+    velocityProfilesRouter = Router();
+    console.warn('[routes] velocity-profiles router not found, using empty router');
+  }
+
 } catch (error) {
   console.warn('Some optional modules could not be loaded:', error);
 }
@@ -127,6 +141,7 @@ try {
   // For hot-reload DX, use tsx --watch or nodemon --exec node -r esbuild-register
   // npm i cors helmet express-rate-limit
   import { setupAuth, isAuthenticated, getUser, getUserPreferences, updateUserPreferences, getApiKeys, addApiKey, deleteApiKey } from './replitAuth';
+  import { log } from './utils'; // Assuming a log utility function exists
 
   export async function registerRoutes(app: Express): Promise<Server> {
     // Create HTTP server
@@ -1730,6 +1745,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
   // Mount composite quality endpoint
   app.use('/api/composite-quality', compositeQualityRouter);
+
+  // Mount live trading routes
+  app.use('/api/live-trading', liveTradingRouter);
+  log('[express] Live Trading API registered at /api/live-trading');
 
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {

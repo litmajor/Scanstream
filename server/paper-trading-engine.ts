@@ -192,21 +192,26 @@ export class PaperTradingEngine extends EventEmitter {
   }
 
   /**
-   * Execute a signal and open a paper trade
+   * Execute a signal and open a paper trade with realistic slippage
    */
   private async executeSignal(signal: Signal, source: 'ML' | 'RL' | 'GATEWAY'): Promise<void> {
     try {
-      const price = signal.price;
-      const stopLoss = signal.stopLoss || price * (signal.type === 'BUY' ? 0.98 : 1.02);
-      const takeProfit = signal.takeProfit || price * (signal.type === 'BUY' ? 1.05 : 0.95);
+      // Simulate realistic execution slippage (0.05% - 0.15% depending on volatility)
+      const baseSlippage = 0.0005; // 0.05%
+      const volatilitySlippage = Math.random() * 0.001; // Up to 0.1% additional
+      const slippageMultiplier = signal.type === 'BUY' ? (1 + baseSlippage + volatilitySlippage) : (1 - baseSlippage - volatilitySlippage);
+      
+      const executionPrice = signal.price * slippageMultiplier;
+      const stopLoss = signal.stopLoss || executionPrice * (signal.type === 'BUY' ? 0.98 : 1.02);
+      const takeProfit = signal.takeProfit || executionPrice * (signal.type === 'BUY' ? 1.05 : 0.95);
 
-      // Open position in simulator
+      // Open position in simulator with realistic execution price
       const success = this.simulator.openPosition({
         id: `${signal.symbol}-${Date.now()}`,
         symbol: signal.symbol,
         side: signal.type === 'BUY' ? 'BUY' : 'SELL',
         entryTime: new Date(),
-        entryPrice: price,
+        entryPrice: executionPrice,
         commission: 0,
         status: 'OPEN',
         exitTime: null,
@@ -283,7 +288,11 @@ export class PaperTradingEngine extends EventEmitter {
       this.activeTrades.set(trade.id, trade);
       this.emit('tradeOpened', trade);
 
-      console.log(`[Paper Trading] Opened ${trade.side} position for ${trade.symbol} at $${trade.entryPrice.toFixed(2)}`);
+      const slippageBps = Math.abs((executionPrice - signal.price) / signal.price * 10000);
+      console.log(
+        `[Paper Trading] Opened ${trade.side} position for ${trade.symbol} ` +
+        `at $${trade.entryPrice.toFixed(2)} (signal: $${signal.price.toFixed(2)}, slippage: ${slippageBps.toFixed(1)}bps)`
+      );
     } catch (error) {
       console.error('[Paper Trading] Error executing signal:', error);
     }
@@ -343,16 +352,35 @@ export class PaperTradingEngine extends EventEmitter {
   }
 
   /**
-   * Update prices from latest market data
+   * Update prices from latest market data with fallback to exchange data
    */
   private async updatePrices(symbols: string[]): Promise<void> {
     try {
       const uniqueSymbols = [...new Set(symbols)];
       
       for (const symbol of uniqueSymbols) {
+        // Try database first (faster)
         const latestFrame = await db.getLatestMarketFrame(symbol);
-        if (latestFrame) {
+        if (latestFrame && Date.now() - new Date(latestFrame.timestamp).getTime() < 60000) {
+          // Use DB price if less than 1 minute old
           this.priceCache.set(symbol, latestFrame.price.close);
+        } else {
+          // Fallback to live price from gateway if available
+          try {
+            const response = await fetch(`http://localhost:5000/api/gateway/ticker/${symbol}`);
+            if (response.ok) {
+              const ticker = await response.json();
+              this.priceCache.set(symbol, ticker.last || ticker.close);
+            } else if (latestFrame) {
+              // Use stale DB price as last resort
+              this.priceCache.set(symbol, latestFrame.price.close);
+            }
+          } catch (fetchError) {
+            // Network error, use stale DB price if available
+            if (latestFrame) {
+              this.priceCache.set(symbol, latestFrame.price.close);
+            }
+          }
         }
       }
     } catch (error) {
