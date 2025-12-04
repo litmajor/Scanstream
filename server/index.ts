@@ -15,11 +15,17 @@ import paperTradingRouter from './routes/paper-trading';
 // Removed fastScanner service import
 
 
-// Disable Express debug logging
-process.env.DEBUG = '';
+// Enable debug logging
+process.env.DEBUG = 'express:*,server:*';
 
 const app = express();
 app.set('x-powered-by', false); // Disable X-Powered-By header
+
+// Add request logger
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -229,5 +235,9 @@ app.use((req, res, next) => {
     console.log(`║  Database:       postgresql://localhost:5432/scandb    ║`);
     console.log(`║  WebSocket:      http://0.0.0.0:${port.toString().padEnd(4)}/ws               ║`);
     console.log(`╚════════════════════════════════════════════════════════╝\n`);
+    
+    console.log('[Server] ✅ HTTP server listening');
+    console.log('[Server] ✅ Environment:', process.env.NODE_ENV || 'development');
+    console.log('[Server] ✅ Database URL:', process.env.DATABASE_URL ? 'configured' : 'missing');
   });
 })();
