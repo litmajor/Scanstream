@@ -27,6 +27,7 @@ import PositionSizingDashboard from './pages/position-sizing-dashboard';
 import PaperTradingPage from "@/pages/paper-trading";
 import PositionsPage from "@/pages/positions";
 import SignalsPage from "@/pages/signals";
+import SignalStructuresPage from "@/pages/signal-structures";
 import CardShowcase from "@/pages/card-showcase";
 import DashboardGridPage from "@/pages/dashboard-grid";
 import NotFound from "@/pages/not-found";
@@ -45,6 +46,7 @@ function AuthenticatedRouter() {
       <Switch>
         <Route path="/" component={TradingTerminal} />
         <Route path="/signals" component={SignalsPage} />
+        <Route path="/signal-structures" component={SignalStructuresPage} />
         <Route path="/positions" component={PositionsPage} />
         <Route path="/portfolio" component={PortfolioPage} />
         <Route path="/scanner" component={ScannerPage} />
