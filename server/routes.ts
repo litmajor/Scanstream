@@ -33,6 +33,9 @@ import signalQualityRouter from './routes/signal-quality';
 import flowFieldRouter from './routes/flow-field';
 // Import velocity profiles routes
 import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
+// Import composite quality routes
+import compositeQualityRouter from './routes/composite-quality';
+
 
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
@@ -1725,6 +1728,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Mount flow field analytics routes
   app.use('/api/analytics', flowFieldRouter);
 
+  // Mount composite quality endpoint
+  app.use('/api/composite-quality', compositeQualityRouter);
+
   // Health check endpoint
   app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
@@ -1737,6 +1743,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/intelligent-exits', intelligentExitsRouter);
   // Mount correlation hedge endpoint
   app.use('/api/correlation-hedge', correlationHedgeRouter);
+  // Mount velocity profiles endpoint
+  app.use('/api/velocity-profiles', velocityProfilesRouter);
+
 
   console.log('[Routes] All routes registered successfully');
 
