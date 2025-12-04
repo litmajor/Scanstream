@@ -3,6 +3,18 @@ import { EnhancedPortfolioSimulator, PositionSizeConfig } from './portfolio-simu
 import { db } from './db-storage';
 import type { Signal } from '@shared/schema';
 import { EventEmitter } from 'events';
+import { adaptiveHoldingIntegration } from './adaptive-holding-integration';
+
+interface HoldingDecisionMetadata {
+  holdingPeriodDays: number;
+  institutionalConvictionLevel: 'STRONG' | 'MODERATE' | 'WEAK' | 'REVERSING';
+  trailStopMultiplier: number;
+  daysHeld?: number;
+  nextReviewTime?: Date;
+  lastAnalysisTime?: Date;
+  action: 'HOLD' | 'REDUCE' | 'EXIT';
+  recommendation?: string;
+}
 
 interface PaperTrade {
   id: string;
@@ -16,11 +28,17 @@ interface PaperTrade {
   status: 'OPEN' | 'CLOSED';
   exitPrice?: number;
   exitTime?: Date;
-  exitReason?: 'STOP_LOSS' | 'TAKE_PROFIT' | 'MANUAL' | 'SIGNAL';
+  exitReason?: 'STOP_LOSS' | 'TAKE_PROFIT' | 'MANUAL' | 'SIGNAL' | 'ADAPTIVE_HOLDING';
   pnl?: number;
   pnlPercent?: number;
   source: 'ML' | 'RL' | 'GATEWAY' | 'MANUAL';
   signalId?: string;
+  // NEW: Adaptive holding metadata
+  holdingDecision?: HoldingDecisionMetadata;
+  marketRegime?: string;
+  orderFlowScore?: number;
+  microstructureHealth?: number;
+  momentumQuality?: number;
 }
 
 interface AutoExecutionConfig {
@@ -222,6 +240,46 @@ export class PaperTradingEngine extends EventEmitter {
         signalId: signal.id
       };
 
+      // NEW: Initialize adaptive holding decision
+      try {
+        const atr = price * 0.02; // Approximate ATR as 2% of price
+        const analysisInput = {
+          symbol: trade.symbol,
+          entryPrice: trade.entryPrice,
+          currentPrice: trade.entryPrice,
+          marketRegime: 'TRENDING', // Will be updated later
+          orderFlowScore: 0.5, // Will be updated with actual data
+          microstructureHealth: 0.75,
+          momentumQuality: 0.6,
+          volatilityLabel: 'MEDIUM',
+          trendDirection: trade.side === 'BUY' ? 'BULLISH' : 'BEARISH',
+          atr: atr,
+          timeHeldHours: 0,
+          profitPercent: 0
+        };
+
+        const holdingResult = adaptiveHoldingIntegration.analyzeHolding(analysisInput);
+        
+        trade.holdingDecision = {
+          holdingPeriodDays: holdingResult.holdingDecision.holdingPeriodDays,
+          institutionalConvictionLevel: holdingResult.holdingDecision.institutionalConvictionLevel,
+          trailStopMultiplier: holdingResult.holdingDecision.trailStopMultiplier,
+          daysHeld: 0,
+          action: holdingResult.holdingDecision.action,
+          recommendation: holdingResult.holdingDecision.recommendation,
+          lastAnalysisTime: new Date(),
+          nextReviewTime: new Date(Date.now() + 4 * 3600000) // Review in 4 hours
+        };
+
+        console.log(
+          `[Adaptive Hold] Initialized for ${trade.symbol}: ${trade.holdingDecision.holdingPeriodDays} day target, ` +
+          `${trade.holdingDecision.institutionalConvictionLevel} conviction`
+        );
+      } catch (holdingError) {
+        console.warn(`[Adaptive Hold] Could not initialize for ${trade.symbol}:`, holdingError);
+        // Continue without adaptive holding
+      }
+
       this.activeTrades.set(trade.id, trade);
       this.emit('tradeOpened', trade);
 
@@ -246,6 +304,9 @@ export class PaperTradingEngine extends EventEmitter {
     for (const trade of activeTrades) {
       const currentPrice = this.priceCache.get(trade.symbol);
       if (!currentPrice) continue;
+
+      // Estimate ATR for holding decision (simplified: ~2% of price)
+      const atr = currentPrice * 0.02;
 
       // Check stop loss
       if (this.config.riskManagement.useStopLoss) {
@@ -275,6 +336,9 @@ export class PaperTradingEngine extends EventEmitter {
       if (this.config.riskManagement.trailingStop) {
         this.updateTrailingStop(trade, currentPrice);
       }
+
+      // NEW: Analyze adaptive holding period
+      await this.analyzeAdaptiveHolding(trade, currentPrice, atr);
     }
   }
 
@@ -314,6 +378,117 @@ export class PaperTradingEngine extends EventEmitter {
         trade.stopLoss = newStop;
         this.emit('stopLossUpdated', trade);
       }
+    }
+  }
+
+  /**
+   * Analyze adaptive holding period for a position
+   * Phase 3.2: Position Manager Integration
+   */
+  private async analyzeAdaptiveHolding(
+    trade: PaperTrade,
+    currentPrice: number,
+    atr: number
+  ): Promise<void> {
+    try {
+      // Skip if no holding decision metadata yet
+      if (!trade.holdingDecision) {
+        return;
+      }
+
+      // Calculate time held
+      const daysHeld = (Date.now() - trade.entryTime.getTime()) / (1000 * 60 * 60 * 24);
+      const profitPercent = trade.side === 'BUY'
+        ? ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100
+        : ((trade.entryPrice - currentPrice) / trade.entryPrice) * 100;
+
+      // Only re-analyze every 4 hours (3600000ms * 4)
+      const lastAnalysis = trade.holdingDecision.lastAnalysisTime || trade.entryTime;
+      if (Date.now() - lastAnalysis.getTime() < 3600000 * 4) {
+        return;
+      }
+
+      // Re-analyze holding decision
+      const analysisInput = {
+        symbol: trade.symbol,
+        entryPrice: trade.entryPrice,
+        currentPrice: currentPrice,
+        marketRegime: trade.marketRegime || 'TRENDING',
+        orderFlowScore: trade.orderFlowScore || 0.5,
+        microstructureHealth: trade.microstructureHealth || 0.75,
+        momentumQuality: trade.momentumQuality || 0.6,
+        volatilityLabel: 'MEDIUM',
+        trendDirection: trade.side === 'BUY' ? 'BULLISH' : 'BEARISH',
+        atr: atr,
+        timeHeldHours: daysHeld * 24,
+        profitPercent: profitPercent
+      };
+
+      const result = adaptiveHoldingIntegration.analyzeHolding(analysisInput);
+
+      // Update holding decision metadata
+      trade.holdingDecision = {
+        holdingPeriodDays: result.holdingDecision.holdingPeriodDays,
+        institutionalConvictionLevel: result.holdingDecision.institutionalConvictionLevel,
+        trailStopMultiplier: result.holdingDecision.trailStopMultiplier,
+        daysHeld: daysHeld,
+        action: result.holdingDecision.action,
+        recommendation: result.holdingDecision.recommendation,
+        lastAnalysisTime: new Date(),
+        nextReviewTime: new Date(Date.now() + 4 * 3600000) // 4 hours
+      };
+
+      console.log(`[Adaptive Hold] ${trade.symbol}: ${trade.holdingDecision.recommendation}`);
+
+      // Apply adaptive holding decision
+      switch (result.holdingDecision.action) {
+        case 'EXIT':
+          // Force exit on REVERSING conviction or time exceeded
+          if (profitPercent > 0) {
+            // Take profit if in gain
+            await this.closeTrade(trade.id, currentPrice, 'ADAPTIVE_HOLDING');
+          } else if (daysHeld > trade.holdingDecision.holdingPeriodDays) {
+            // Time's up, exit with loss
+            await this.closeTrade(trade.id, currentPrice, 'ADAPTIVE_HOLDING');
+          }
+          break;
+
+        case 'REDUCE':
+          // Reduce position by 50%
+          trade.quantity = trade.quantity * 0.5;
+          console.log(`[Adaptive Hold] REDUCE position for ${trade.symbol}: 50% reduction`);
+          this.emit('positionReduced', trade);
+          break;
+
+        case 'HOLD':
+        default:
+          // Adjust trailing stop based on conviction
+          const trailDistance = atr * result.holdingDecision.trailStopMultiplier;
+          const adaptiveStop = trade.side === 'BUY'
+            ? currentPrice - trailDistance
+            : currentPrice + trailDistance;
+
+          if (trade.side === 'BUY' && adaptiveStop > trade.stopLoss) {
+            trade.stopLoss = adaptiveStop;
+          } else if (trade.side === 'SELL' && adaptiveStop < trade.stopLoss) {
+            trade.stopLoss = adaptiveStop;
+          }
+
+          console.log(
+            `[Adaptive Hold] ${trade.symbol}: ${result.holdingDecision.institutionalConvictionLevel} conviction, ` +
+            `trail multiplier: ${result.holdingDecision.trailStopMultiplier.toFixed(2)}x ATR`
+          );
+          break;
+      }
+
+      this.emit('holdingDecisionAnalyzed', {
+        tradeId: trade.id,
+        decision: trade.holdingDecision,
+        profitPercent,
+        daysHeld
+      });
+    } catch (error) {
+      console.error(`[Adaptive Hold] Error analyzing holding for ${trade.symbol}:`, error);
     }
   }
 

@@ -52,7 +52,7 @@ let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
 let calculate_volume_profile: any, calculate_anchored_volume_profile: any, calculate_fixed_range_volume_profile: any;
 let calculate_composite_score: any, calculate_volume_composite_score: any, calculate_confidence_score: any;
 let calculate_value_area: any, calculate_poc: any;
-let runBacktest, ExchangeDataFeed: any, SignalEngine, defaultTradingConfig;
+let runBacktest: any, ExchangeDataFeed: any, SignalEngine: any, defaultTradingConfig: any;
 let MLSignalEnhancer: any, EnhancedMultiTimeframeAnalyzer: any;
 let registerChartApi: any, registerAdvancedIndicatorApi: any;
 let StrategyIntegrationEngine: any;
@@ -126,6 +126,9 @@ try {
   import { setupAuth, isAuthenticated, getUser, getUserPreferences, updateUserPreferences, getApiKeys, addApiKey, deleteApiKey } from './replitAuth';
 
   export async function registerRoutes(app: Express): Promise<Server> {
+    // Create HTTP server
+    const server = createServer(app);
+
     // Enable trust proxy for rate limiting to work correctly in proxied environment
     app.set('trust proxy', 1);
 
@@ -215,7 +218,7 @@ try {
     app.get('/api/user/watchlist', isAuthenticated, async (req: any, res: Response) => {
       try {
         const userId = req.user.claims.sub;
-        const watchlist = await prisma.watchlist.findMany({
+        const watchlist = await prisma.Watchlist.findMany({
           where: { userId },
           orderBy: { addedAt: 'desc' }
         });
@@ -230,7 +233,7 @@ try {
       try {
         const userId = req.user.claims.sub;
         const { symbol, notes } = req.body;
-        const item = await prisma.watchlist.create({
+        const item = await prisma.Watchlist.create({
           data: { userId, symbol: symbol.toUpperCase(), notes }
         });
         res.json(item);
@@ -243,7 +246,7 @@ try {
     app.delete('/api/user/watchlist/:id', isAuthenticated, async (req: any, res: Response) => {
       try {
         const userId = req.user.claims.sub;
-        await prisma.watchlist.deleteMany({
+        await prisma.Watchlist.deleteMany({
           where: { id: req.params.id, userId }
         });
         res.json({ success: true });
@@ -1736,14 +1739,6 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/correlation-hedge', correlationHedgeRouter);
 
   console.log('[Routes] All routes registered successfully');
-}
-</old_str>
-with
-<new_str>
-app.use('/api/intelligent-exits', intelligentExitsRouter);
-  app.use('/api/correlation-hedge', correlationHedgeRouter);
 
-  console.log('[Routes] All routes registered successfully');
+  return server;
 }
-</new_str>
-</changes>

@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime
 
+# Import enhanced bounce strategy bridge
+try:
+    from bounce_bridge import BounceStrategyBridge
+    BOUNCE_AVAILABLE = True
+except ImportError:
+    BOUNCE_AVAILABLE = False
+
 class SignalStrength(Enum):
     """Signal strength levels"""
     VERY_STRONG = 5
@@ -73,12 +80,13 @@ class StrategyCoordinator:
     """
     Strategy Coordinator v2.0 - Multi-Strategy Consensus Engine
     
-    Coordinates all 5 strategies:
+    Coordinates all 6 strategies:
     1. Gradient Trend Filter (GTF)
     2. UT Bot Strategy
     3. Mean Reversion Engine
     4. Volume Profile Engine
     5. Market Structure Engine
+    6. Enhanced Bounce Strategy (NEW)
     
     Features:
     - Multi-timeframe analysis
@@ -98,7 +106,9 @@ class StrategyCoordinator:
         max_risk_per_trade: float = 0.02,
         max_portfolio_risk: float = 0.06,
         min_risk_reward: float = 2.0,
-        enable_hedging: bool = False
+        enable_hedging: bool = False,
+        enable_bounce_strategy: bool = True,
+        bounce_risk_profile: str = 'moderate'
     ):
         """
         Initialize Strategy Coordinator
@@ -111,6 +121,8 @@ class StrategyCoordinator:
             max_portfolio_risk: Max total portfolio risk
             min_risk_reward: Minimum risk/reward ratio
             enable_hedging: Allow opposite direction positions
+            enable_bounce_strategy: Enable enhanced bounce strategy (new)
+            bounce_risk_profile: Risk profile for bounce strategy
         """
         self.strategies = strategies
         self.timeframe_weights = timeframe_weights or {
@@ -125,6 +137,16 @@ class StrategyCoordinator:
         self.max_portfolio_risk = max_portfolio_risk
         self.min_risk_reward = min_risk_reward
         self.enable_hedging = enable_hedging
+        
+        # Initialize enhanced bounce strategy bridge (NEW)
+        self.bounce_strategy = None
+        self.enable_bounce_strategy = enable_bounce_strategy
+        if enable_bounce_strategy and BOUNCE_AVAILABLE:
+            try:
+                self.bounce_strategy = BounceStrategyBridge(risk_profile=bounce_risk_profile)
+            except Exception as e:
+                print(f"Warning: Could not initialize bounce strategy: {e}")
+                self.bounce_strategy = None
         
         # State tracking
         self.signal_history: List[StrategySignal] = []
@@ -197,6 +219,18 @@ class StrategyCoordinator:
                 signal = self._parse_ms_signal(result, tf, df['close'].iloc[-1])
                 if signal:
                     tf_signals.append(signal)
+            
+            # Enhanced Bounce Strategy (NEW)
+            if self.bounce_strategy and self.enable_bounce_strategy:
+                try:
+                    current_price = float(df['close'].iloc[-1])
+                    bounce_signal = self.bounce_strategy.generate_signal(data, current_price, tf)
+                    parsed_signal = self._parse_bounce_signal(bounce_signal, tf, current_price)
+                    if parsed_signal:
+                        tf_signals.append(parsed_signal)
+                except Exception as e:
+                    # Log error but continue with other strategies
+                    pass
             
             all_signals[tf] = tf_signals
         
@@ -293,6 +327,44 @@ class StrategyCoordinator:
                 'cvd': result.cvd[-1],
                 'delta': result.delta[-1]
             }
+        )
+    
+    def _parse_bounce_signal(self, bounce_signal, timeframe: str, price: float) -> Optional[StrategySignal]:
+        """Parse Enhanced Bounce Strategy signal (NEW)"""
+        # Handle both raw and parsed bounce signals
+        if hasattr(bounce_signal, 'direction'):
+            # Already parsed as BounceStrategySignal
+            direction_str = bounce_signal.direction
+            confidence = bounce_signal.confidence
+            strength = bounce_signal.strength
+            metadata = bounce_signal.metadata or {}
+        else:
+            # Raw dict format
+            direction_str = bounce_signal.get('direction', 'HOLD')
+            confidence = bounce_signal.get('confidence', 0) * 100
+            strength = bounce_signal.get('strength', 0) * 100
+            metadata = {
+                'bounce_detected': bounce_signal.get('bounce_detected', False),
+                'zone_confluence': bounce_signal.get('zone_confluence', 0),
+                'zone_price': bounce_signal.get('zone_price', 0),
+                'quality_reasons': bounce_signal.get('quality_reasons', [])
+            }
+        
+        # Only generate signal if bounce detected with confidence
+        if direction_str not in ['BUY', 'SELL'] or confidence < 60:
+            return None
+        
+        direction = TradeDirection.LONG.value if direction_str == 'BUY' else TradeDirection.SHORT.value
+        
+        return StrategySignal(
+            strategy_name='Enhanced Bounce',
+            direction=direction,
+            strength=strength,
+            confidence=confidence,
+            timeframe=timeframe,
+            price=price,
+            timestamp=datetime.now(),
+            metadata=metadata
         )
     
     def _parse_ms_signal(self, result, timeframe: str, price: float) -> Optional[StrategySignal]:

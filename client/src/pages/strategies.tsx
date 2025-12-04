@@ -26,6 +26,7 @@ import StrategyPortfolioOptimizer from '../components/StrategyPortfolioOptimizer
 import StrategyBacktestingSuite from '../components/StrategyBacktestingSuite';
 import StrategyMarketplace from '../components/StrategyMarketplace';
 import StrategyCopyTrading from '../components/StrategyCopyTrading';
+import BounceStrategyDashboard from '../components/BounceStrategyDashboard';
 
 // Types
 interface Strategy {
@@ -77,6 +78,7 @@ export default function StrategiesPage() {
   const [showPortfolioOptimizer, setShowPortfolioOptimizer] = useState(false);
   const [showMarketplace, setShowMarketplace] = useState(false);
   const [showCopyTrading, setShowCopyTrading] = useState(false);
+  const [showBounceStrategy, setShowBounceStrategy] = useState(false);
   const [selectedStrategyForBacktest, setSelectedStrategyForBacktest] = useState<Strategy | null>(null);
 
   // Fetch strategies
@@ -265,6 +267,13 @@ export default function StrategiesPage() {
               >
                 <Copy className="w-4 h-4" />
                 <span>Copy Trading</span>
+              </button>
+              <button
+                onClick={() => setShowBounceStrategy(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-pink-500/20"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Bounce Strategy</span>
               </button>
               <button
                 className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
@@ -545,6 +554,14 @@ export default function StrategiesPage() {
       {showCopyTrading && (
         <StrategyCopyTrading
           onClose={() => setShowCopyTrading(false)}
+        />
+      )}
+
+      {/* Enhanced Bounce Strategy Dashboard */}
+      {showBounceStrategy && (
+        <BounceStrategyDashboard
+          isOpen={showBounceStrategy}
+          onClose={() => setShowBounceStrategy(false)}
         />
       )}
     </div>

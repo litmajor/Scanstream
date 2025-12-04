@@ -11,9 +11,13 @@ const prisma = new PrismaClient();
 
 const getOidcConfig = memoize(
   async () => {
+    const clientId = process.env.REPL_ID || process.env.CLIENT_ID;
+    if (!clientId) {
+      throw new Error('REPL_ID or CLIENT_ID environment variable must be set');
+    }
     return await client.discovery(
       new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
+      clientId
     );
   },
   { maxAge: 3600 * 1000 }

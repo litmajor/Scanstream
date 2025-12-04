@@ -306,7 +306,12 @@ export class StrategyIntegrationEngine {
         '--params', JSON.stringify(params || {})
       ];
       
-      const python = spawn('python3', args);
+      // Use python from venv or fallback to python3
+      const pythonPath = process.env.VIRTUAL_ENV 
+        ? path.join(process.env.VIRTUAL_ENV, process.platform === 'win32' ? 'Scripts\\python.exe' : 'bin/python')
+        : 'python3';
+      
+      const python = spawn(pythonPath, args);
       
       let output = '';
       let errorOutput = '';

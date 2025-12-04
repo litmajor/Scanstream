@@ -68,7 +68,10 @@ router.post('/simulate', (req, res) => {
       currentPrice,
       atr,
       marketRegime,
-      primaryPattern
+      primaryPattern,
+      trendDirection = 'SIDEWAYS',
+      sma20 = 0,
+      sma50 = 0
     } = req.body;
     
     const sizing = dynamicPositionSizer.calculatePositionSize({
@@ -79,7 +82,10 @@ router.post('/simulate', (req, res) => {
       currentPrice: parseFloat(currentPrice),
       atr: parseFloat(atr),
       marketRegime,
-      primaryPattern
+      primaryPattern,
+      trendDirection,
+      sma20: parseFloat(sma20),
+      sma50: parseFloat(sma50)
     });
     
     res.json({

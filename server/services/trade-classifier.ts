@@ -71,15 +71,15 @@ export class TradeClassifier {
       
       return {
         type: 'SCALP',
-        holdingPeriodHours: 3,
-        profitTargetPercent: 0.75,
+        holdingPeriodHours: 2,
+        profitTargetPercent: 0.6,
         profitTargetDollar: scalpTarget,
-        stopLossPercent: 0.35,
+        stopLossPercent: 0.20,
         stopLossDollar: scalpStop,
         trailingStop: true,
         pyramidStrategy: 'all-at-once',
         confidence: 0.92,
-        reasoning: `High volatility + volume spike + weak trend + regime: ${detectedRegime || 'volatile'} = quick scalp`,
+        reasoning: `High volatility + volume spike + weak trend + regime: ${detectedRegime || 'volatile'} = quick scalp (strict risk)`,
         velocityData: {
           expectedMovePercent: velocityProfile['1D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['1D'].p75,
@@ -93,13 +93,13 @@ export class TradeClassifier {
     if (volatilityRatio > 1.2 && adx < 40 && adx >= 25 && volumeRatio > 1.5) {
       return {
         type: 'DAY',
-        holdingPeriodHours: 12,
-        profitTargetPercent: 2.0,
-        stopLossPercent: 0.85,
+        holdingPeriodHours: 10,
+        profitTargetPercent: 1.5,
+        stopLossPercent: 0.50,
         trailingStop: true,
         pyramidStrategy: 'pyramid-3',
         confidence: 0.88,
-        reasoning: 'Moderate volatility + moderate trend = day trade setup'
+        reasoning: 'Moderate volatility + moderate trend = day trade setup (optimized for risk)'
       };
     }
 
@@ -111,15 +111,15 @@ export class TradeClassifier {
       
       return {
         type: 'SWING',
-        holdingPeriodHours: 72,
-        profitTargetPercent: 5.5,
+        holdingPeriodHours: 60,
+        profitTargetPercent: 4.5,
         profitTargetDollar: swingTarget,
-        stopLossPercent: 1.8,
+        stopLossPercent: 1.0,
         stopLossDollar: swingStop,
         trailingStop: true,
         pyramidStrategy: 'pyramid-5',
         confidence: 0.90,
-        reasoning: 'Strong trend (ADX>40) + breakout pattern = swing trade',
+        reasoning: 'Strong trend (ADX>40) + breakout pattern = swing trade (strict risk management)',
         velocityData: {
           expectedMovePercent: velocityProfile['7D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['7D'].p75,
@@ -138,15 +138,15 @@ export class TradeClassifier {
       
       return {
         type: 'POSITION',
-        holdingPeriodHours: mlSuggestsLongHold ? Math.min(360, 240 + (mlPredictedHoldingPeriodCandles * 4)) : 240,
-        profitTargetPercent: 12.0,
+        holdingPeriodHours: mlSuggestsLongHold ? Math.min(336, 200 + (mlPredictedHoldingPeriodCandles * 4)) : 216,
+        profitTargetPercent: 10.0,
         profitTargetDollar: posTarget,
-        stopLossPercent: 2.5,
+        stopLossPercent: 1.5,
         stopLossDollar: posStop,
         trailingStop: true,
         pyramidStrategy: 'pyramid-5',
         confidence: Math.min(0.95, 0.93 + (mlConfidence * 0.02)),
-        reasoning: `Very strong trend (ADX>50) + low volatility + regime ${detectedRegime || 'confirmed'} + ML: ${mlPredictedHoldingPeriodCandles}c = position`,
+        reasoning: `Very strong trend (ADX>50) + low volatility + regime ${detectedRegime || 'confirmed'} + ML: ${mlPredictedHoldingPeriodCandles}c = position (optimized)`,
         velocityData: {
           expectedMovePercent: velocityProfile['21D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['21D'].p90,

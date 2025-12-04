@@ -16,6 +16,13 @@ from ut_bot import UTBotStrategy
 from mean_reversion import MeanReversionEngine
 from volume_profile import VolumeProfileEngine
 from market_engine import MarketStructureEngine
+from enhanced_bounce_strategy import (
+    EnhancedBounceStrategy,
+    MultiTimeframeZoneDetector,
+    BayesianBeliefUpdaterEnhanced
+)
+from volume_sr_agent import VolumeSupportResistance
+from advanced_strategies import BayesianBeliefUpdater
 
 
 def fetch_market_data(symbol: str, timeframe: str, limit: int = 500):
@@ -79,28 +86,48 @@ def execute_strategy(strategy_id: str, symbol: str, timeframe: str, params: dict
                 break_threshold=params.get('break_threshold', 0.001),
                 confirmation_bars=params.get('confirmation_bars', 3)
             )
+        elif strategy_id == 'enhanced_bounce':
+            # Multi-timeframe enhanced bounce strategy
+            strategy = EnhancedBounceStrategy(
+                risk_profile=params.get('risk_profile', 'moderate')
+            )
         else:
             raise ValueError(f'Unknown strategy: {strategy_id}')
         
         # Execute strategy
-        result = strategy.evaluate(df)
-        
-        # Get latest signal
-        latest_signal = result.signals[-1] if hasattr(result, 'signals') else 'HOLD'
-        latest_price = float(df['close'].iloc[-1])
+        if strategy_id == 'enhanced_bounce':
+            # Enhanced bounce strategy needs multi-timeframe data
+            current_price = float(df['close'].iloc[-1])
+            result = strategy.evaluate({'1m': df}, current_price)
+            latest_signal = result.get('signal', 'HOLD')
+            latest_price = current_price
+        else:
+            result = strategy.evaluate(df)
+            # Get latest signal
+            latest_signal = result.signals[-1] if hasattr(result, 'signals') else 'HOLD'
+            latest_price = float(df['close'].iloc[-1])
         
         # Extract metadata
         metadata = {}
-        if hasattr(result, 'confidence'):
-            metadata['confidence'] = float(result.confidence[-1])
-        if hasattr(result, 'strength'):
-            metadata['strength'] = float(result.strength[-1])
-        if hasattr(result, 'trailing_stop'):
-            metadata['trailing_stop'] = float(result.trailing_stop[-1])
-        if hasattr(result, 'z_score'):
-            metadata['z_score'] = float(result.z_score[-1])
-        if hasattr(result, 'poc'):
-            metadata['poc'] = float(result.poc[-1])
+        if strategy_id == 'enhanced_bounce':
+            # Enhanced bounce metadata
+            metadata['bounce_confidence'] = float(result.get('confidence', 0))
+            metadata['bounce_strength'] = float(result.get('strength', 0))
+            metadata['bounce_detected'] = bool(result.get('bounce_detected', False))
+            metadata['zone_confluence'] = float(result.get('confluence_strength', 0))
+            metadata['quality_reasons'] = result.get('quality_reasons', [])
+            metadata['zone_price'] = float(result.get('zone_details', {}).get('price', 0)) if result.get('zone_details') else 0
+        else:
+            if hasattr(result, 'confidence'):
+                metadata['confidence'] = float(result.confidence[-1])
+            if hasattr(result, 'strength'):
+                metadata['strength'] = float(result.strength[-1])
+            if hasattr(result, 'trailing_stop'):
+                metadata['trailing_stop'] = float(result.trailing_stop[-1])
+            if hasattr(result, 'z_score'):
+                metadata['z_score'] = float(result.z_score[-1])
+            if hasattr(result, 'poc'):
+                metadata['poc'] = float(result.poc[-1])
         
         # Return results
         return {

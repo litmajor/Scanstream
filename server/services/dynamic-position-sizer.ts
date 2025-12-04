@@ -17,6 +17,7 @@
 import { RLPositionAgent, type RLState } from '../rl-position-agent';
 import { signalPerformanceTracker } from './signal-performance-tracker';
 import { assetVelocityProfiler } from './asset-velocity-profile';
+import { OrderFlowAnalyzer, type OrderFlowData } from './order-flow-analyzer';
 
 interface PositionSizingInput {
   symbol: string;
@@ -25,8 +26,13 @@ interface PositionSizingInput {
   accountBalance: number;
   currentPrice: number;
   atr: number;
-  marketRegime: string;
+  marketRegime: string; // 'TRENDING', 'VOLATILE', 'MEAN_REVERTING', 'QUIET'
+  trendDirection: 'BULLISH' | 'BEARISH' | 'SIDEWAYS'; // NEW: directional component
   primaryPattern: string;
+  sma20: number; // For trend confirmation
+  sma50: number; // For trend confirmation
+  orderFlow?: OrderFlowData; // NEW: Order flow data for institutional conviction
+  volumeProfile?: 'HEAVY' | 'NORMAL' | 'LIGHT'; // NEW: Volume classification
 }
 
 interface PositionSizingOutput {
@@ -37,16 +43,71 @@ interface PositionSizingOutput {
   rlMultiplier: number; // RL adjustment
   volatilityAdjustment: number; // Volatility reduction
   confidenceMultiplier: number; // Confidence boost
+  trendAlignmentMultiplier: number; // Trend direction alignment
+  orderFlowMultiplier?: number; // NEW: Order flow adjustment
 }
 
 export class DynamicPositionSizer {
   private rlAgent: RLPositionAgent;
-  private readonly MAX_POSITION_PERCENT = 0.05; // 5% max per trade
+  private readonly MAX_POSITION_PERCENT = 0.05; // 5% max per trade (baseline)
   private readonly MIN_POSITION_PERCENT = 0.002; // 0.2% min
   private readonly KELLY_FRACTION = 0.25; // Use 25% of full Kelly (conservative)
+  private currentDrawdown: number = 0; // Track current drawdown
 
   constructor() {
     this.rlAgent = new RLPositionAgent();
+  }
+
+  /**
+   * Calculate trend alignment multiplier
+   * Boosts sizing when signal aligns with trend direction, reduces when opposed
+   */
+  private getTrendAlignmentMultiplier(signalType: 'BUY' | 'SELL', trendDirection: 'BULLISH' | 'BEARISH' | 'SIDEWAYS'): number {
+    // Aligned signals (signal matches trend direction)
+    if ((signalType === 'BUY' && trendDirection === 'BULLISH') ||
+        (signalType === 'SELL' && trendDirection === 'BEARISH')) {
+      return 1.4; // 40% boost for trend-aligned trades
+    }
+    
+    // Opposed signals (counter-trend, higher risk)
+    if ((signalType === 'BUY' && trendDirection === 'BEARISH') ||
+        (signalType === 'SELL' && trendDirection === 'BULLISH')) {
+      return 0.6; // 40% reduction for counter-trend trades
+    }
+    
+    // Sideways trend (mean-reversion edge, both BUY and SELL valid)
+    if (trendDirection === 'SIDEWAYS') {
+      return 1.0; // No multiplier, treat equally
+    }
+    
+    return 1.0; // Default
+  }
+
+  /**
+   * Get dynamic max position percent based on current drawdown level
+   * Reduces position size during drawdown periods for better risk management
+   */
+  private getMaxPositionPercent(): number {
+    // Sliding scale based on drawdown level
+    // DD < 5% → max 5%
+    // DD 5–15% → max 3%
+    // DD > 15% → max 1.5%
+    
+    if (this.currentDrawdown < 0.05) {
+      return this.MAX_POSITION_PERCENT; // 5%
+    } else if (this.currentDrawdown < 0.15) {
+      const ratio = (this.currentDrawdown - 0.05) / 0.10; // 0 to 1 between 5% and 15%
+      return 0.05 - (ratio * 0.02); // Interpolate from 5% to 3%
+    } else {
+      return 0.015; // 1.5% max during severe drawdown
+    }
+  }
+
+  /**
+   * Update current drawdown level (should be called from portfolio tracker)
+   */
+  updateDrawdownLevel(drawdownPercent: number): void {
+    this.currentDrawdown = Math.max(0, drawdownPercent / 100); // Convert from percentage to decimal
   }
 
   /**
@@ -63,47 +124,66 @@ export class DynamicPositionSizer {
 
     reasoning.push(`Pattern: ${input.primaryPattern} - Win Rate: ${(winRate * 100).toFixed(1)}%`);
 
-    // STEP 2: KELLY CRITERION BASE CALCULATION
-    // Kelly % = (Win% × Avg Win - Loss% × Avg Loss) / Avg Win
-    const kellyPercent = ((winRate * avgWinPercent) - ((1 - winRate) * avgLossPercent)) / avgWinPercent;
+    // STEP 2: KELLY CRITERION BASE CALCULATION (Correct formula for asymmetric payoffs)
+    // Kelly = WinRate - (LossRate / R), where R = AvgWin / AvgLoss
+    // This handles asymmetric win/loss scenarios more accurately than naive formula
+    const R = avgWinPercent / avgLossPercent;
+    const kellyPercent = winRate - ((1 - winRate) / R);
     const fractionalKelly = Math.max(0, kellyPercent * this.KELLY_FRACTION);
     
     reasoning.push(`Kelly Base: ${(fractionalKelly * 100).toFixed(2)}% (fractional: ${this.KELLY_FRACTION * 100}%)`);
 
-    // STEP 3: CONFIDENCE MULTIPLIER
-    let confidenceMultiplier = 1.0;
-    if (input.confidence >= 0.85) {
-      confidenceMultiplier = 2.0; // Double for excellent signals
-      reasoning.push(`Confidence boost: 2.0x (${(input.confidence * 100).toFixed(1)}% confidence)`);
-    } else if (input.confidence >= 0.75) {
-      confidenceMultiplier = 1.5; // 1.5x for strong signals
-      reasoning.push(`Confidence boost: 1.5x (${(input.confidence * 100).toFixed(1)}% confidence)`);
-    } else if (input.confidence >= 0.65) {
-      confidenceMultiplier = 1.0; // Standard size
-      reasoning.push(`Standard confidence: 1.0x (${(input.confidence * 100).toFixed(1)}% confidence)`);
+    // STEP 3: CONFIDENCE MULTIPLIER - SMOOTH NONLINEAR CURVE
+    // Market edges grow nonlinearly. Replace step functions with smooth curve:
+    // multiplier = ((confidence - threshold) / range) ^ exponent, clamped to [0, 1.8]
+    const CONFIDENCE_THRESHOLD = 0.65;
+    const CONFIDENCE_RANGE = 0.35; // From 0.65 to 1.0
+    const CONFIDENCE_EXPONENT = 1.7; // Non-linear curve (>1 = convex)
+    const MAX_CONFIDENCE_MULTIPLIER = 1.8;
+
+    let confidenceMultiplier = 0;
+    if (input.confidence < CONFIDENCE_THRESHOLD) {
+      confidenceMultiplier = 0;
+      reasoning.push(`Signal rejected: confidence too low (${(input.confidence * 100).toFixed(1)}% - min ${CONFIDENCE_THRESHOLD * 100}%)`);
     } else {
-      confidenceMultiplier = 0.5; // Reduce for marginal signals
-      reasoning.push(`Low confidence: 0.5x (${(input.confidence * 100).toFixed(1)}% confidence)`);
+      const normalized = (input.confidence - CONFIDENCE_THRESHOLD) / CONFIDENCE_RANGE;
+      confidenceMultiplier = Math.min(
+        MAX_CONFIDENCE_MULTIPLIER,
+        Math.pow(normalized, CONFIDENCE_EXPONENT) * MAX_CONFIDENCE_MULTIPLIER
+      );
+      reasoning.push(`Smooth confidence curve: ${confidenceMultiplier.toFixed(2)}x (${(input.confidence * 100).toFixed(1)}% confidence)`);
     }
 
-    // STEP 4: VOLATILITY ADJUSTMENT
+    // STEP 4: VOLATILITY ADJUSTMENT (Regime-aware)
+    // Use regime-adjusted volatility for cycle-adaptive sizing
     const velocityProfile = assetVelocityProfiler.getVelocityProfile(input.symbol);
     const avgAtr = velocityProfile['7D'].avgDollarMove / 7; // Daily average
-    const atrRatio = input.atr / (avgAtr || input.atr);
+    
+    // Get regime-specific ATR baseline (more stable than simple average)
+    const regimeAtrMap: Record<string, number> = {
+      'TRENDING': avgAtr * 1.3,    // Trends often have elevated ATR
+      'VOLATILE': avgAtr * 1.6,    // Volatile periods have high ATR
+      'MEAN_REVERTING': avgAtr * 0.9,
+      'QUIET': avgAtr * 0.7
+    };
+    const regimeAtr = regimeAtrMap[input.marketRegime] || avgAtr;
+    const atrRatio = input.atr / (regimeAtr || input.atr);
     
     let volatilityAdjustment = 1.0;
     if (atrRatio > 1.5) {
       volatilityAdjustment = 0.7; // Reduce 30% in high volatility
-      reasoning.push(`High volatility: -30% (ATR ratio: ${atrRatio.toFixed(2)})`);
+      reasoning.push(`High volatility spike: -30% (regime-adjusted ratio: ${atrRatio.toFixed(2)})`);
     } else if (atrRatio > 1.2) {
       volatilityAdjustment = 0.85; // Reduce 15% in elevated volatility
-      reasoning.push(`Elevated volatility: -15% (ATR ratio: ${atrRatio.toFixed(2)})`);
+      reasoning.push(`Elevated volatility: -15% (regime-adjusted ratio: ${atrRatio.toFixed(2)})`);
+    } else if (atrRatio < 0.7) {
+      volatilityAdjustment = 1.1; // Slight boost in low-volatility environments
+      reasoning.push(`Low volatility: +10% (regime-adjusted ratio: ${atrRatio.toFixed(2)})`);
     } else {
-      reasoning.push(`Normal volatility: no adjustment (ATR ratio: ${atrRatio.toFixed(2)})`);
+      reasoning.push(`Normal volatility: no adjustment (regime-adjusted ratio: ${atrRatio.toFixed(2)})`);
     }
 
     // STEP 5: RL AGENT ADAPTIVE MULTIPLIER
-    // RL learns to adjust size based on market conditions
     const rlState: RLState = {
       volatility: Math.min(1, atrRatio / 2),
       trend: input.signalType === 'BUY' ? 0.5 : -0.5,
@@ -120,14 +200,57 @@ export class DynamicPositionSizer {
     
     reasoning.push(`RL adjustment: ${rlMultiplier.toFixed(2)}x (learned from ${this.rlAgent.getStats().experienceCount} experiences)`);
 
-    // STEP 6: COMBINE ALL FACTORS
-    const basePositionPercent = fractionalKelly * input.accountBalance;
-    const adjustedPositionPercent = basePositionPercent * confidenceMultiplier * volatilityAdjustment * rlMultiplier;
+    // STEP 5b: TREND ALIGNMENT MULTIPLIER
+    // Boost positions aligned with trend direction, reduce counter-trend trades
+    const trendAlignmentMultiplier = this.getTrendAlignmentMultiplier(input.signalType, input.trendDirection);
+    const trendAlignment = {
+      'BULLISH': '📈 Bullish',
+      'BEARISH': '📉 Bearish',
+      'SIDEWAYS': '➡️ Sideways'
+    }[input.trendDirection];
     
-    // Apply caps
+    const alignmentLabel = trendAlignmentMultiplier > 1.0 ? 'aligned' : 
+                          trendAlignmentMultiplier < 1.0 ? 'opposed' : 'neutral';
+    reasoning.push(`Trend ${alignmentLabel}: ${trendAlignment} trend × ${trendAlignmentMultiplier.toFixed(2)}x for ${input.signalType} signal`);
+
+    // STEP 5c: ORDER FLOW VALIDATION (NEW - Institutional conviction check)
+    // Boost or reduce position size based on order flow imbalance and liquidity
+    let orderFlowMultiplier = 1.0;
+    
+    if (input.orderFlow) {
+      const orderFlowAnalysis = OrderFlowAnalyzer.analyzeOrderFlow(
+        input.orderFlow,
+        input.signalType,
+        input.volumeProfile || 'NORMAL'
+      );
+      
+      orderFlowMultiplier = orderFlowAnalysis.orderFlowMultiplier;
+      
+      reasoning.push(...orderFlowAnalysis.reasoning);
+      
+      // Optional: Skip trade if order flow strongly contradicts
+      if (orderFlowMultiplier < 0.65) {
+        reasoning.push(`⚠️ WARNING: Order flow strongly contradicts signal (${(orderFlowMultiplier * 100).toFixed(0)}% multiplier)`);
+      }
+    } else {
+      reasoning.push(`Order flow data not available - skipping order flow analysis`);
+    }
+
+    // STEP 6: COMBINE ALL FACTORS (cleaned formula)
+    // Direct calculation without redundant accountBalance operations
+    let positionPercent =
+      fractionalKelly *
+      confidenceMultiplier *
+      volatilityAdjustment *
+      rlMultiplier *
+      trendAlignmentMultiplier *
+      orderFlowMultiplier; // NEW: Include order flow conviction
+    
+    // Apply dynamic caps based on drawdown level
+    const maxPositionPercent = this.getMaxPositionPercent();
     const cappedPercent = Math.max(
       this.MIN_POSITION_PERCENT,
-      Math.min(this.MAX_POSITION_PERCENT, adjustedPositionPercent / input.accountBalance)
+      Math.min(maxPositionPercent, positionPercent)
     );
 
     const finalPositionSize = input.accountBalance * cappedPercent;
@@ -141,7 +264,9 @@ export class DynamicPositionSizer {
       kellyBase: fractionalKelly,
       rlMultiplier,
       volatilityAdjustment,
-      confidenceMultiplier
+      confidenceMultiplier,
+      trendAlignmentMultiplier,
+      orderFlowMultiplier // NEW: Return for transparency
     };
   }
 

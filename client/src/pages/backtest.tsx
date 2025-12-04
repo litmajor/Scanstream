@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, Play, Download, Settings, BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Play, Download, Settings, BarChart3, TrendingUp, TrendingDown, Calendar, Clock, Trash2, Zap } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import BounceBacktestComponent from '../components/BounceBacktestComponent';
 
 interface BacktestResult {
   id: string;
@@ -55,6 +56,7 @@ export default function BacktestPage() {
   const [startDate, setStartDate] = useState('2024-01-01');
   const [endDate, setEndDate] = useState('2024-12-31');
   const [initialCapital, setInitialCapital] = useState(10000);
+  const [showBounceBacktest, setShowBounceBacktest] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch available strategies
@@ -226,6 +228,14 @@ export default function BacktestPage() {
             </div>
 
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowBounceBacktest(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 rounded-lg transition-all text-white font-medium shadow-lg shadow-pink-500/20"
+                title="Bounce Strategy Backtest"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Bounce Backtest</span>
+              </button>
               <button
                 onClick={() => refetch()}
                 className="p-2.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-lg transition-all text-slate-300 hover:text-white"
@@ -452,6 +462,13 @@ export default function BacktestPage() {
             </div>
           )}
         </div>
+
+        {/* Bounce Strategy Backtest Modal */}
+        {showBounceBacktest && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4">
+            <BounceBacktestComponent onClose={() => setShowBounceBacktest(false)} />
+          </div>
+        )}
       </div>
     </div>
   );

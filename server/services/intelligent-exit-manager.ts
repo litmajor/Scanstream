@@ -34,6 +34,8 @@ export interface ExitUpdate {
   profitPercent: number;
   stage: string;
   recommendation: string;
+  microstructureSignals?: string[];  // NEW: Microstructure deterioration signals
+  adjustedStop?: number;              // NEW: Adjusted stop from microstructure analysis
 }
 
 export interface ExitPerformance {
@@ -137,6 +139,99 @@ export class IntelligentExitManager {
       stage: this.state.stage,
       recommendation: this.getRecommendation(profitPercent, timeHeldHours)
     };
+  }
+
+  /**
+   * Enhanced update with microstructure deterioration analysis
+   * Integrates MicrostructureExitOptimizer signals for early exit detection
+   * 
+   * Usage:
+   * const exitUpdate = manager.updateWithMicrostructure(
+   *   currentPrice,
+   *   { spread: 0.015, bidVolume: 1200, askVolume: 400, netFlow: 5000, ... },
+   *   previousData,
+   *   'BUY'
+   * );
+   */
+  updateWithMicrostructure(
+    currentPrice: number,
+    microData: {
+      spread: number;
+      spreadPercent: number;
+      bidVolume: number;
+      askVolume: number;
+      netFlow: number;
+      orderImbalance: 'BUY' | 'SELL' | 'BALANCED';
+      volumeRatio: number;
+      bidAskRatio: number;
+      price: number;
+    },
+    previousMicroData?: any,
+    signalType: 'BUY' | 'SELL' = 'BUY'
+  ): ExitUpdate {
+    // First, get standard intelligent exit update
+    const standardUpdate = this.update(currentPrice, signalType);
+
+    // Import microstructure optimizer
+    const { MicrostructureExitOptimizer } = require('./microstructure-exit-optimizer');
+    const microOptimizer = MicrostructureExitOptimizer.create();
+
+    // Analyze microstructure deterioration
+    const microSignal = microOptimizer.analyzeMicrostructure(
+      microData,
+      previousMicroData,
+      signalType
+    );
+
+    // Merge microstructure analysis with intelligent exit
+    const mergedUpdate: ExitUpdate = {
+      ...standardUpdate,
+      microstructureSignals: microSignal.signals,
+      adjustedStop: microSignal.adjustedStop
+    };
+
+    // If microstructure says urgent exit, override
+    if (microSignal.action === 'EXIT_URGENT') {
+      mergedUpdate.action = 'EXIT';
+      mergedUpdate.reason = `[MICROSTRUCTURE] ${microSignal.recommendation}`;
+    }
+
+    // If microstructure says standard exit and we don't have urgent reasons, consider it
+    if (
+      microSignal.action === 'EXIT_STANDARD' &&
+      mergedUpdate.action === 'HOLD'
+    ) {
+      // Only exit if we have some profit (don't exit into losses)
+      if (standardUpdate.profitPercent >= 0.5) {
+        mergedUpdate.action = 'EXIT';
+        mergedUpdate.reason = `[MICROSTRUCTURE] ${microSignal.recommendation}`;
+      }
+    }
+
+    // If microstructure says reduce size and we're profitable
+    if (
+      microSignal.action === 'REDUCE_SIZE' &&
+      standardUpdate.profitPercent >= 1.0
+    ) {
+      mergedUpdate.recommendation = `${standardUpdate.recommendation} + [REDUCE 50% due to: ${microSignal.signals.join('; ')}]`;
+    }
+
+    // If microstructure says tighten stop, apply adjusted stop
+    if (
+      microSignal.action === 'TIGHTEN_STOP' &&
+      microSignal.adjustedStop !== undefined
+    ) {
+      // Use tighter stop from microstructure analysis
+      const tighterStop = signalType === 'BUY'
+        ? Math.max(mergedUpdate.currentStop, microSignal.adjustedStop)
+        : Math.min(mergedUpdate.currentStop, microSignal.adjustedStop);
+      
+      mergedUpdate.currentStop = tighterStop;
+      mergedUpdate.adjustedStop = tighterStop;
+      mergedUpdate.recommendation = `${standardUpdate.recommendation} + [TIGHTEN STOP due to: ${microSignal.signals.join('; ')}]`;
+    }
+
+    return mergedUpdate;
   }
 
   /**

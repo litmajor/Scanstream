@@ -117,6 +117,11 @@ import gatewayRouter, { getGatewayServices } from './routes/gateway';
 app.use('/api/gateway', gatewayRouter);
 console.log('[express] Gateway API registered at /api/gateway');
 
+// Register Complete Signal Generation routes (regime-aware unified pipeline)
+import signalGenerationRouter from './routes/api/signal-generation';
+app.use('/api/signal-generation', signalGenerationRouter);
+console.log('[express] Complete Signal Generation API registered at /api/signal-generation');
+
 // Initialize WebSocket service for real-time signal streaming
 import { signalWebSocketService } from './services/websocket-signals';
 import { signalPriceMonitor } from './services/signal-price-monitor';
@@ -206,7 +211,10 @@ app.use((req, res, next) => {
 
   // Backend server on port 5000
   const port = parseInt(process.env.PORT || '5000');
-  const host = '0.0.0.0';
+  // Bind to the IPv6 unspecified address so the server accepts both
+  // IPv6 (::1 / ::) and IPv4 (0.0.0.0 / 127.0.0.1) loopback connections.
+  // This makes `http://localhost` work even when localhost resolves to ::1.
+  const host = '::';
 
   server.listen(port, host, () => {
     console.log(`\n╔════════════════════════════════════════════════════════╗`);

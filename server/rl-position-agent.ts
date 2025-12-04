@@ -33,6 +33,13 @@ export interface RLState {
   confidence: number; // 0-1 from ML predictions
   regime: string; // Market regime
   drawdown: number; // Current drawdown %
+  
+  // Enhanced state variables for better generalization
+  equitySlope?: number; // Slope of recent equity curve (-1 to 1)
+  lossStreak?: number; // Consecutive losses (0-10+)
+  volSpike?: number; // Recent volatility change multiplier (0.5-2.0)
+  patternDecay?: number; // Confidence decay of pattern (0-1)
+  marketDrift?: number; // Drift in regime volatility (-1 to 1)
 }
 
 export interface Experience {
