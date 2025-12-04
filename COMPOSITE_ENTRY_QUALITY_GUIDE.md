@@ -7,7 +7,121 @@ The Composite Entry Quality Score combines **5 intelligent feature combinations*
 
 ---
 
-## The 5 Quality Features
+## The 9 Quality Features (ENHANCED)
+
+### NEW FEATURES (Addressing Unused Columns)
+
+#### 1. **Data Quality Score** (15% weight) 🆕
+Filters unreliable data using confidence, deviation, and source count.
+
+**Formula:**
+```
+confidence_score = confidence (0-1)
+deviation_score = 1.0 if deviation < 1%, 0.8 if < 2%, 0.6 if < 5%, else 0.3
+sources_score = min(source_count / 3, 1.0)
+
+data_quality = confidence × 0.5 + deviation × 0.3 + sources × 0.2
+```
+
+**What it detects:**
+- ✅ High confidence + low deviation = reliable data
+- ❌ Low confidence or high deviation = filtered out
+- 🚫 Data quality < 0.3 = signal automatically rejected
+
+**Example:**
+- Confidence: 0.9, Deviation: 0.8%, 3 sources → Quality: 0.91 (Excellent)
+- Confidence: 0.4, Deviation: 6%, 1 source → Quality: 0.23 (FILTERED)
+
+---
+
+#### 2. **Change Metrics Quality** (10% weight) 🆕
+Validates momentum is real across multiple timeframes.
+
+**Criteria:**
+```
+Uses: change1h, change24h, change7d
+
+Alignment check:
+- For LONG: All changes should be positive
+- For SHORT: All changes should be negative
+
+Strength check:
+- Average change magnitude (5% = perfect)
+
+Acceleration bonus:
+- 1h change > 24h change = accelerating trend (+0.1)
+```
+
+**Scoring:**
+```
+alignment_score = 
+  (change1h aligned) × 0.4 +
+  (change24h aligned) × 0.35 +
+  (change7d aligned) × 0.25
+
+strength_score = min(avg_change / 5%, 1.0)
+acceleration_bonus = 0.1 if accelerating
+
+total = alignment × 0.7 + strength × 0.3 + acceleration
+```
+
+**What it detects:**
+- ✅ All timeframes aligned = sustained momentum
+- ⚠️ Mixed signals = potential reversal (avoid)
+- ✅ Accelerating = strong trend continuation
+
+**Example:**
+- LONG signal: +2% (1h), +3% (24h), +5% (7d) → Score: 0.85 (Excellent alignment + strength)
+- LONG signal: +1% (1h), -2% (24h), +3% (7d) → Score: 0.42 (Poor - mixed signals)
+
+---
+
+#### 3. **Support/Resistance Quality** (10% weight) 🆕
+Times entries using structural levels for optimal risk/reward.
+
+**Formula:**
+```
+distance_to_support = ((price - support) / price) × 100
+distance_to_resistance = ((resistance - price) / price) × 100
+
+For LONG:
+- Perfect: 1-3% above support, >5% below resistance
+- Score = support_quality × 0.6 + resistance_quality × 0.4
+
+For SHORT:
+- Perfect: 1-3% below resistance, >5% above support
+- Score = resistance_quality × 0.6 + support_quality × 0.4
+```
+
+**What it detects:**
+- ✅ Entry near support (LONG) or resistance (SHORT) = good R/R
+- ❌ Entry far from support/resistance = poor setup
+- ✅ Plenty of room to target = high potential
+
+**Example:**
+- LONG at $100: Support $98 (2% away), Resistance $110 (10% away) → Score: 0.95
+- LONG at $100: Support $90 (10% away), Resistance $102 (2% away) → Score: 0.35
+
+---
+
+#### 4. **Ichimoku Confirmation** (5% weight) 🆕
+Additional trend confirmation layer.
+
+**Criteria:**
+```
+Uses: ichimoku_bullish indicator
+
+For LONG: ichimoku_bullish = true → 1.0, else 0.2
+For SHORT: ichimoku_bullish = false → 1.0, else 0.2
+```
+
+**What it detects:**
+- ✅ Ichimoku aligned with signal = trend confirmation
+- ❌ Ichimoku opposed to signal = counter-trend trade (risky)
+
+---
+
+## The 5 Quality Features (ORIGINAL)
 
 ### 1. **Momentum Quality** (25% weight)
 Combines momentum strength with volume confirmation.
@@ -108,16 +222,30 @@ EXTREME volatility (>5% ATR):   0.7  (Risky)
 
 ---
 
-## Composite Score Calculation
+## Enhanced Composite Score Calculation
 
-**Weighted Formula:**
+**NEW Weighted Formula (9 Features):**
 ```
 composite_score = 
-    momentum_quality          × 0.25 +
-    trend_alignment           × 0.25 +
-    flow_quality              × 0.20 +
-    risk_reward_quality       × 0.20 +
-    volatility_appropriateness × 0.10
+    data_quality_score        × 0.15  (NEW - filters bad data)
+    change_metrics_score      × 0.10  (NEW - momentum validation)
+    support_resistance_score  × 0.10  (NEW - structure quality)
+    ichimoku_confirmation     × 0.05  (NEW - trend confirmation)
+    momentum_quality          × 0.20  (reduced from 0.25)
+    trend_alignment           × 0.20  (reduced from 0.25)
+    flow_quality              × 0.10  (reduced from 0.20)
+    risk_reward_quality       × 0.05  (reduced from 0.20)
+    volatility_appropriateness × 0.05 (reduced from 0.10)
+
+TOTAL: 100% (1.0)
+```
+
+**Auto-Filter Rule:**
+```
+IF data_quality_score < 0.3:
+    composite_score = 0
+    quality = 'poor'
+    filtered = true
 ```
 
 **Quality Ratings:**
