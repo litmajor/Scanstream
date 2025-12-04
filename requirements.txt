@@ -16,3 +16,6 @@ scipy>=1.16.2
 imbalanced-learn
 requests
 scikit-learn
+numpy
+pandas
+scikit-learn

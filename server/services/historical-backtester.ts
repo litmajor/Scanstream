@@ -170,8 +170,19 @@ export class HistoricalBacktester {
           const regime = this.strategyEngine.detectMarketRegime(frames as any);
           this.strategyEngine.calculateRegimeWeights(regime);
 
-          // Step 2: Generate signal using StrategyIntegrationEngine instead of pipeline
+          // Step 2: Generate signal using TypeScript-only analysis (Python strategies may not be available)
           let signal: any = null;
+          try {
+            // Use simple TS-based signal generation for backtesting
+            signal = this.generateSimpleSignal(marketData, frames);
+          } catch (err) {
+            // If even the simple signal generation fails, continue
+            totalSignalsFiltered++;
+            continue;
+          }
+
+          // Step 3: OLD: Generate signal using StrategyIntegrationEngine instead of pipeline
+          let strategySignal: any = null;
           try {
             // Use the strategy engine to synthesize signals from the frames
             signal = await this.strategyEngine.synthesizeSignals(symbol, '1D', frames as any);
@@ -406,6 +417,62 @@ export class HistoricalBacktester {
       console.warn(`[HistoricalBacktest] Error fetching data for ${symbol}:`, (error as any).message);
       return [];
     }
+  }
+
+  /**
+   * Generate simple TypeScript-based signal for backtesting
+   * Used as fallback when Python strategies aren't available
+   */
+  private generateSimpleSignal(marketData: any, frames: any[]): any {
+    if (frames.length < 10) return null;
+
+    const candles = frames.map(f => ({
+      close: (f.price as any).close,
+      open: (f.price as any).open,
+      high: (f.price as any).high,
+      low: (f.price as any).low,
+      volume: f.volume
+    }));
+
+    // Simple technical analysis
+    const closes = candles.map(c => c.close);
+    const sma20 = closes.slice(-20).reduce((a, b) => a + b) / 20;
+    const sma50 = closes.slice(-50).length === 50 ? closes.slice(-50).reduce((a, b) => a + b) / 50 : closes.slice(-20).reduce((a, b) => a + b) / 20;
+    const currentPrice = closes[closes.length - 1];
+
+    // RSI calculation (simplified)
+    let gains = 0, losses = 0;
+    for (let i = closes.length - 15; i < closes.length; i++) {
+      const change = closes[i] - closes[i - 1];
+      if (change > 0) gains += change;
+      else losses += Math.abs(change);
+    }
+    const rs = gains / (losses || 1);
+    const rsi = 100 - (100 / (1 + rs));
+
+    // Determine signal
+    let signal = 'HOLD';
+    let confidence = 0.5;
+
+    if (currentPrice > sma20 && sma20 > sma50 && rsi < 70) {
+      signal = 'BUY';
+      confidence = 0.7 + (rsi / 100) * 0.2;
+    } else if (currentPrice < sma20 && sma20 < sma50 && rsi > 30) {
+      signal = 'SELL';
+      confidence = 0.7 + ((100 - rsi) / 100) * 0.2;
+    }
+
+    return {
+      type: signal,
+      symbol: marketData.symbol,
+      price: currentPrice,
+      confidence: confidence,
+      primaryClassification: `SMA_${signal}`,
+      stopLoss: currentPrice * 0.985,
+      takeProfit: currentPrice * 1.03,
+      holdingPeriodHours: 48,
+      timestamp: marketData.timestamp
+    };
   }
 
   /**
