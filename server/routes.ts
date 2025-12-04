@@ -55,6 +55,13 @@ import intelligentExitsRouter from './routes/intelligent-exits';
 // Import correlation hedge routes
 import correlationHedgeRouter from './routes/correlation-hedge';
 
+// Import signal archive routes
+import signalArchiveRouter from './routes/signal-archive';
+// Import correlation boost router
+import correlationBoostRouter from './routes/correlation-boost';
+// Import strategy deployment router
+import strategyDeploymentRouter from './routes/strategy-deployment';
+
 // Create prisma instance
 const prisma = new PrismaClient();
 
@@ -1771,9 +1778,14 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/source-analytics', sourceAnalyticsRouter);
 
   // Import and register signal archive routes
-  import signalArchiveRouter from './routes/signal-archive';
   app.use('/api/signal-archive', signalArchiveRouter);
   console.log('[express] Signal Archive API registered at /api/signal-archive');
+
+  // Correlation analysis routes
+  app.use('/api/correlation-boost', correlationBoostRouter);
+
+  // Strategy deployment routes
+  app.use('/api/strategy-deployment', strategyDeploymentRouter);
 
   console.log('[Routes] All routes registered successfully');
 
