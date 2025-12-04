@@ -172,6 +172,12 @@ export class ExchangeAggregator {
       }
 
       try {
+        // Skip if rate limited
+        if (this.rateLimiter.isRateLimited(exchange)) {
+          console.log(`[Gateway] Skipping ${exchange} (rate limited)`);
+          continue;
+        }
+
         await this.rateLimiter.acquire(exchange, 'normal');
         
         const startTime = Date.now();
@@ -201,16 +207,29 @@ export class ExchangeAggregator {
 
         return ohlcv;
       } catch (error: any) {
+        // Handle rate limit errors specifically
+        if (error.message?.includes('429') || error.message?.toLowerCase().includes('rate limit')) {
+          const retryAfter = parseInt(error.headers?.['retry-after'] || '60');
+          this.rateLimiter.handleRateLimitError(exchange, retryAfter);
+        }
+        
         this.updateExchangeHealth(exchange, false, 0, error);
-        // Only log if not a geo-restriction error
-        if (!this.isGeoRestrictionError(error)) {
+        // Only log if not a geo-restriction error or rate limit
+        if (!this.isGeoRestrictionError(error) && !error.message?.includes('429')) {
           console.warn(`[Gateway] Failed to fetch from ${exchange}: ${error.message}`);
         }
         continue;
       }
     }
 
-    throw new Error(`Failed to fetch OHLCV for ${symbol} from all exchanges`);
+    // Try to return stale cache data if all exchanges failed
+    const staleCache = this.cache.get<OHLCVData[]>(cacheKey, true); // Get even if expired
+    if (staleCache) {
+      console.warn(`[Gateway] All exchanges failed for ${symbol}, returning stale cache data`);
+      return staleCache;
+    }
+
+    throw new Error(`Failed to fetch OHLCV for ${symbol} from all exchanges and no cache available`);
   }
 
   /**

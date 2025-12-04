@@ -227,7 +227,7 @@ export class MarketDataFetcher {
       const ohlcvData = await (this.aggregator as any).getOHLCV(symbol, timeframe, limit);
 
       if (ohlcvData && Array.isArray(ohlcvData) && ohlcvData.length > 0) {
-        console.log(`[MarketDataFetcher] Successfully fetched ${symbol} (${ohlcvData.length} candles)`);
+        console.log(`[MarketDataFetcher] Successfully fetched ${symbol} from ${ohlcvData[0]?.exchange || 'unknown'} (${ohlcvData.length} candles)`);
 
         // Convert OHLCVData[] format to CCXT number[][] format: [timestamp, open, high, low, close, volume]
         const candles = ohlcvData.map((candle: any) => [
@@ -244,6 +244,13 @@ export class MarketDataFetcher {
         throw new Error(`No valid OHLCV data returned for ${symbol}`);
       }
     } catch (error: any) {
+      // Check if it's a rate limit or all-exchanges-failed error
+      if (error.message?.includes('rate limit') || error.message?.includes('all exchanges failed')) {
+        console.warn(`[MarketDataFetcher] ${symbol} fetch degraded: ${error.message}`);
+        // Don't throw - let the caller handle gracefully
+        return [];
+      }
+      
       console.error(`[MarketDataFetcher] OHLCV fetch error for ${symbol}/${timeframe}:`, error.message);
       throw error;
     }

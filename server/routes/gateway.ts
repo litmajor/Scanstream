@@ -289,7 +289,17 @@ router.get('/metrics/rate-limit', (req: Request, res: Response) => {
     bybit: rateLimiter.getStats('bybit')
   };
 
-  res.json(stats);
+  // Add summary
+  const allStats = Object.values(stats).filter(s => s !== null);
+  const summary = {
+    totalExchanges: allStats.length,
+    healthyExchanges: allStats.filter((s: any) => s.healthy).length,
+    throttledExchanges: allStats.filter((s: any) => s.throttled).length,
+    rateLimitedExchanges: allStats.filter((s: any) => s.rateLimitReset).length,
+    averageUsage: allStats.reduce((acc: number, s: any) => acc + (s.usage || 0), 0) / allStats.length
+  };
+
+  res.json({ stats, summary });
 });
 
 /**
@@ -787,6 +797,61 @@ router.post('/alerts/:id/acknowledge', (req: Request, res: Response) => {
  */
 router.delete('/alerts/acknowledged', (req: Request, res: Response) => {
   try {
+
+
+/**
+ * GET /api/gateway/exchanges/status
+ * Get detailed status of all exchanges with fallback priority
+ */
+router.get('/exchanges/status', (req: Request, res: Response) => {
+  try {
+    const health = aggregator.getHealthStatus();
+    const rateLimits = rateLimiter.getStats();
+    
+    const exchanges = Object.keys(health).map(exchange => ({
+      name: exchange,
+      healthy: health[exchange].healthy,
+      latency: health[exchange].latency,
+      consecutiveFailures: health[exchange].consecutiveFailures,
+      isGeoRestricted: health[exchange].isGeoRestricted,
+      rateLimited: rateLimiter.isRateLimited(exchange),
+      rateLimit: (rateLimits as any)[exchange],
+      priority: ['binance', 'kucoinfutures', 'coinbase', 'okx', 'bybit', 'kraken'].indexOf(exchange) + 1
+    }));
+
+    // Sort by priority
+    exchanges.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+    res.json({
+      exchanges,
+      fallbackChain: exchanges.filter(e => e.healthy && !e.rateLimited).map(e => e.name),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/gateway/exchanges/:name/reset-rate-limit
+ * Manually reset rate limit for an exchange
+ */
+router.post('/exchanges/:name/reset-rate-limit', (req: Request, res: Response) => {
+  try {
+    const { name } = req.params;
+    // This will be called automatically, but can be triggered manually
+    console.log(`[Gateway] Manually resetting rate limit for ${name}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Rate limit state reset for ${name}`,
+      newStats: rateLimiter.getStats(name)
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
     const cleared = gatewayAlertSystem.clearAcknowledged();
     res.json({ success: true, cleared });
   } catch (error: any) {

@@ -1,4 +1,3 @@
-
 import type { CacheEntry } from '../../types/gateway';
 
 /**
@@ -22,28 +21,32 @@ export class CacheManager {
   }
 
   /**
-   * Get cached value if valid
+   * Get value from cache
+   * @param allowStale If true, return expired cache entries (for fallback scenarios)
    */
-  get<T>(key: string): T | null {
+  get<T>(key: string, allowStale: boolean = false): T | null {
     const entry = this.cache.get(key);
-    
+
     if (!entry) {
       this.missCount++;
       return null;
     }
 
     // Check if expired
-    const now = Date.now();
-    if (now - entry.timestamp > entry.ttl) {
-      this.cache.delete(key);
-      this.missCount++;
-      return null;
+    if (Date.now() > entry.ttl) {
+      if (!allowStale) {
+        this.cache.delete(key);
+        this.missCount++;
+        return null;
+      }
+      // Return stale data with warning
+      console.warn(`[Cache] Returning stale data for ${key} (expired ${Math.round((Date.now() - entry.ttl) / 1000)}s ago)`);
     }
 
     // Move to end (LRU)
     this.cache.delete(key);
     this.cache.set(key, entry);
-    
+
     this.hitCount++;
     return entry.data as T;
   }
