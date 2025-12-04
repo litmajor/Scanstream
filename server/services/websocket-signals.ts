@@ -113,6 +113,15 @@ export class SignalWebSocketService extends EventEmitter {
           socket.leave(`symbol:${symbol}`);
           console.log(`[WS] Client unsubscribed from ${symbol}`);
         });
+
+        // Exchange subscription
+        socket.on('subscribe_exchange', (exchange: string) => {
+          this.subscribeToExchange(socket, exchange);
+        });
+
+        socket.on('unsubscribe_exchange', (exchange: string) => {
+          this.unsubscribeFromExchange(socket, exchange);
+        });
       });
 
       // Start broadcasting gateway health every 10 seconds
@@ -213,7 +222,35 @@ export class SignalWebSocketService extends EventEmitter {
       timestamp: new Date()
     });
 
+    // Broadcast to exchange-specific room
+    if (signal.exchange) {
+      this.io.to(`exchange:${signal.exchange}`).emit('exchange_signal', {
+        type,
+        data: signal,
+        timestamp: new Date()
+      });
+    }
+
     console.log(`[WS] Broadcasted ${type} signal for ${signal.symbol}: ${signal.signal} (${signal.strength}%)`);
+  }
+
+  subscribeToExchange(socket: any, exchange: string) {
+    socket.join(`exchange:${exchange}`);
+    console.log(`[WS] Client subscribed to exchange: ${exchange}`);
+  }
+
+  unsubscribeFromExchange(socket: any, exchange: string) {
+    socket.leave(`exchange:${exchange}`);
+    console.log(`[WS] Client unsubscribed from exchange: ${exchange}`);
+  }
+
+  broadcastMarketData(data: any) {
+    if (!this.io) return;
+    
+    this.io.emit('market_data', {
+      data,
+      timestamp: new Date()
+    });
   }
 
   broadcastAlert(alert: AlertData) {

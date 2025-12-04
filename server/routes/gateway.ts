@@ -7,9 +7,12 @@ import { LiquidityMonitor } from '../services/gateway/liquidity-monitor';
 import { GasProvider } from '../services/gateway/gas-provider';
 import { SecurityValidator } from '../services/gateway/security-validator';
 import { signalWebSocketService } from '../services/websocket-signals';
+import { signalArchive } from '../services/signal-archive';
 import { gatewayAlertSystem } from '../services/gateway-alerts';
 import gatewayMetricsRouter from './gateway-metrics';
 import { SignalEngine, defaultTradingConfig } from '../trading-engine';
+import { signalPerformanceTracker } from '../services/signal-performance-tracker';
+
 
 const router = Router();
 
@@ -31,14 +34,14 @@ const signalEngine = new SignalEngine(defaultTradingConfig);
 // Initialize aggregator with CCXT and warm cache
 aggregator.initialize().then(async () => {
   console.log('[Gateway] Aggregator ready');
-  
+
   // Import and initialize cache warmer
   const { CacheWarmer } = await import('../services/gateway/cache-warmer');
   const warmer = new CacheWarmer(aggregator);
-  
+
   // Warm cache on startup
   await warmer.warmCache();
-  
+
   // Start continuous warming (every 60 seconds)
   warmer.startContinuousWarming(60000);
 }).catch(err => {
@@ -59,11 +62,11 @@ setInterval(() => {
   if (removed > 0) {
     console.log(`[Gateway] Cleaned up ${removed} expired cache entries`);
   }
-  
+
   // Check cache performance
   const cacheStats = cacheManager.getStats();
   gatewayAlertSystem.checkCachePerformance(cacheStats.hitRate);
-  
+
   // Check exchange health and rate limits
   const healthStatus = aggregator.getHealthStatus();
   Object.entries(healthStatus).forEach(([exchange, health]) => {
@@ -72,7 +75,7 @@ setInterval(() => {
       gatewayAlertSystem.checkLatency(exchange, health.latency);
     }
   });
-  
+
   // Check rate limit usage
   ['binance', 'coinbase', 'kraken', 'kucoinfutures', 'okx', 'bybit'].forEach(exchange => {
     const stats = rateLimiter.getStats(exchange);
@@ -138,7 +141,7 @@ router.get('/signals', async (req: Request, res: Response) => {
   try {
     const { signalType, minConfidence, trendDirection } = req.query;
     const minConf = minConfidence ? parseFloat(minConfidence as string) : 0;
-    
+
     const cacheKey = `gateway:signals:${signalType || 'all'}:${minConf}:${trendDirection || 'all'}`;
     const cached = cacheManager.get<any>(cacheKey);
 
@@ -184,11 +187,11 @@ router.get('/signals', async (req: Request, res: Response) => {
     if (signalType && signalType !== 'all') {
       signals = signals.filter((s: any) => s.signal === (signalType as string).toUpperCase());
     }
-    
+
     if (minConf > 0) {
       signals = signals.filter((s: any) => s.strength >= minConf);
     }
-    
+
     if (trendDirection && trendDirection !== 'all') {
       signals = signals.filter((s: any) => s.trend === trendDirection);
     }
@@ -232,7 +235,7 @@ router.get('/signals', async (req: Request, res: Response) => {
         }
 
         signalWebSocketService.broadcastSignal(sig, 'new');
-        
+
         // Send alert for very high strength
         if (sig.strength >= 90) {
           signalWebSocketService.broadcastAlert({
@@ -322,10 +325,10 @@ router.get('/price/:symbol', async (req: Request, res: Response) => {
 
     console.log(`[Gateway] Fetching price for ${symbol}`);
     const priceData = await aggregator.getAggregatedPrice(symbol);
-    
+
     // Broadcast price update via WebSocket
     signalWebSocketService.broadcastPriceUpdate(symbol, priceData);
-    
+
     res.json(priceData);
   } catch (error: any) {
     console.error(`[Gateway] Price fetch error for ${req.params.symbol}:`, error.message);
@@ -417,7 +420,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
 
     // Get latest OHLCV data from aggregator (no persistence)
     const frames = await aggregator.getMarketFrames(symbol, timeframe as string, limitNum);
-    
+
     if (!frames || frames.length === 0) {
       console.warn(`[Gateway] No frames returned for ${symbol} on timeframe ${timeframe}`);
       return res.status(404).json({
@@ -434,7 +437,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
     // Extract price data - handle both JSON format and direct properties
     const latestPrice = (latest.price as any)?.close || (latest as any).close || 0;
     const prevPrice = (prev.price as any)?.close || (prev as any).close || 0;
-    
+
     // Log the structure to debug
     console.log(`[Gateway] Latest frame for ${symbol}:`, {
       timestamp: latest.timestamp,
@@ -448,16 +451,16 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
     // Calculate indicators from raw OHLC data
     const closes = frames.map(f => ((f.price as any)?.close || (f as any).close || 0));
     const volumes = frames.map(f => f.volume || 0);
-    
+
     // Simple RSI calculation
     const rsi = calculateRSI(closes, 14);
     const ema20 = calculateEMA(closes, 20);
     const ema50 = calculateEMA(closes, 50);
     const atr = calculateATR(frames, 14);
-    
+
     // Simple MACD
     const macd = calculateMACD(closes);
-    
+
     // Calculate momentum early for use in trendStrength
     const momentum = prevPrice > 0 ? ((latestPrice - prevPrice) / prevPrice) * 100 : 0;
     const volatility = calculateVolatility(closes);
@@ -523,7 +526,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       bidAskRatio: 1.0,
       spread: ((latest.price as any)?.high || (latest as any).high || 0) - ((latest.price as any)?.low || (latest as any).low || 0),
       orderImbalance: latestPrice > prevPrice ? 'BUY' : 'SELL',
-      
+
       // Signal generation (3)
       signal: (() => {
         const { type } = generateSignalTypeWithScores({
@@ -659,15 +662,15 @@ router.get('/liquidity/:symbol', async (req: Request, res: Response) => {
   try {
     let symbol = req.params.symbol;
     symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
-    
+
     const { amount } = req.query;
     const amountNum = amount ? parseFloat(amount as string) : undefined;
-    
+
     const liquidity = await liquidityMonitor.checkLiquidity(symbol, amountNum);
-    
+
     // Broadcast liquidity update via WebSocket
     signalWebSocketService.broadcastLiquidityUpdate(symbol, liquidity);
-    
+
     res.json({
       success: true,
       liquidity,
@@ -688,13 +691,13 @@ router.get('/liquidity/:symbol', async (req: Request, res: Response) => {
 router.post('/liquidity/batch', async (req: Request, res: Response) => {
   try {
     const { symbols } = req.body;
-    
+
     if (!symbols || !Array.isArray(symbols)) {
       return res.status(400).json({ error: 'Symbols array required' });
     }
-    
+
     const results = await liquidityMonitor.batchCheckLiquidity(symbols);
-    
+
     res.json({
       success: true,
       count: results.size,
@@ -716,7 +719,7 @@ router.get('/gas/:chain', async (req: Request, res: Response) => {
   try {
     const { chain } = req.params;
     const gasPrice = await gasProvider.getGasPrice(chain || 'ethereum');
-    
+
     res.json({
       success: true,
       chain: chain || 'ethereum',
@@ -731,7 +734,7 @@ router.get('/gas/:chain', async (req: Request, res: Response) => {
 router.get('/gas', async (_req: Request, res: Response) => {
   try {
     const gasPrice = await gasProvider.getGasPrice('ethereum');
-    
+
     res.json({
       success: true,
       chain: 'ethereum',
@@ -749,12 +752,12 @@ router.get('/gas', async (_req: Request, res: Response) => {
 router.get('/alerts', (req: Request, res: Response) => {
   try {
     const { acknowledged, severity } = req.query;
-    
+
     const alerts = gatewayAlertSystem.getAlerts({
       acknowledged: acknowledged === 'true' ? true : acknowledged === 'false' ? false : undefined,
       severity: severity as string
     });
-    
+
     res.json({
       success: true,
       count: alerts.length,
@@ -772,7 +775,7 @@ router.post('/alerts/:id/acknowledge', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const success = gatewayAlertSystem.acknowledgeAlert(id);
-    
+
     res.json({ success, message: success ? 'Alert acknowledged' : 'Alert not found' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -810,9 +813,9 @@ router.post('/alerts/thresholds', (req: Request, res: Response) => {
 router.post('/gas/estimate', async (req: Request, res: Response) => {
   try {
     const { chain = 'ethereum', gasLimit = 21000, speed = 'standard' } = req.body;
-    
+
     const cost = await gasProvider.estimateCost(chain, gasLimit, speed);
-    
+
     res.json({
       success: true,
       estimatedCostUSD: cost,
@@ -835,17 +838,17 @@ router.post('/gas/estimate', async (req: Request, res: Response) => {
 router.post('/security/validate', async (req: Request, res: Response) => {
   try {
     const { symbol, amount, operation = 'buy' } = req.body;
-    
+
     if (!symbol || !amount) {
       return res.status(400).json({ error: 'Symbol and amount required' });
     }
-    
+
     const validation = await securityValidator.validateOperation(
       symbol,
       parseFloat(amount),
       operation
     );
-    
+
     res.json({
       success: true,
       validation,
@@ -866,44 +869,44 @@ router.post('/security/validate', async (req: Request, res: Response) => {
 router.post('/recommend-exchange', async (req: Request, res: Response) => {
   try {
     const { symbol, operation = 'fetch', requirements = {} } = req.body;
-    
+
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol required' });
     }
-    
+
     // Get liquidity and health data
     const [liquidity, health] = await Promise.all([
       liquidityMonitor.checkLiquidity(symbol),
       Promise.resolve(aggregator.getHealthStatus())
     ]);
-    
+
     // Score each exchange
     const scores = liquidity.exchanges.map(ex => {
       const exchangeHealth = health[ex.name];
       if (!exchangeHealth?.healthy) return { name: ex.name, score: 0 };
-      
+
       let score = 0;
-      
+
       // Liquidity weight (40%)
       score += (ex.volume / liquidity.totalVolume24h) * 40;
-      
+
       // Latency weight (30%)
       score += Math.max(0, 30 - (exchangeHealth.latency / 10));
-      
+
       // Spread weight (20%)
       score += Math.max(0, 20 - (ex.spread * 1000));
-      
+
       // Rate limit weight (10%)
       score += (1 - exchangeHealth.rateUsage) * 10;
-      
+
       return { name: ex.name, score };
     });
-    
+
     // Sort by score
     scores.sort((a, b) => b.score - a.score);
-    
+
     const recommended = scores[0];
-    
+
     res.json({
       success: true,
       recommended: recommended.name,
@@ -932,7 +935,7 @@ router.post('/recommend-exchange', async (req: Request, res: Response) => {
 router.post('/alerts/subscribe', async (req: Request, res: Response) => {
   try {
     const { symbols, signalTypes, minStrength } = req.body;
-    
+
     // Store subscription (in production, associate with user ID)
     const subscription = {
       id: `sub-${Date.now()}`,
@@ -941,10 +944,10 @@ router.post('/alerts/subscribe', async (req: Request, res: Response) => {
       minStrength: minStrength || 80,
       createdAt: new Date()
     };
-    
+
     // In production, store in database with user association
     console.log('[Gateway] Alert subscription created:', subscription);
-    
+
     res.json({
       success: true,
       subscription,
@@ -966,27 +969,27 @@ router.get('/signals/history', async (req: Request, res: Response) => {
   try {
     const { symbol, signalType, limit = '50', offset = '0' } = req.query;
     const { storage } = await import('../storage');
-    
+
     // Query database for historical signals
     const limitNum = parseInt(limit as string);
     const offsetNum = parseInt(offset as string);
-    
+
     // Build query - this is a simplified version
     // In production, use proper Prisma query with filters
     const allSignals = await storage.getLatestSignals(limitNum + offsetNum);
-    
+
     let filtered = allSignals;
-    
+
     if (symbol) {
       filtered = filtered.filter((s: any) => s.symbol === symbol);
     }
-    
+
     if (signalType) {
       filtered = filtered.filter((s: any) => (s.signal || s.type) === signalType);
     }
-    
+
     const paginated = filtered.slice(offsetNum, offsetNum + limitNum);
-    
+
     res.json({
       success: true,
       signals: paginated,
@@ -1004,6 +1007,44 @@ router.get('/signals/history', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/gateway/signals/archive
+ * Get historical signals from the archive service.
+ * Query params: symbol, signalType, outcome, limit, offset
+ */
+router.get('/signals/archive', async (req: Request, res: Response) => {
+  try {
+    const { symbol, signalType, outcome, limit = '50', offset = '0' } = req.query;
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+
+    // Use the signalArchive service to fetch data
+    const archivedSignals = await signalArchive.getSignals({
+      symbol: symbol as string | undefined,
+      signalType: signalType as string | undefined,
+      outcome: outcome as string | undefined,
+      limit: limitNum,
+      offset: offsetNum
+    });
+
+    res.json({
+      success: true,
+      signals: archivedSignals.data,
+      total: archivedSignals.total,
+      limit: limitNum,
+      offset: offsetNum,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('[Gateway] Signal archive error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+
 // Generate signal type and confidence using composite technical + order flow + microstructure scoring
 function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 'HOLD', strength: number, confidence: number } {
   const rsi = dataframe.rsi || 50;
@@ -1013,42 +1054,42 @@ function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 
   const priceAboveEMA20 = dataframe.close > (dataframe.ema20 || dataframe.close);
   const priceAboveEMA50 = dataframe.close > (dataframe.ema50 || dataframe.close);
   const emaSpread = Math.abs(dataframe.ema20 - dataframe.ema50) / (dataframe.ema50 || 1);
-  
+
   // TECHNICAL SCORE: RSI + MACD + BB Position + EMA trend
   let technicalScore = 0;
-  
+
   // RSI component (-1 to 1)
   if (rsi < 30) technicalScore += 0.4; // Oversold, bullish
   else if (rsi > 70) technicalScore -= 0.4; // Overbought, bearish
   else technicalScore += (50 - Math.abs(rsi - 50)) / 100; // Neutral zone normalized
-  
+
   // MACD component (-1 to 1)
   if (macdHist > 0) technicalScore += 0.25; // Bullish crossover
   else if (macdHist < 0) technicalScore -= 0.25; // Bearish crossover
-  
+
   // Bollinger Bands component (-1 to 1)
   if (bbPos < 0.2) technicalScore += 0.2; // Price near lower band
   else if (bbPos > 0.8) technicalScore -= 0.2; // Price near upper band
-  
+
   // EMA trend alignment (-1 to 1)
   if (priceAboveEMA20 && priceAboveEMA50) technicalScore += 0.15; // Bullish alignment
   else if (!priceAboveEMA20 && !priceAboveEMA50) technicalScore -= 0.15; // Bearish alignment
-  
+
   technicalScore = Math.max(-1, Math.min(1, technicalScore));
-  
+
   // ORDER FLOW SCORE: Momentum-based
   let orderFlowScore = 0;
   if (momentum > 2) orderFlowScore += 0.3; // Strong bullish momentum
   else if (momentum > 0.5) orderFlowScore += 0.15;
   else if (momentum < -2) orderFlowScore -= 0.3; // Strong bearish momentum
   else if (momentum < -0.5) orderFlowScore -= 0.15;
-  
+
   orderFlowScore = Math.max(-1, Math.min(1, orderFlowScore));
-  
+
   // MICROSTRUCTURE SCORE: Volume and spread health
   let microScore = 0.5; // Neutral baseline (we don't have detailed microstructure data in dataframe)
   // In a real scenario, this would use bid/ask spread, depth, toxicity
-  
+
   // COMPOSITE SCORE with weights
   const techWeight = 0.5;
   const flowWeight = 0.3;
@@ -1058,24 +1099,24 @@ function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 
     orderFlowScore * flowWeight +
     microScore * microWeight
   );
-  
+
   // STRENGTH: Magnitude of conviction
   const strength = Math.abs(compositeScore);
-  
+
   // CONFIDENCE: Based on indicator alignment
   const alignmentPoints =
     (priceAboveEMA20 === priceAboveEMA50 ? 1 : 0) + // EMA alignment
     (macdHist > 0 === priceAboveEMA50 ? 1 : 0) + // MACD alignment with trend
     ((rsi < 40 || rsi > 60) ? 1 : 0) + // RSI not in neutral zone
     (Math.abs(momentum) > 1 ? 1 : 0); // Strong momentum
-  
+
   const confidence = Math.min(100, 50 + alignmentPoints * 12.5);
-  
+
   // Determine signal type based on composite score
   let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
   if (compositeScore > 0.15) type = 'BUY';
   else if (compositeScore < -0.15) type = 'SELL';
-  
+
   return { type, strength: strength * 100, confidence };
 }
 
@@ -1260,7 +1301,6 @@ router.post('/signal/batch', async (req: Request, res: Response) => {
 /**
  * Signal Performance Tracking
  */
-import { signalPerformanceTracker } from '../services/signal-performance-tracker';
 
 router.get('/signals/performance/stats', (req: Request, res: Response) => {
   const stats = signalPerformanceTracker.getPerformanceStats();

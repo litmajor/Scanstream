@@ -1770,6 +1770,11 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/portfolio-risk', portfolioRiskRouter);
   app.use('/api/source-analytics', sourceAnalyticsRouter);
 
+  // Import and register signal archive routes
+  import signalArchiveRouter from './routes/signal-archive';
+  app.use('/api/signal-archive', signalArchiveRouter);
+  console.log('[express] Signal Archive API registered at /api/signal-archive');
+
   console.log('[Routes] All routes registered successfully');
 
   return server;

@@ -3,6 +3,7 @@ import { CacheManager } from './gateway/cache-manager';
 import { RateLimiter } from './gateway/rate-limiter';
 import { SignalPipeline } from './gateway/signal-pipeline';
 import { signalWebSocketService } from './websocket-signals';
+import { signalArchive } from './signal-archive';
 
 /**
  * Market Data Fetcher Service
@@ -39,7 +40,7 @@ export class MarketDataFetcher {
 
   // Timeframes to fetch data for
   private readonly timeframes = ['1h'];
-  
+
   // Exchanges to try (Binance is geo-blocked on Replit)
   private readonly exchangesToTry = ['coinbase', 'kucoinfutures', 'okx', 'bybit', 'kraken'];
 
@@ -167,11 +168,24 @@ export class MarketDataFetcher {
             const signal = await this.signalPipeline.generateSignal(symbol, '1h', 100);
             if (signal) {
               this.latestSignals.set(symbol, signal);
-              
+
               // Extract signal properties
               const action = (signal as any).action || (signal as any).type || (signal as any).signal || 'HOLD';
               const confidence = (signal as any).confidence || 0;
-              
+
+              // Archive the signal with its outcome
+              await signalArchive.archiveSignal({
+                symbol,
+                signal: action as 'BUY' | 'SELL' | 'HOLD',
+                strength: confidence,
+                price: currentPrice,
+                change24h: (signal as any).change24h,
+                volume: latest[5], // volume
+                timestamp: Date.now(),
+                exchange: (signal as any).exchange || 'aggregated',
+                outcome: null // Outcome will be recorded after execution
+              });
+
               // Broadcast signal to WebSocket clients with proper SignalData structure
               const signalData = {
                 symbol,
@@ -184,7 +198,7 @@ export class MarketDataFetcher {
                 exchange: (signal as any).exchange || 'aggregated'
               };
               signalWebSocketService.broadcastSignal(signalData, 'new');
-              
+
               console.log(`[MarketDataFetcher] Signal generated for ${symbol}: ${action} (strength: ${confidence.toFixed(1)}%)`);
             }
           } catch (signalError: any) {
@@ -214,7 +228,7 @@ export class MarketDataFetcher {
 
       if (ohlcvData && Array.isArray(ohlcvData) && ohlcvData.length > 0) {
         console.log(`[MarketDataFetcher] Successfully fetched ${symbol} (${ohlcvData.length} candles)`);
-        
+
         // Convert OHLCVData[] format to CCXT number[][] format: [timestamp, open, high, low, close, volume]
         const candles = ohlcvData.map((candle: any) => [
           candle.timestamp,
@@ -224,7 +238,7 @@ export class MarketDataFetcher {
           candle.close,
           candle.volume
         ]);
-        
+
         return candles;
       } else {
         throw new Error(`No valid OHLCV data returned for ${symbol}`);
