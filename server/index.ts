@@ -209,8 +209,8 @@ app.use((req, res, next) => {
     console.error(err); // Don't rethrow, just log
   });
 
-  // Backend server on port 5000
-  const port = parseInt(process.env.PORT || '5000');
+  // Backend server on port 3000
+  const port = parseInt(process.env.PORT || '3000');
   // Bind to the IPv6 unspecified address so the server accepts both
   // IPv6 (::1 / ::) and IPv4 (0.0.0.0 / 127.0.0.1) loopback connections.
   // This makes `http://localhost` work even when localhost resolves to ::1.
@@ -221,8 +221,8 @@ app.use((req, res, next) => {
     console.log(`║  🚀 Scanstream Backend Server                          ║`);
     console.log(`╠════════════════════════════════════════════════════════╣`);
     console.log(`║  Backend API:    http://0.0.0.0:${port.toString().padEnd(4)}                   ║`);
-    console.log(`║  Scanner API:    http://localhost:5001                 ║`);
-    console.log(`║  Frontend Dev:   http://localhost:5173                 ║`);
+    console.log(`║  Scanner API:    http://localhost:3001                 ║`);
+    console.log(`║  Frontend Dev:   http://localhost:3173                 ║`);
     console.log(`║  Database:       postgresql://localhost:5432/scandb    ║`);
     console.log(`║  WebSocket:      http://0.0.0.0:${port.toString().padEnd(4)}/ws               ║`);
     console.log(`╚════════════════════════════════════════════════════════╝\n`);

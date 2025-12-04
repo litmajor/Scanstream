@@ -3,7 +3,7 @@ import { EnhancedPortfolioSimulator, PositionSizeConfig } from './portfolio-simu
 import { db } from './db-storage';
 import type { Signal } from '@shared/schema';
 import { EventEmitter } from 'events';
-import { adaptiveHoldingIntegration } from './adaptive-holding-integration';
+import { adaptiveHoldingIntegration } from './services/adaptive-holding-integration';
 
 interface HoldingDecisionMetadata {
   holdingPeriodDays: number;
