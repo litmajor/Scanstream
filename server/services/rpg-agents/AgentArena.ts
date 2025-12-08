@@ -8,6 +8,7 @@ import { InformationChannelSystem } from './InformationChannelSystem';
 import { MarketSage } from './MarketSage';
 import { AgentPortfolioManager } from './AgentPortfolioManager';
 import { OnlineLearningSystem } from './OnlineLearningSystem';
+import { AgentSpawner, type SpawnDecision, type MarketRegime } from './AgentSpawner';
 
 export interface LeaderboardEntry {
   agent_name: string;
@@ -43,6 +44,8 @@ export class AgentArena {
   private marketSage: MarketSage;
   private portfolioManager: AgentPortfolioManager;
   private learningSystem: OnlineLearningSystem;
+  private agentSpawner: AgentSpawner;
+  private currentRegime: MarketRegime = 'NEUTRAL';
 
   constructor() {
     this.marketOracle = new MarketOracle();
@@ -54,8 +57,9 @@ export class AgentArena {
     this.marketSage = new MarketSage();
     this.portfolioManager = new AgentPortfolioManager(100000);  // $100k initial capital
     this.learningSystem = new OnlineLearningSystem();
+    this.agentSpawner = new AgentSpawner(this);
     this.initializeAgents();
-    this.initializeCombos(); // Initialize combos in the constructor
+    this.initializeCombos();
   }
 
   /**
@@ -494,6 +498,94 @@ export class AgentArena {
   recordLearningExperience(agentName: string, state: any, action: any, reward: number, nextState: any) {
     const agent = this.agents.get(agentName);
     if (!agent) return;
+
+  /**
+   * Auto-manage team composition based on market regime
+   */
+  autoManageTeam(marketRegime: MarketRegime): {
+    spawned: TradingAgent[];
+    retired: string[];
+    decisions: SpawnDecision[];
+  } {
+    this.currentRegime = marketRegime;
+    
+    // Analyze what the team needs
+    const decisions = this.agentSpawner.analyzeTeamNeeds(marketRegime);
+    
+    // Execute top priority spawns (max 2 per cycle)
+    const spawned: TradingAgent[] = [];
+    const topDecisions = decisions.filter(d => d.shouldSpawn).slice(0, 2);
+    
+    topDecisions.forEach(decision => {
+      const agent = this.agentSpawner.spawnAgent(decision);
+      spawned.push(agent);
+    });
+    
+    // Retire underperformers
+    const retired = this.agentSpawner.retireUnderperformers();
+    
+    console.log(`🎮 Team auto-management: spawned ${spawned.length}, retired ${retired.length}`);
+    
+    return { spawned, retired, decisions };
+  }
+
+  /**
+   * Get team composition analysis
+   */
+  getTeamAnalysis(): {
+    totalAgents: number;
+    byType: Record<string, number>;
+    avgLevel: number;
+    avgWinRate: number;
+    needsAttention: boolean;
+    recommendations: string[];
+  } {
+    const agents = this.getAllAgents();
+    const byType: Record<string, number> = {};
+    
+    let totalLevel = 0;
+    let totalWinRate = 0;
+    let tradesCount = 0;
+    
+    agents.forEach(agent => {
+      byType[agent.agent_type] = (byType[agent.agent_type] || 0) + 1;
+      totalLevel += agent.level;
+      if (agent.trades > 0) {
+        totalWinRate += agent.win_rate;
+        tradesCount += 1;
+      }
+    });
+    
+    const avgLevel = agents.length > 0 ? totalLevel / agents.length : 0;
+    const avgWinRate = tradesCount > 0 ? totalWinRate / tradesCount : 0;
+    
+    const recommendations: string[] = [];
+    const needsAttention = avgWinRate < 0.50 || agents.length < 3;
+    
+    if (agents.length < 3) {
+      recommendations.push('Team too small - spawn more agents');
+    }
+    if (avgWinRate < 0.50) {
+      recommendations.push('Low team win rate - consider regime shift or retraining');
+    }
+    if (Object.keys(byType).length < 3) {
+      recommendations.push('Low diversity - spawn different agent types');
+    }
+    
+    return {
+      totalAgents: agents.length,
+      byType,
+      avgLevel: Math.round(avgLevel * 10) / 10,
+      avgWinRate: Math.round(avgWinRate * 1000) / 1000,
+      needsAttention,
+      recommendations
+    };
+  }
+
+  getCurrentRegime(): MarketRegime {
+    return this.currentRegime;
+  }
+
     this.learningSystem.recordExperience(agent, state, action, reward, nextState);
   }
 

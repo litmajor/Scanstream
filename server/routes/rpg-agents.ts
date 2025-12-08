@@ -347,6 +347,53 @@ router.post('/update-performance', async (req, res) => {
       const { agentName } = req.params;
       const { reason } = req.body;
       arena.hibernateAgent(agentName, reason);
+
+/**
+ * POST /api/rpg-agents/auto-manage
+ * Trigger automatic team management
+ */
+router.post('/auto-manage', async (req, res) => {
+  try {
+    const { marketRegime = 'NEUTRAL' } = req.body;
+    
+    const result = arena.autoManageTeam(marketRegime as any);
+    
+    res.json({
+      success: true,
+      spawned: result.spawned.map(a => a.getStatus()),
+      retired: result.retired,
+      decisions: result.decisions,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/rpg-agents/team-analysis
+ * Get team composition and health analysis
+ */
+router.get('/team-analysis', (req, res) => {
+  try {
+    const analysis = arena.getTeamAnalysis();
+    
+    res.json({
+      success: true,
+      analysis,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
       res.json({ success: true, message: `${agentName} hibernated` });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
