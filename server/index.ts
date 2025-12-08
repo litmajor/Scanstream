@@ -225,8 +225,8 @@ app.use((req, res, next) => {
     console.error(err); // Don't rethrow, just log
   });
 
-  // Backend server on port 3000
-  const port = parseInt(process.env.PORT || '3000');
+  // Backend server on port 5000 (required for Replit webview)
+  const port = parseInt(process.env.PORT || '5000');
   // Bind to all IPv4 addresses including localhost (127.0.0.1)
   const host = '0.0.0.0';
 
