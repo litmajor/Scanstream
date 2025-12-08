@@ -238,4 +238,81 @@ router.post('/update-performance', async (req, res) => {
   }
 });
 
+// Get market oracle status
+  app.get('/api/rpg-agents/market-oracle', async (req, res) => {
+    try {
+      const status = arena.getMarketOracleStatus();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get agent achievements
+  app.get('/api/rpg-agents/:agentName/achievements', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const achievements = arena.getAgentAchievements(agentName);
+      res.json(achievements);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get achievement leaderboard
+  app.get('/api/rpg-agents/achievements/leaderboard', async (req, res) => {
+    try {
+      const leaderboard = arena.getAchievementLeaderboard();
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Vote on a signal
+  app.post('/api/rpg-agents/vote-signal', async (req, res) => {
+    try {
+      const signal = req.body;
+      const voteResult = await arena.voteOnSignal(signal);
+      res.json(voteResult);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get voting power distribution
+  app.get('/api/rpg-agents/voting-power', async (req, res) => {
+    try {
+      const votingPower = arena.getVotingPower();
+      res.json(votingPower);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Spawn sub-agent
+  app.post('/api/rpg-agents/:agentName/spawn', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const { specialization } = req.body;
+
+      const agent = arena.getAgent(agentName);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      const subAgent = agent.spawnSubAgent(specialization);
+      res.json({ 
+        success: !!subAgent,
+        subAgent: subAgent ? {
+          name: subAgent.name,
+          level: subAgent.level,
+          experience: subAgent.experience
+        } : null
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
 export default router;
