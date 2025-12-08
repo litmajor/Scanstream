@@ -57,6 +57,8 @@ import mtfConfirmationRouter from './routes/mtf-confirmation';
 import intelligentExitsRouter from './routes/intelligent-exits';
 // Import correlation hedge routes
 import correlationHedgeRouter from './routes/correlation-hedge';
+// Import RPG agents routes
+import rpgAgents from './routes/rpg-agents';
 
 // Import signal archive routes
 import signalArchiveRouter from './routes/signal-archive';
@@ -177,7 +179,7 @@ try {
     // Setup authentication
     // await setupAuth(app); // DISABLED FOR TESTING
 
-    // AUTH ROUTES DISABLED FOR TESTING
+    // AUTHROUTES DISABLED FOR TESTING
     // Mock user for development
     const mockUser = {
       id: 'dev-user-001',
@@ -1733,6 +1735,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use("/api/correlation-boost", correlationBoostRouter);
   app.use("/api/audit-logs", auditLogsRoutes);
   app.use("/api/model-drift", modelDriftRoutes);
+  // Mount RPG agents routes
+  app.use('/api/rpg-agents', rpgAgents);
 
   console.log('[Routes] All routes registered successfully');
 
