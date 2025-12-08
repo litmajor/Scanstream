@@ -16,23 +16,39 @@ import { MLOracle } from './MLOracle';
 import { TrendRider } from './TrendRider';
 import { SupportSniper } from './SupportSniper';
 
+import { createAgentFromPythonStrategy } from './PythonStrategyAgent';
+
 export class StrategyBridge {
   private arena: AgentArena;
+  private gatewayAggregator: any;
   
-  constructor() {
+  constructor(gatewayAggregator?: any) {
     this.arena = new AgentArena();
+    this.gatewayAggregator = gatewayAggregator;
+    
+    // Initialize Market Oracle with Gateway
+    if (gatewayAggregator) {
+      marketOracle.initialize(gatewayAggregator);
+    }
+    
     this.initializeAgents();
   }
   
   private initializeAgents(): void {
-    // Create RPG agents
+    // Native TypeScript RPG agents
     this.arena.registerAgent(new BreakoutHunter('BREAKOUT_HUNTER'));
     this.arena.registerAgent(new ReversalMaster('REVERSAL_MASTER'));
     this.arena.registerAgent(new MLOracle('ML_ORACLE'));
     this.arena.registerAgent(new TrendRider('TREND_RIDER'));
     this.arena.registerAgent(new SupportSniper('SUPPORT_SNIPER'));
     
-    console.log('[Strategy Bridge] Initialized 5 RPG agents');
+    // Python strategy agents (inheriting Python traits)
+    this.arena.registerAgent(createAgentFromPythonStrategy('gradient_trend'));
+    this.arena.registerAgent(createAgentFromPythonStrategy('ut_bot'));
+    this.arena.registerAgent(createAgentFromPythonStrategy('mean_reversion'));
+    this.arena.registerAgent(createAgentFromPythonStrategy('volume_profile'));
+    
+    console.log('[Strategy Bridge] Initialized 9 RPG agents (5 native + 4 Python-trait)');
   }
   
   /**

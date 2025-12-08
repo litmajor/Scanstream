@@ -1,10 +1,24 @@
-
 import express from 'express';
+import { StrategyBridge } from '../services/rpg-agents/StrategyBridge';
+import { ExchangeAggregator } from '../services/gateway/exchange-aggregator';
+import { CacheManager } from '../services/gateway/cache-manager';
+import { RateLimiter } from '../services/gateway/rate-limiter';
 import { AgentArena } from '../services/rpg-agents/AgentArena';
 import { BreakoutHunter } from '../services/rpg-agents/BreakoutHunter';
 import { TradingAgent } from '../services/rpg-agents/TradingAgent';
 
 const router = express.Router();
+
+// Initialize Gateway components
+const cache = new CacheManager();
+const rateLimiter = new RateLimiter();
+const gatewayAggregator = new ExchangeAggregator(cache, rateLimiter);
+
+// Initialize Strategy Bridge with Gateway
+const strategyBridge = new StrategyBridge(gatewayAggregator);
+
+// Initialize Gateway
+gatewayAggregator.initialize().catch(console.error);
 
 // Initialize the arena with some agents
 const arena = new AgentArena();
@@ -22,7 +36,7 @@ arena.registerAgent(breakoutHunter);
 router.get('/leaderboard', (req, res) => {
   try {
     const leaderboard = arena.getLeaderboard();
-    
+
     res.json({
       success: true,
       data: leaderboard,
@@ -44,14 +58,14 @@ router.get('/status/:agentName', (req, res) => {
   try {
     const { agentName } = req.params;
     const agent = arena.getAgent(agentName);
-    
+
     if (!agent) {
       return res.status(404).json({
         success: false,
         error: 'Agent not found'
       });
     }
-    
+
     res.json({
       success: true,
       data: agent.getStatus(),
@@ -72,7 +86,7 @@ router.get('/status/:agentName', (req, res) => {
 router.get('/combos', (req, res) => {
   try {
     const combos = arena.getCombos();
-    
+
     res.json({
       success: true,
       data: combos,
@@ -93,7 +107,7 @@ router.get('/combos', (req, res) => {
 router.post('/upgrade-skill', (req, res) => {
   try {
     const { agentName, skill } = req.body;
-    
+
     const agent = arena.getAgent(agentName);
     if (!agent) {
       return res.status(404).json({
@@ -101,9 +115,9 @@ router.post('/upgrade-skill', (req, res) => {
         error: 'Agent not found'
       });
     }
-    
+
     const upgraded = agent.upgradeSkill(skill as any);
-    
+
     res.json({
       success: true,
       upgraded,
@@ -125,7 +139,7 @@ router.post('/upgrade-skill', (req, res) => {
 router.get('/all', (req, res) => {
   try {
     const agents = arena.getAllAgents().map(agent => agent.getStatus());
-    
+
     res.json({
       success: true,
       data: agents,
@@ -146,9 +160,8 @@ router.get('/all', (req, res) => {
  */
 router.post('/process-market', async (req, res) => {
   try {
-    const { strategyBridge } = await import('../services/rpg-agents/StrategyBridge');
     const result = await strategyBridge.processMarketData(req.body);
-    
+
     res.json({
       success: true,
       data: result,
@@ -169,7 +182,7 @@ router.post('/process-market', async (req, res) => {
 router.post('/spawn', (req, res) => {
   try {
     const { parentAgentName, specialization } = req.body;
-    
+
     const parentAgent = arena.getAgent(parentAgentName);
     if (!parentAgent) {
       return res.status(404).json({
@@ -177,16 +190,16 @@ router.post('/spawn', (req, res) => {
         error: 'Parent agent not found'
       });
     }
-    
+
     const subAgent = arena.spawnSubAgent(parentAgent, specialization);
-    
+
     if (!subAgent) {
       return res.status(400).json({
         success: false,
         error: 'Failed to spawn sub-agent. Check level and abilities.'
       });
     }
-    
+
     res.json({
       success: true,
       data: {
@@ -209,11 +222,10 @@ router.post('/spawn', (req, res) => {
  */
 router.post('/update-performance', async (req, res) => {
   try {
-    const { strategyBridge } = await import('../services/rpg-agents/StrategyBridge');
     const { agentName, tradeResult } = req.body;
-    
+
     strategyBridge.updateAgentPerformance(agentName, tradeResult);
-    
+
     res.json({
       success: true,
       message: `Updated performance for ${agentName}`
