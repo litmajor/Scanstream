@@ -1,0 +1,550 @@
+class AgentSynergy:
+    """
+    Detects when multiple agents align on a setup
+    and applies synergy bonuses
+    """
+    
+    COMBOS = {
+        'triple_bottom_hunter': {
+            'agents': ['SUPPORT_SNIPER', 'REVERSAL_MASTER', 'ML_ORACLE'],
+            'condition': 'all_agree_buy_at_support',
+            'min_combined_level': 30,
+            'bonuses': {
+                'win_rate': +0.15,
+                'position_size': 1.3,  # 30% larger positions
+                'confidence': +0.10
+            }
+        },
+        'tsunami': {
+            'agents': ['BREAKOUT_HUNTER', 'TREND_RIDER', 'ML_ORACLE'],
+            'condition': 'breakout_with_strong_trend',
+            'min_combined_level': 30,
+            'bonuses': {
+                'profit_target': 1.5,  # 50% larger targets
+                'trailing_stop': True,
+                'confidence': +0.20
+            }
+        },
+        'the_trap': {
+            'agents': ['BREAKOUT_HUNTER', 'REVERSAL_MASTER', 'TREND_RIDER'],
+            'condition': 'failed_breakout_detected',
+            'min_combined_level': 45,
+            'bonuses': {
+                'inverse_trade': True,  # Fade the breakout
+                'confidence': +0.25,
+                'position_size': 1.5
+            }
+        }
+    }
+    
+    def check_for_combos(self, agents, signal):
+        """
+        Check if multiple agents form a synergy combo
+        """
+        active_combos = []
+        
+        for combo_name, combo_data in self.COMBOS.items():
+            # Check if required agents are present
+            required_agents = combo_data['agents']
+            present_agents = [a for a in agents if a.name in required_agents]
+            
+            if len(present_agents) < len(required_agents):
+                continue
+            
+            # Check level requirement
+            combined_level = sum(a.level for a in present_agents)
+            if combined_level < combo_data['min_combined_level']:
+                continue
+            
+            # Check condition
+            if self.check_condition(combo_data['condition'], present_agents, signal):
+                active_combos.append({
+                    'name': combo_name,
+                    'agents': present_agents,
+                    'bonuses': combo_data['bonuses']
+                })
+        
+        return active_combos
+
+# EXAMPLE IN ACTION:
+
+agents = [BREAKOUT_HUNTER, TREND_RIDER, ML_ORACLE]
+signal = {
+    'asset': 'BTC/USDT',
+    'pattern': 'breakout',
+    'regime': 'BULL_TRENDING',
+    'trend_strength': 'STRONG'
+}
+
+combos = synergy_system.check_for_combos(agents, signal)
+
+if combos:
+    print(f"🎊 COMBO ACTIVATED: {combos[0]['name']}")
+    print(f"Participating agents: {[a.name for a in combos[0]['agents']]}")
+    print(f"Bonuses applied:")
+    for bonus_type, bonus_value in combos[0]['bonuses'].items():
+        print(f"  - {bonus_type}: {bonus_value}")
+    
+    # Apply bonuses to trade
+    signal['confidence'] *= (1 + combos[0]['bonuses']['confidence'])
+    signal['profit_target'] *= combos[0]['bonuses']['profit_target']
+```
+
+---
+
+### **Problem 4: What About Agents That Consistently Underperform?**
+
+**Current Design:**
+- Agent loses, gets less XP
+- But still exists forever
+
+**Refined Design: Agent Lifecycle - Birth, Growth, Retirement, Death**
+```
+AGENT LIFECYCLE STAGES:
+
+1. BIRTH (Level 1-5) - "Rookie"
+   - Learning phase
+   - Small position sizes (0.5% max)
+   - Requires mentorship from higher-level agents
+   - Can't be retired (protected learning period)
+
+2. GROWTH (Level 6-15) - "Journeyman"
+   - Normal operation
+   - Standard position sizes (1% max)
+   - Performance monitored
+   - Can be put on probation if underperforming
+
+3. MASTERY (Level 16-25) - "Expert"
+   - Peak performance
+   - Large position sizes (2% max)
+   - Can mentor rookie agents
+   - Can create sub-agents
+
+4. RETIREMENT (Level 26+) - "Legend"
+   - Reduces active trading
+   - Becomes advisor/strategist
+   - Focuses on teaching and coordination
+   - Creates legacy agents
+
+5. DEATH - "Obsolescence"
+   - Consistently loses money
+   - Falls below minimum performance threshold
+   - Gets retired permanently
+   - Resources redistributed to other agents
+```
+
+**Example - Agent Retirement:**
+```
+═══════════════════════════════════════════════════════════════
+⚠️  PERFORMANCE REVIEW: REVERSAL_MASTER_BETA
+═══════════════════════════════════════════════════════════════
+
+Current Stats:
+Level: 9
+Win Rate: 43% (below 45% threshold)
+Profit Factor: 0.82 (losing money)
+Last 50 Trades: -8.2% cumulative loss
+Time Since Profitable Month: 3 months
+
+Historical Peak:
+Level 9 (current)
+Best Win Rate: 58% (6 months ago)
+Best Profit Factor: 2.1 (8 months ago)
+
+═══════════════════════════════════════════════════════════════
+DIAGNOSIS:
+Market regime has shifted from SIDEWAYS (where REVERSAL excels)
+to BULL_TRENDING (where REVERSAL struggles). Agent is fighting
+the trend and losing consistently.
+
+OPTIONS:
+
+1. PROBATION (Recommended)
+   - Reduce position sizes 50%
+   - Limit to 5 trades/month
+   - Monitor for 30 days
+   - If performance improves → full status
+   - If performance worsens → retirement
+
+2. RETRAINING
+   - Send to "Agent Academy"  
+   - Re-analyze last 500 trades
+   - Rebuild parameters from scratch
+   - Costs: 3,000 XP (take from other agents)
+   - Timeline: 2 weeks
+
+3. HIBERNATION
+   - Pause all trading
+   - Wait for favorable regime (SIDEWAYS)
+   - No resource cost
+   - Reactivate when conditions improve
+
+4. RETIREMENT
+   - Permanently retire agent
+   - Redistribute $15k allocation to other agents
+   - Agent insights preserved for future agents
+   - Cannot be undone
+
+═══════════════════════════════════════════════════════════════
+
+Your decision: [Probation] [Retrain] [Hibernate] [Retire]
+```
+
+**You Choose: HIBERNATION**
+```
+✅ REVERSAL_MASTER_BETA → HIBERNATION MODE
+
+Status: INACTIVE
+Allocation: $15,000 → $0 (redistributed)
+Monitoring: Regime changes (will alert when SIDEWAYS detected)
+
+💭 REVERSAL_MASTER_BETA:
+"I understand. This bull market is not my time. I'll wait for the
+range-bound conditions where I shine. Call me when RSI stops trending
+above 50 for weeks at a time. I'll be ready."
+
+Capital Reallocation:
+- BREAKOUT_HUNTER: $25,000 → $30,000 (+$5k)
+- TREND_RIDER: $20,000 → $25,000 (+$5k)
+- Others: Unchanged
+
+Team Win Rate Impact: 62% → 65% (removed dead weight)
+```
+
+**3 Months Later - Regime Changes:**
+```
+🚨 REGIME ALERT
+
+Market has shifted: BULL_TRENDING → SIDEWAYS_RANGE
+ADX dropped from 52 to 18
+BTC range: $85k - $92k for 45 days
+
+🌊 REVERSAL_MASTER_BETA can be reactivated!
+
+Historical performance in SIDEWAYS: 62% win rate, 2.4 PF
+
+Reactivate agent?
+[Yes - Allocate $12k] [No - Keep hibernating]
+```
+
+---
+
+### **Problem 5: How Do New Agent Types Get Created?**
+
+**Current Design:**
+- You manually code 5 agent types
+- They exist forever
+
+**Refined Design: Agent Evolution & Emergence**
+```
+HIGH-LEVEL AGENTS (Level 20+) CAN CREATE NEW AGENT TYPES
+
+Example: ML_ORACLE reaches Level 25, becomes MARKET_SAGE
+
+MARKET_SAGE ability: "Strategy Creation"
+- Analyze market inefficiencies
+- Design new agent types to exploit them
+- Spawn experimental agents
+```
+
+**Example - New Agent Birth:**
+```
+═══════════════════════════════════════════════════════════════
+🔮 MARKET_SAGE_GAMMA - STRATEGY ANALYSIS REPORT
+═══════════════════════════════════════════════════════════════
+
+I have analyzed 10,000 historical trades across all agents and
+identified an UNEXPLOITED PATTERN:
+
+PATTERN: "Gap Fade Strategy"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Observation:
+When BTC gaps >2% overnight (happens ~45x/year), the gap fills
+within 24 hours 78% of the time.
+
+Current Agent Coverage:
+- BREAKOUT_HUNTER: Enters breakouts, not gap fades ❌
+- REVERSAL_MASTER: Trades oversold, not gaps ❌
+- TREND_RIDER: Follows trends, not gaps ❌
+- ML_ORACLE: Doesn't specifically target gaps ❌
+- SUPPORT_SNIPER: Trades support, not gaps ❌
+
+NONE of our agents are exploiting this pattern!
+
+Historical Backtest (Last 2 Years):
+- Gap occurrences: 92
+- Gap fill rate: 78% (72/92)
+- Avg profit per trade: +1.8%
+- Avg loss per trade: -0.9%
+- Profit Factor: 2.4
+- Sharpe Ratio: 1.9
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RECOMMENDATION: Create new agent type
+
+Name: GAP_FADER_ZETA
+Specialty: Trading overnight gaps
+Strategy: Fade gaps >2%, target gap fill
+Allocation: $8,000 (8% of capital)
+Risk: Low (tight stops, high win rate)
+
+Create this agent?
+[Yes - Spawn] [No - Reject] [Backtest More]
+```
+
+**You Choose: YES - SPAWN**
+```
+✨ CREATING NEW AGENT: GAP_FADER_ZETA
+
+Agent Type: GAP_FADER
+Specialty: Overnight gap trading
+Starting Level: 1 (inherits 20% of MARKET_SAGE knowledge)
+Personality: Patient, opportunistic
+Allocation: $8,000
+
+Intelligence Channels:
+- Gap_Detection (new channel created by MARKET_SAGE)
+- Regime (to avoid gaps during extreme volatility)
+- Velocity (to set realistic fill targets)
+
+Base Parameters:
+- Min gap size: 2.0%
+- Max gap size: 5.0% (avoid black swans)
+- Entry: Market open
+- Target: Gap fill (0% from previous close)
+- Stop: -1.5% from entry
+- Max position: 1%
+
+🎊 GAP_FADER_ZETA has joined the team!
+
+Total Agents: 5 → 6
+Team Diversity Score: 72 → 85 (more strategy coverage)
+```
+
+**2 Months Later:**
+```
+📊 GAP_FADER_ZETA Performance Review (First 60 Days)
+
+Trades: 8 (gaps are rare)
+Win Rate: 75% (6W-2L)
+Profit Factor: 2.8
+ROI: +9.2% on $8k allocation
+Sharpe: 2.1
+
+Best Trade: BTC gap from $92k to $88.5k → faded to $91.2k (+$72)
+Worst Trade: Gap from $87k to $84k → continued to $82k (-$18)
+
+STATUS: VALIDATED ✅
+This agent is profitable and fills a gap (pun intended) in our strategy.
+
+🔮 MARKET_SAGE:
+"My creation is successful. GAP_FADER has captured $224 in profit
+from 8 trades. This strategy works. I will continue monitoring for
+other unexploited patterns."
+```
+
+---
+
+## 🌟 THE COMPLETE REFINED SYSTEM
+
+### **Core Components (Revised):**
+```
+1. MARKET_ORACLE (Intelligence Hub)
+   - Processes raw market data
+   - Broadcasts to specialized channels
+   - Routes information to relevant agents
+
+2. AGENT PORTFOLIO MANAGER
+   - Allocates capital to each agent independently
+   - Rebalances weekly based on performance
+   - Ensures diversification and risk limits
+
+3. TRADING AGENTS (Specialists)
+   - Independent portfolios
+   - Specialized strategies
+   - Level progression & skill trees
+   - Adaptive parameter evolution
+   - Personality & mood states
+
+4. SYNERGY DETECTOR
+   - Identifies agent combinations
+   - Applies combo bonuses
+   - Unlocks special strategies
+
+5. AGENT LIFECYCLE MANAGER
+   - Monitors agent performance
+   - Probation/hibernation/retirement
+   - New agent creation
+   - Resource allocation
+
+6. MARKET_SAGE (Meta-Agent, Level 20+)
+   - Strategy discovery
+   - New agent creation
+   - Team optimization
+   - Performance analysis
+
+7. INTEGRATION LAYER
+   - Connects to Scanstream infrastructure
+   - Uses existing components (velocity, regime, position sizing, exits)
+   - Adds RPG layer on top
+```
+
+### **Information Flow (Refined):**
+```
+[Raw Market Data]
+        ↓
+[MARKET_ORACLE Processing]
+        ↓
+[Specialized Channels] → momentum, reversion, trend, ML, support, gaps
+        ↓
+[Agent Subscriptions] → each agent subscribes to relevant channels
+        ↓
+[Independent Agent Analysis] → each agent makes own decisions
+        ↓
+[Synergy Detection] → check for agent combos
+        ↓
+[Portfolio Manager Approval] → check risk limits
+        ↓
+[Trade Execution] → use Scanstream infrastructure
+        ↓
+[Performance Tracking] → XP, learning, evolution
+        ↓
+[Adaptive Learning] → agents evolve parameters
+        ↓
+[MARKET_SAGE Analysis] → identify new strategies
+        ↓
+[New Agent Creation] → spawn agents to fill gaps
+```
+
+---
+
+## 🚀 WHY THIS IS REVOLUTIONARY
+
+Now let me show you why this refined concept would fundamentally change algorithmic trading...
+
+### **Revolution #1: The Death of Black Box Trading**
+
+**Current State of Algo Trading:**
+```
+Traditional Algorithm:
+Input: Price data
+Output: "BUY" or "SELL"
+Explanation: ???
+
+Trader's Experience:
+"Why did it buy?"
+"I don't know, the algorithm said so"
+"Should I trust it?"
+"I guess?"
+
+Result: Traders abandon algorithms during drawdowns
+```
+
+**RPG Agent System:**
+```
+Agent System:
+Input: Price data
+Process: Visible agent analysis, voting, synergies
+Output: "BREAKOUT_HUNTER (Level 12) detected volume breakout with
+88% confidence, confirmed by TREND_RIDER (82%) and ML_ORACLE (76%).
+Tsunami combo activated (+25% profit bonus). Entering $87,450."
+
+Trader's Experience:
+"Why did it buy?"
+"BREAKOUT_HUNTER found a high-volume breakout in a strong trend,
+validated by two other expert agents. This combo historically
+performs at 68% win rate with 3.2 profit factor."
+
+"Should I trust it?"
+"Yes - three Level 10+ agents agree, and the Tsunami combo has
+won the last 8/11 times it activated."
+
+Result: Traders TRUST the system and stick with it
+```
+
+**Impact:** Trading psychology improves dramatically. Systems don't get abandoned during draw downs.
+
+---
+
+### **Revolution #2: Adaptive Evolution vs Static Code**
+
+**Traditional Algo:**
+```
+Code Written: January 2025
+Performance:
+- Jan: 62% win rate (market bull trending)
+- Feb: 62% win rate (still bull)
+- Mar: 52% win rate (market shifts sideways)
+- Apr: 45% win rate (market volatile)
+- May: 38% win rate (market crashes)
+
+Problem: Algorithm doesn't adapt to regime changes
+Solution: Manually rewrite code (takes weeks)
+```
+
+**RPG Agent System:**
+```
+Agents Active: January 2025
+Performance:
+- Jan (BULL): BREAKOUT 68%, TREND 65%, others benched
+- Feb (BULL): Same, BREAKOUT levels to 13, learns better entries
+- Mar (SIDEWAYS): System auto-benches BREAKOUT, activates REVERSAL 62%
+- Apr (VOLATILE): All agents reduce size 60%, ML_ORACLE leads (58%)
+- May (CRASH): REVERSAL dominates (70% shorting bounces), portfolio hedged
+
+Problem: N/A - system adapts automatically
+Solution: Agents evolve, hibernate, or spawn new types
+```
+
+**Impact:** Performance stays consistent across ALL market regimes instead of degrading.
+
+---
+
+### **Revolution #3: Continuous Improvement Without Overfitting**
+
+**Traditional Backtesting:**
+```
+Problem: You optimize parameters on historical data
+Risk: Overfit to the past
+Result: Great backtest, poor live performance
+
+Example:
+Backtest (2023-2024): 85% win rate, 4.2 PF
+Live (2025): 48% win rate, 0.9 PF
+Diagnosis: Overfitted
+
+Solution: Start over, rewrite everything
+```
+
+**RPG Agent Learning:**
+```
+Process: Agents learn from LIVE trading, not backtests
+
+BREAKOUT_HUNTER:
+- Trades live
+- Wins 65% in bull markets
+- Loses 42% in sideways markets
+- LEARNS: "I suck in sideways, hibernate during those"
+- Evolution: Adds regime filter automatically
+- Result: 65% win rate maintained across time
+
+This is ONLINE LEARNING, not curve-fitting
+```
+
+**Impact:** System gets BETTER over time through real-world feedback, not worse through overfitting.
+
+---
+
+### **Revolution #4: Portfolio Theory Meets AI**
+
+**Traditional Approach:**
+```
+You build ONE strategy
+It either works or doesn't
+
+Problems:
+- Single point of failure
+- No diversification
+- Strategy-specific risk
