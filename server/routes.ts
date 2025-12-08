@@ -59,6 +59,8 @@ import intelligentExitsRouter from './routes/intelligent-exits';
 import correlationHedgeRouter from './routes/correlation-hedge';
 // Import RPG agents routes
 import rpgAgents from './routes/rpg-agents';
+// Import feature engineering routes
+import featureEngineeringRouter from './routes/feature-engineering';
 
 // Import signal archive routes
 import signalArchiveRouter from './routes/signal-archive';
@@ -1737,6 +1739,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use("/api/model-drift", modelDriftRoutes);
   // Mount RPG agents routes
   app.use('/api/rpg-agents', rpgAgents);
+  // Mount feature engineering routes
+  app.use('/api/feature-engineering', featureEngineeringRouter);
 
   console.log('[Routes] All routes registered successfully');
 
