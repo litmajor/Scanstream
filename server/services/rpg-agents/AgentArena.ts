@@ -464,6 +464,10 @@ export class AgentArena {
     return this.channelSystem.getChannelStats();
   }
 
+  getChannelSystem() {
+    return this.channelSystem;
+  }
+
   // Market Sage methods
   async discoverNewStrategies() {
     return await this.marketSage.discoverPatterns(Array.from(this.agents.values()));

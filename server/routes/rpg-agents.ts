@@ -543,3 +543,54 @@ router.get('/team-analysis', (req, res) => {
   });
 
 export default router;
+
+
+/**
+ * GET /api/rpg-agents/feature-insights
+ * Get feature importance and correlations
+ */
+router.get('/feature-insights', (req: Request, res: Response) => {
+  try {
+    const insights = arena.getChannelSystem().getFeatureInsights();
+    
+    res.json({
+      success: true,
+      insights,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/rpg-agents/:agentName/feature-recommendations
+ * Get personalized feature recommendations for an agent
+ */
+router.get('/:agentName/feature-recommendations', (req: Request, res: Response) => {
+  try {
+    const { agentName } = req.params;
+    const { regime = 'NEUTRAL' } = req.query;
+    
+    const recommendations = arena.getChannelSystem().getFeatureRecommendations(
+      agentName,
+      regime as string
+    );
+    
+    res.json({
+      success: true,
+      agentName,
+      regime,
+      recommendations,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});

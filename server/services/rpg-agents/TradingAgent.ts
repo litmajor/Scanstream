@@ -104,7 +104,52 @@ export class TradingAgent {
     this.name = name;
     this.agent_type = agent_type;
     this.personality = personality;
+    this.initializeFeaturePreferences();
   }
+
+  /**
+   * Initialize feature preferences based on agent type
+   */
+  private initializeFeaturePreferences(): void {
+    // Each agent type has different feature priorities
+    const preferences: any = {
+      'BREAKOUT': [
+        { feature: 'volumeRatio', weight: 0.9, channelType: 'volume_profile' },
+        { feature: 'momentum', weight: 0.8, channelType: 'momentum' },
+        { feature: 'bbPosition', weight: 0.7, channelType: 'trend' },
+        { feature: 'resistance', weight: 0.6, channelType: 'support_resistance' }
+      ],
+      'REVERSAL': [
+        { feature: 'rsi', weight: 0.9, channelType: 'reversion' },
+        { feature: 'bbPosition', weight: 0.8, channelType: 'reversion' },
+        { feature: 'support', weight: 0.7, channelType: 'support_resistance' },
+        { feature: 'volatility', weight: 0.6, channelType: 'reversion' }
+      ],
+      'ML_PREDICTION': [
+        { feature: 'macd', weight: 0.8, channelType: 'ml_prediction' },
+        { feature: 'momentum', weight: 0.8, channelType: 'ml_prediction' },
+        { feature: 'volumeRatio', weight: 0.7, channelType: 'ml_prediction' },
+        { feature: 'trendStrength', weight: 0.7, channelType: 'ml_prediction' }
+      ],
+      'MA_CROSSOVER': [
+        { feature: 'ema20', weight: 0.9, channelType: 'trend' },
+        { feature: 'ema50', weight: 0.9, channelType: 'trend' },
+        { feature: 'adx', weight: 0.7, channelType: 'trend' },
+        { feature: 'trendStrength', weight: 0.8, channelType: 'trend' }
+      ],
+      'SUPPORT_BOUNCE': [
+        { feature: 'support', weight: 0.9, channelType: 'support_resistance' },
+        { feature: 'priceToSupport', weight: 0.8, channelType: 'support_resistance' },
+        { feature: 'rsi', weight: 0.7, channelType: 'reversion' },
+        { feature: 'volumeRatio', weight: 0.6, channelType: 'volume_profile' }
+      ]
+    };
+
+    // Store for later use when subscribing to channels
+    this.featurePreferences = preferences[this.agent_type] || [];
+  }
+
+  private featurePreferences: any[] = [];
 
   /**
    * Update performance after trade completion
