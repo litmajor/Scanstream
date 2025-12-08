@@ -55,6 +55,7 @@ export class AgentArena {
     this.portfolioManager = new AgentPortfolioManager(100000);  // $100k initial capital
     this.learningSystem = new OnlineLearningSystem();
     this.initializeAgents();
+    this.initializeCombos(); // Initialize combos in the constructor
   }
 
   /**
@@ -108,7 +109,7 @@ export class AgentArena {
    */
   checkComboActivation(signals: Array<{ agent_name: string; confidence: number }>): AgentCombo | null {
     for (const combo of this.combos) {
-      const participating_agents = signals.filter(s => 
+      const participating_agents = signals.filter(s =>
         combo.agents.includes(s.agent_name) && s.confidence > 0.7
       );
 
@@ -510,5 +511,71 @@ export class AgentArena {
 
   replayExperiences() {
     this.learningSystem.replayExperiences(32);
+  }
+
+  // New method to get recent activities for the live feed
+  getRecentActivities(limit: number = 20) {
+    // Collect recent activities from all agents
+    const activities: any[] = [];
+
+    this.agents.forEach(agent => {
+      // Recent trades
+      const recentTrades = agent.tradeHistory?.slice(-5) || [];
+      recentTrades.forEach(trade => {
+        activities.push({
+          timestamp: trade.timestamp || Date.now(),
+          agent: agent.name,
+          action: trade.profit > 0 ? `Closed ${trade.symbol} trade` : `Stopped out of ${trade.symbol}`,
+          result: trade.profit > 0 ? `+${(trade.profit * 100).toFixed(1)}%` : `${(trade.profit * 100).toFixed(1)}%`,
+          type: trade.profit > 0 ? 'win' : 'loss'
+        });
+      });
+
+      // Status changes
+      if (agent.state === 'HIBERNATING') {
+        activities.push({
+          timestamp: Date.now(),
+          agent: agent.name,
+          action: 'Entered hibernation',
+          result: 'Resting',
+          type: 'status'
+        });
+      } else if (agent.state === 'ACTIVE') {
+        activities.push({
+          timestamp: Date.now(),
+          agent: agent.name,
+          action: 'Active and hunting',
+          result: 'Ready',
+          type: 'active'
+        });
+      }
+    });
+
+    // Sort by timestamp and limit
+    return activities
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit)
+      .map(a => ({
+        ...a,
+        time: this.formatTimeAgo(a.timestamp)
+      }));
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return `${seconds} sec ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  }
+
+  // Add a placeholder for initializeAgents if it's not defined elsewhere
+  private initializeAgents(): void {
+    // This should be implemented to create and register initial agents
+    // For now, we'll leave it empty or add a placeholder log
+    console.log("Initializing agents...");
   }
 }

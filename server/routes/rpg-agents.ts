@@ -80,6 +80,28 @@ router.get('/status/:agentName', (req, res) => {
 });
 
 /**
+ * GET /api/rpg-agents/live-activities
+ * Get recent agent activities in real-time
+ */
+router.get('/live-activities', (req, res) => {
+  try {
+    // Get recent trades, level-ups, combo activations
+    const activities = arena.getRecentActivities(20);
+    
+    res.json({
+      success: true,
+      activities,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/rpg-agents/combos
  * Get available agent combos
  */
