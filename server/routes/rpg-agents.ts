@@ -290,6 +290,67 @@ router.post('/update-performance', async (req, res) => {
     }
   });
 
+  // Synergy system routes
+  app.get('/api/rpg-agents/synergy-stats', async (req, res) => {
+    try {
+      const stats = arena.getSynergyStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Lifecycle management routes
+  app.get('/api/rpg-agents/team-health', async (req, res) => {
+    try {
+      const report = arena.getTeamHealthReport();
+      res.json(report);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/:agentName/probation', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      arena.putAgentOnProbation(agentName);
+      res.json({ success: true, message: `${agentName} placed on probation` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/:agentName/hibernate', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const { reason } = req.body;
+      arena.hibernateAgent(agentName, reason);
+      res.json({ success: true, message: `${agentName} hibernated` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/:agentName/wake', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      arena.wakeAgent(agentName);
+      res.json({ success: true, message: `${agentName} awakened` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Information channel routes
+  app.get('/api/rpg-agents/channels/stats', async (req, res) => {
+    try {
+      const stats = arena.getChannelStats();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Spawn sub-agent
   app.post('/api/rpg-agents/:agentName/spawn', async (req, res) => {
     try {

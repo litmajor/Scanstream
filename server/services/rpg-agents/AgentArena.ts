@@ -2,6 +2,9 @@ import { TradingAgent } from './TradingAgent';
 import { MarketOracle } from './MarketOracle';
 import { StrategyBridge } from './StrategyBridge';
 import { AchievementSystem } from './AchievementSystem';
+import { AgentSynergyDetector } from './AgentSynergyDetector';
+import { AgentLifecycleManager } from './AgentLifecycleManager';
+import { InformationChannelSystem } from './InformationChannelSystem';
 
 export interface LeaderboardEntry {
   agent_name: string;
@@ -30,11 +33,17 @@ export class AgentArena {
   private marketOracle: MarketOracle;
   private strategyBridge: StrategyBridge;
   private achievementSystem: AchievementSystem;
+  private synergyDetector: AgentSynergyDetector;
+  private lifecycleManager: AgentLifecycleManager;
+  private channelSystem: InformationChannelSystem;
 
   constructor() {
     this.marketOracle = new MarketOracle();
     this.strategyBridge = new StrategyBridge();
     this.achievementSystem = new AchievementSystem();
+    this.synergyDetector = new AgentSynergyDetector();
+    this.lifecycleManager = new AgentLifecycleManager();
+    this.channelSystem = new InformationChannelSystem();
     this.initializeAgents();
   }
 
@@ -393,5 +402,50 @@ export class AgentArena {
   // Get achievement leaderboard
   getAchievementLeaderboard() {
     return this.achievementSystem.getAchievementLeaderboard();
+  }
+
+  // Synergy system methods
+  checkSynergies(activeAgents: TradingAgent[], signal: any) {
+    return this.synergyDetector.checkForCombos(activeAgents, signal);
+  }
+
+  getSynergyStats() {
+    return this.synergyDetector.getComboStats();
+  }
+
+  // Lifecycle management methods
+  reviewAgentPerformance(agentName: string) {
+    const agent = this.agents.get(agentName);
+    if (!agent) return null;
+    return this.lifecycleManager.reviewPerformance(agent);
+  }
+
+  putAgentOnProbation(agentName: string) {
+    this.lifecycleManager.putOnProbation(agentName);
+  }
+
+  hibernateAgent(agentName: string, reason: string) {
+    this.lifecycleManager.hibernateAgent(agentName, reason);
+  }
+
+  wakeAgent(agentName: string) {
+    this.lifecycleManager.wakeAgent(agentName);
+  }
+
+  getTeamHealthReport() {
+    return this.lifecycleManager.generateTeamReport(Array.from(this.agents.values()));
+  }
+
+  // Information channel methods
+  subscribeAgentToChannel(agentName: string, channelType: any) {
+    this.channelSystem.subscribe(agentName, channelType);
+  }
+
+  processMarketDataThroughChannels(marketData: any) {
+    this.channelSystem.processMarketData(marketData);
+  }
+
+  getChannelStats() {
+    return this.channelSystem.getChannelStats();
   }
 }
