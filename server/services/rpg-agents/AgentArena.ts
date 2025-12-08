@@ -5,6 +5,9 @@ import { AchievementSystem } from './AchievementSystem';
 import { AgentSynergyDetector } from './AgentSynergyDetector';
 import { AgentLifecycleManager } from './AgentLifecycleManager';
 import { InformationChannelSystem } from './InformationChannelSystem';
+import { MarketSage } from './MarketSage';
+import { AgentPortfolioManager } from './AgentPortfolioManager';
+import { OnlineLearningSystem } from './OnlineLearningSystem';
 
 export interface LeaderboardEntry {
   agent_name: string;
@@ -37,6 +40,10 @@ export class AgentArena {
   private lifecycleManager: AgentLifecycleManager;
   private channelSystem: InformationChannelSystem;
 
+  private marketSage: MarketSage;
+  private portfolioManager: AgentPortfolioManager;
+  private learningSystem: OnlineLearningSystem;
+
   constructor() {
     this.marketOracle = new MarketOracle();
     this.strategyBridge = new StrategyBridge();
@@ -44,6 +51,9 @@ export class AgentArena {
     this.synergyDetector = new AgentSynergyDetector();
     this.lifecycleManager = new AgentLifecycleManager();
     this.channelSystem = new InformationChannelSystem();
+    this.marketSage = new MarketSage();
+    this.portfolioManager = new AgentPortfolioManager(100000);  // $100k initial capital
+    this.learningSystem = new OnlineLearningSystem();
     this.initializeAgents();
   }
 
@@ -447,5 +457,58 @@ export class AgentArena {
 
   getChannelStats() {
     return this.channelSystem.getChannelStats();
+  }
+
+  // Market Sage methods
+  async discoverNewStrategies() {
+    return await this.marketSage.discoverPatterns(Array.from(this.agents.values()));
+  }
+
+  getDiscoveredPatterns() {
+    return this.marketSage.getDiscoveredPatterns();
+  }
+
+  evolveStrategies(generation: number) {
+    return this.marketSage.evolveStrategies(generation);
+  }
+
+  // Portfolio Manager methods
+  allocateCapital() {
+    return this.portfolioManager.allocateCapital(Array.from(this.agents.values()));
+  }
+
+  rebalancePortfolio() {
+    return this.portfolioManager.rebalance(Array.from(this.agents.values()));
+  }
+
+  getPortfolioMetrics() {
+    return this.portfolioManager.getPortfolioMetrics(Array.from(this.agents.values()));
+  }
+
+  getAgentAllocation(agentName: string) {
+    return this.portfolioManager.getAllocation(agentName);
+  }
+
+  // Online Learning methods
+  recordLearningExperience(agentName: string, state: any, action: any, reward: number, nextState: any) {
+    const agent = this.agents.get(agentName);
+    if (!agent) return;
+    this.learningSystem.recordExperience(agent, state, action, reward, nextState);
+  }
+
+  getOptimalAction(agentName: string, state: any) {
+    const agent = this.agents.get(agentName);
+    if (!agent) return null;
+    return this.learningSystem.getOptimalAction(agent, state);
+  }
+
+  getLearningMetrics(agentName: string) {
+    const agent = this.agents.get(agentName);
+    if (!agent) return null;
+    return this.learningSystem.getLearningMetrics(agent);
+  }
+
+  replayExperiences() {
+    this.learningSystem.replayExperiences(32);
   }
 }

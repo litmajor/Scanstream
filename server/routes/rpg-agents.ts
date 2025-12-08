@@ -376,4 +376,101 @@ router.post('/update-performance', async (req, res) => {
     }
   });
 
+  // Market Sage routes
+  app.get('/api/rpg-agents/market-sage/patterns', async (req, res) => {
+    try {
+      const patterns = arena.getDiscoveredPatterns();
+      res.json({ success: true, patterns });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/market-sage/discover', async (req, res) => {
+    try {
+      const newPatterns = await arena.discoverNewStrategies();
+      res.json({ success: true, discovered: newPatterns.length, patterns: newPatterns });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/market-sage/evolve', async (req, res) => {
+    try {
+      const { generation } = req.body;
+      const strategies = arena.evolveStrategies(generation || 1);
+      res.json({ success: true, strategies });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Portfolio Manager routes
+  app.get('/api/rpg-agents/portfolio/allocations', async (req, res) => {
+    try {
+      const allocations = arena.allocateCapital();
+      res.json({ success: true, allocations });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/portfolio/rebalance', async (req, res) => {
+    try {
+      const allocations = arena.rebalancePortfolio();
+      res.json({ success: true, message: 'Portfolio rebalanced', allocations });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/rpg-agents/portfolio/metrics', async (req, res) => {
+    try {
+      const metrics = arena.getPortfolioMetrics();
+      res.json({ success: true, metrics });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/rpg-agents/:agentName/allocation', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const allocation = arena.getAgentAllocation(agentName);
+      
+      if (!allocation) {
+        return res.status(404).json({ error: 'No allocation found for agent' });
+      }
+      
+      res.json({ success: true, allocation });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Online Learning routes
+  app.get('/api/rpg-agents/:agentName/learning-metrics', async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const metrics = arena.getLearningMetrics(agentName);
+      
+      if (!metrics) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
+      res.json({ success: true, metrics });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/rpg-agents/learning/replay', async (req, res) => {
+    try {
+      arena.replayExperiences();
+      res.json({ success: true, message: 'Experience replay completed' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
 export default router;
