@@ -140,4 +140,90 @@ router.get('/all', (req, res) => {
   }
 });
 
+/**
+ * POST /api/rpg-agents/process-market
+ * Process market data through RPG agents
+ */
+router.post('/process-market', async (req, res) => {
+  try {
+    const { strategyBridge } = await import('../services/rpg-agents/StrategyBridge');
+    const result = await strategyBridge.processMarketData(req.body);
+    
+    res.json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/rpg-agents/spawn
+ * Spawn a sub-agent from a level 25+ agent
+ */
+router.post('/spawn', (req, res) => {
+  try {
+    const { parentAgentName, specialization } = req.body;
+    
+    const parentAgent = arena.getAgent(parentAgentName);
+    if (!parentAgent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Parent agent not found'
+      });
+    }
+    
+    const subAgent = arena.spawnSubAgent(parentAgent, specialization);
+    
+    if (!subAgent) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to spawn sub-agent. Check level and abilities.'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        parent: parentAgent.getStatus(),
+        spawned: subAgent.getStatus()
+      },
+      message: `Successfully spawned ${subAgent.name}`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/rpg-agents/update-performance
+ * Update agent performance after trade closes
+ */
+router.post('/update-performance', async (req, res) => {
+  try {
+    const { strategyBridge } = await import('../services/rpg-agents/StrategyBridge');
+    const { agentName, tradeResult } = req.body;
+    
+    strategyBridge.updateAgentPerformance(agentName, tradeResult);
+    
+    res.json({
+      success: true,
+      message: `Updated performance for ${agentName}`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 export default router;

@@ -148,4 +148,112 @@ export class AgentArena {
   getAllAgents(): TradingAgent[] {
     return Array.from(this.agents.values());
   }
+  
+  /**
+   * Agent Spawning System (Level 25+ agents can create sub-agents)
+   */
+  spawnSubAgent(parentAgent: TradingAgent, specialization: string): TradingAgent | null {
+    if (parentAgent.level < 25) {
+      console.log(`❌ ${parentAgent.name} needs level 25+ to spawn (currently ${parentAgent.level})`);
+      return null;
+    }
+    
+    if (!parentAgent.abilities.includes('strategy_creation')) {
+      console.log(`❌ ${parentAgent.name} hasn't unlocked strategy_creation ability yet`);
+      return null;
+    }
+    
+    // Create new agent with parent's DNA
+    const subAgentName = `${parentAgent.name}_${specialization}_${Date.now()}`;
+    
+    // Inherit some parent skills
+    const subAgent = new (parentAgent.constructor as any)(subAgentName);
+    subAgent.skills = {
+      pattern_recognition: Math.floor(parentAgent.skills.pattern_recognition * 0.7),
+      timing_precision: Math.floor(parentAgent.skills.timing_precision * 0.7),
+      risk_management: Math.floor(parentAgent.skills.risk_management * 0.7),
+      exit_optimization: Math.floor(parentAgent.skills.exit_optimization * 0.7),
+      regime_awareness: Math.floor(parentAgent.skills.regime_awareness * 0.7)
+    };
+    
+    // Register in arena
+    this.registerAgent(subAgent);
+    
+    console.log(`🎉 ${parentAgent.name} spawned ${subAgentName}!`);
+    
+    return subAgent;
+  }
+  
+  /**
+   * Agent Voting/Consensus Mechanism
+   * Combines signals from multiple agents with weighted voting
+   */
+  generateConsensusSignal(signals: Array<{ agent: TradingAgent; signal: any }>): {
+    action: 'BUY' | 'SELL' | 'HOLD';
+    confidence: number;
+    reasoning: string[];
+    participating_agents: string[];
+    combo_activated?: any;
+  } | null {
+    if (signals.length === 0) return null;
+    
+    let buy_score = 0;
+    let sell_score = 0;
+    const reasoning: string[] = [];
+    const participating_agents: string[] = [];
+    
+    // Weighted voting based on agent performance
+    for (const { agent, signal } of signals) {
+      if (!signal) continue;
+      
+      const weight = this.calculateAgentWeight(agent);
+      const vote_strength = signal.confidence * weight;
+      
+      if (signal.action === 'BUY') {
+        buy_score += vote_strength;
+        participating_agents.push(agent.name);
+        reasoning.push(`${agent.name} (L${agent.level}): BUY ${(signal.confidence * 100).toFixed(0)}% - ${signal.reason}`);
+      } else if (signal.action === 'SELL') {
+        sell_score += vote_strength;
+        participating_agents.push(agent.name);
+        reasoning.push(`${agent.name} (L${agent.level}): SELL ${(signal.confidence * 100).toFixed(0)}% - ${signal.reason}`);
+      }
+    }
+    
+    // Determine consensus
+    const total_score = buy_score + sell_score;
+    if (total_score === 0) return null;
+    
+    const action = buy_score > sell_score ? 'BUY' : 'SELL';
+    const confidence = Math.max(buy_score, sell_score) / total_score;
+    
+    // Check for combo activation
+    const combo = this.checkComboActivation(
+      signals.map(s => ({ agent_name: s.agent.name, confidence: s.signal?.confidence || 0 }))
+    );
+    
+    return {
+      action,
+      confidence,
+      reasoning,
+      participating_agents,
+      combo_activated: combo
+    };
+  }
+  
+  private calculateAgentWeight(agent: TradingAgent): number {
+    // Weight = level bonus × performance bonus × rank bonus
+    const level_bonus = 1 + (agent.level * 0.02); // +2% per level
+    const performance_bonus = agent.win_rate > 0 ? agent.win_rate : 0.5;
+    const rank_multiplier = {
+      'Master': 2.0,
+      'Diamond': 1.7,
+      'Platinum': 1.4,
+      'Gold': 1.2,
+      'Silver': 1.0,
+      'Bronze': 0.8
+    }[agent.rank] || 1.0;
+    
+    return level_bonus * performance_bonus * rank_multiplier;
+  }
 }
