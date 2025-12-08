@@ -25,6 +25,7 @@ export interface IStorage {
   // Backtest results
   getBacktestResults(strategyId?: string): Promise<BacktestResult[]>;
   createBacktestResult(result: InsertBacktestResult): Promise<BacktestResult>;
+  deleteBacktestResult(id: string): Promise<void>;
   
   // Market metrics
   getMarketSentiment(): Promise<MarketSentiment>;
@@ -181,6 +182,10 @@ export class MemStorage implements IStorage {
     };
     this.backtestResults.set(id, result);
     return result;
+  }
+
+  async deleteBacktestResult(id: string): Promise<void> {
+    this.backtestResults.delete(id);
   }
 
   async getMarketSentiment(): Promise<MarketSentiment> {

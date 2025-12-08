@@ -12,6 +12,7 @@ import analyticsRouter from './routes/analytics';
 import mlSignalsRouter from './routes/ml-signals';
 import rlSignalsRouter from './routes/rl-signals';
 import paperTradingRouter from './routes/paper-trading';
+import scannerRouter from './routes/scanner';
 // Removed fastScanner service import
 
 
@@ -65,6 +66,10 @@ app.use('/api/analytics', enhancedAnalyticsRouter);
 
 // Removed Fast Scanner routes registration
 // app.use('/api/scanner', fastScannerRouter);
+
+// Register Scanner routes
+app.use('/api/scanner', scannerRouter);
+console.log('[express] Scanner API registered at /api/scanner');
 
 // Register CoinGecko sentiment & market data routes
 app.use('/api/coingecko', coinGeckoRouter);

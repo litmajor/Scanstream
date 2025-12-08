@@ -89,34 +89,50 @@ export default function MLEnginePage() {
         fetch('/api/health/logs?limit=20')
       ]);
 
-      const predictions = await predictionsRes.json().catch(() => ({ predictions: [] }));
-      const status = await statusRes.json().catch(() => ({}));
-      const performance = await performanceRes.json().catch(() => ({ metrics: {} }));
-      const ensemble = await ensembleRes.json().catch(() => ({ ensemble: {} }));
-      const health = await healthRes.json().catch(() => ({ health: {} }));
-      const backtest = await backtestRes.json().catch(() => ({ stats: {} }));
-      const logs = await logsRes.json().catch(() => ({ logs: [] }));
+      // Helper function to safely parse responses, checking status first
+      const safeJson = async (res: Response, defaultValue: any) => {
+        if (!res.ok) {
+          console.warn(`Request failed with status ${res.status}:`, res.url);
+          return defaultValue;
+        }
+        return res.json().catch(() => defaultValue);
+      };
+
+      const predictions = await safeJson(predictionsRes, { predictions: [] });
+      const status = await safeJson(statusRes, {});
+      const performance = await safeJson(performanceRes, { metrics: {} });
+      const ensemble = await safeJson(ensembleRes, { ensemble: {} });
+      const health = await safeJson(healthRes, { health: {} });
+      const backtest = await safeJson(backtestRes, { stats: {} });
+      const logs = await safeJson(logsRes, { logs: [] });
 
       const metrics = performance.metrics || {};
       const backtestStats = backtest.stats || {};
       const healthData = health.health || {};
       
       return {
-        models: (predictions.predictions || []).slice(0, 3).map((p: any, i: number) => ({
-          id: String(i + 1),
-          name: `${p.symbol} Direction & Price`,
-          type: 'Ensemble Model',
-          symbol: p.symbol,
-          accuracy: ((metrics.accuracy || 75)).toFixed(1),
-          status: ensemble.ensemble?.status || 'active',
-          lastTrained: new Date(),
-          predictions: {
-            nextHour: p.price,
-            nextDay: p.price * (p.direction === 'UP' ? 1.01 : 0.99),
-            nextWeek: p.price * (p.direction === 'UP' ? 1.03 : 0.97),
-            confidence: p.confidence
-          }
-        })),
+        models: (predictions.predictions || []).slice(0, 3).map((p: any, i: number) => {
+          const price = p.price || 0;
+          const direction = p.direction || 'NEUTRAL';
+          const confidence = p.confidence || 0;
+          const accuracy = Number(metrics.accuracy || 75);
+          
+          return {
+            id: String(i + 1),
+            name: `${p.symbol || 'UNKNOWN'} Direction & Price`,
+            type: 'Ensemble Model',
+            symbol: p.symbol || 'UNKNOWN',
+            accuracy: accuracy.toFixed(1),
+            status: ensemble.ensemble?.status || 'active',
+            lastTrained: new Date(),
+            predictions: {
+              nextHour: price,
+              nextDay: price * (direction === 'UP' ? 1.01 : 0.99),
+              nextWeek: price * (direction === 'UP' ? 1.03 : 0.97),
+              confidence: confidence
+            }
+          };
+        }),
         features: Object.entries(status.featureImportance || {}).map(([name, weight]) => ({
           name,
           weight: Number(weight),

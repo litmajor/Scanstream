@@ -130,7 +130,7 @@ export default function SignalsPage() {
     exchange: 'aggregated',
     signal: g.signal,
     strength: g.signalConfidence,
-    price: g.close,
+    price: g.close && g.close > 0 ? g.close : 0,  // Ensure price is properly extracted
     change: g.priceChangePercent,
     volume: g.volume,
     timestamp: new Date(g.timestamp).getTime(),

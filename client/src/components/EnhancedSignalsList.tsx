@@ -242,6 +242,19 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
 
                   {/* Right: Metrics */}
                   <div className="flex flex-col items-end space-y-2">
+                    {/* Signal Type Badge */}
+                    <div>
+                      <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                        signal.signal === 'BUY' 
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                        signal.signal === 'SELL'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                          'bg-slate-500/20 text-slate-400 border border-slate-500/30'
+                      }`}>
+                        {signal.signal || 'HOLD'}
+                      </span>
+                    </div>
+
                     {/* Strength Bar */}
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-slate-500">Strength:</span>

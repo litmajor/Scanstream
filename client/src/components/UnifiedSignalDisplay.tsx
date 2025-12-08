@@ -212,9 +212,9 @@ export function UnifiedSignalDisplay() {
         exchange: s.exchange || 'aggregated',
         signal: s.signal as 'BUY' | 'SELL' | 'HOLD',
         strength: s.strength || 0,
-        price: s.price || 0,
+        price: s.price || s.close || s.lastPrice || s.currentPrice || 0,
         change: s.change || 0,
-        change24h: s.change24h || s.change || 0,
+        change24h: s.change24h || s.priceChangePercent || s.change || 0,
         timestamp: s.timestamp || Date.now(),
         source: 'gateway' as const,
         indicators: {
@@ -235,10 +235,10 @@ export function UnifiedSignalDisplay() {
       const data = await res.json();
       return (data.predictions || []).map((p: any) => ({
         symbol: p.symbol,
-        signal: p.direction,
-        strength: p.confidence * 100,
-        price: p.price,
-        timestamp: p.timestamp,
+        signal: p.direction || p.type || 'HOLD',
+        strength: (p.confidence || 0) * 100,
+        price: p.price || p.lastPrice || p.close || p.currentPrice || 0,
+        timestamp: p.timestamp || Date.now(),
         source: 'ml' as const,
         confidence: p.confidence,
       }));
@@ -369,7 +369,8 @@ export function UnifiedSignalDisplay() {
     const buyCount = signals.filter(s => s.signal === 'BUY').length;
     const sellCount = signals.filter(s => s.signal === 'SELL').length;
     const avgStrength = signals.reduce((sum, s) => sum + s.strength, 0) / signals.length;
-    const latestPrice = signals[0]?.price || 0;
+    // Find first signal with non-zero price, otherwise use 0
+    const latestPrice = signals.find(s => s.price && s.price > 0)?.price || signals[0]?.price || 0;
     const latestChange = signals[0]?.change24h || signals[0]?.change || 0;
 
     const consensus: 'BUY' | 'SELL' | 'HOLD' =

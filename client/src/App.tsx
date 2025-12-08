@@ -37,15 +37,17 @@ import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
 import WatchlistPage from "@/pages/watchlist";
 import GatewayAlertsPage from "@/pages/gateway-alerts";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import AppLayout from "./components/AppLayout";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 
 function AuthenticatedRouter() {
   return (
     <AppLayout>
       <Switch>
-        <Route path="/login" component={lazy(() => import("@/pages/login"))} />
-        <Route path="/register" component={lazy(() => import("@/pages/register"))} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
         <Route path="/" component={TradingTerminal} />
         <Route path="/signals" component={SignalsPage} />
         <Route path="/signal-structures" component={SignalStructuresPage} />
@@ -56,6 +58,9 @@ function AuthenticatedRouter() {
         <Route path="/backtest" component={BacktestPage} />
         <Route path="/ml-engine" component={MLEnginePage} />
         <Route path="/ml-training" component={MLTrainingHub} />
+        <Route path="/multi-timeframe" component={MultiTimeframePage} />
+        <Route path="/flow-field" component={FlowFieldPage} />
+        <Route path="/flow-engine" component={FlowEnginePage} />
         <Route path="/optimize" component={OptimizePage} />
         <Route path="/strategies" component={StrategiesPage} />
         <Route path="/strategy-synthesis" component={StrategySynthesisPage} />

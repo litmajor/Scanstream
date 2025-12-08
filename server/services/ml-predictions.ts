@@ -24,16 +24,20 @@ export interface ChartDataPoint {
 
 export interface MLPredictions {
   direction: {
-    prediction: 'BULLISH' | 'BEARISH';
+    prediction: 'BULLISH' | 'BEARISH' | 'bullish' | 'bearish';
     probability: number;
     confidence: number;
     strength: number;
   };
   price: {
     predicted: number;
-    change: number;
-    changePercent: number;
-    target: 'UP' | 'DOWN' | 'NEUTRAL';
+    change?: number;
+    changePercent?: number;
+    percentChange?: number;
+    high: number;
+    low: number;
+    confidence?: number;
+    target?: 'UP' | 'DOWN' | 'NEUTRAL';
   };
   volatility: {
     predicted: number;
@@ -209,7 +213,7 @@ class MLPredictionService {
       prediction,
       probability,
       confidence,
-      signal
+      strength: confidence  // Add strength field for interface compatibility
     };
   }
 
