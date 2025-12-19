@@ -1,6 +1,6 @@
 
 import { db } from "../db-storage";
-import { auditLogs, type InsertAuditLog } from "../../shared/schema";
+import type { InsertAuditLog } from "../../shared/schema";
 
 type AuditAction = 
   | "SIGNAL_GENERATED" 
@@ -38,9 +38,10 @@ export class AuditLogger {
         userId: params.userId,
         details: params.details,
         severity: params.severity || "INFO",
-      };
+        timestamp: new Date().toISOString(),
+      } as any;
 
-      await db.insert(auditLogs).values(auditLog);
+      await db.createAuditLog(auditLog as any);
     } catch (error) {
       console.error("[AuditLogger] Failed to log audit entry:", error);
       // Don't throw - audit logging should never break main functionality
@@ -133,14 +134,7 @@ export class AuditLogger {
    * Query audit logs by entity
    */
   async getLogsForEntity(entityType: EntityType, entityId: string, limit: number = 100) {
-    return await db
-      .select()
-      .from(auditLogs)
-      .where((logs) => 
-        logs.entityType === entityType && logs.entityId === entityId
-      )
-      .orderBy((logs) => logs.timestamp)
-      .limit(limit);
+    return await db.getAuditLogs(entityType, entityId, limit);
   }
 
   /**
@@ -148,14 +142,8 @@ export class AuditLogger {
    */
   async getCriticalEvents(hours: number = 24, limit: number = 50) {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-    return await db
-      .select()
-      .from(auditLogs)
-      .where((logs) => 
-        logs.severity === "CRITICAL" || logs.severity === "ERROR"
-      )
-      .orderBy((logs) => logs.timestamp)
-      .limit(limit);
+    const all = await db.getAuditLogs(undefined, undefined, limit);
+    return all.filter((l: any) => (l.severity === 'CRITICAL' || l.severity === 'ERROR') && new Date(l.timestamp) >= since);
   }
 }
 

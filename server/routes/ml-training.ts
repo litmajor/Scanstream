@@ -19,6 +19,21 @@ router.post('/train', async (req: Request, res: Response) => {
   try {
     const { symbol = 'BTC/USDT', lookbackDays = 30, validationSplit = 0.2, epochs = 50 } = req.body;
     
+    // Validate inputs
+    if (!symbol || typeof symbol !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid symbol parameter'
+      });
+    }
+
+    if (lookbackDays < 1 || lookbackDays > 365) {
+      return res.status(400).json({
+        success: false,
+        error: 'lookbackDays must be between 1 and 365'
+      });
+    }
+
     const MLModelTrainer = (await import('../services/ml-model-trainer')).default;
     
     const result = await MLModelTrainer.trainModels({
@@ -37,9 +52,15 @@ router.post('/train', async (req: Request, res: Response) => {
     
   } catch (err: any) {
     console.error('[ML Training] Error:', err);
-    res.status(500).json({ 
+    
+    // Provide more detailed error information
+    const errorMessage = err.message || 'Training failed';
+    const statusCode = err.statusCode || 500;
+    
+    res.status(statusCode).json({ 
       success: false,
-      error: err.message || 'Training failed',
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
       timestamp: new Date().toISOString()
     });
   }

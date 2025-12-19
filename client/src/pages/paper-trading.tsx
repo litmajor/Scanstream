@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Play, Pause, RotateCcw, TrendingUp, TrendingDown, DollarSign, Settings, Download, X, RefreshCw } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -67,6 +68,14 @@ export default function PaperTradingPage() {
     stopLoss: '',
     takeProfit: ''
   });
+  const { symbols: universeSymbols } = useSymbolUniverse();
+
+  // Auto-set manual trade symbol when universe loads
+  useEffect(() => {
+    if (universeSymbols && universeSymbols.length) {
+      setManualTrade(prev => ({ ...prev, symbol: prev.symbol || universeSymbols[0].symbol }));
+    }
+  }, [universeSymbols]);
   const queryClient = useQueryClient();
 
   // Fetch paper trading status
@@ -148,7 +157,7 @@ export default function PaperTradingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paperTradingStatus'] });
       setShowManualTrade(false);
-      setManualTrade({ symbol: 'BTC/USDT', side: 'BUY', price: '', stopLoss: '', takeProfit: '' });
+      setManualTrade({ symbol: (universeSymbols && universeSymbols.length) ? universeSymbols[0].symbol : 'BTC/USDT', side: 'BUY', price: '', stopLoss: '', takeProfit: '' });
     }
   });
 

@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Brain, Target, Shield, TrendingUp, Activity, Zap } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { formatPct, formatMetric, formatQuantity } from '@/utils/formatting';
 
 interface RLSignal {
   symbol: string;
@@ -34,7 +36,15 @@ interface RLStats {
 export default function RLPositionAgent() {
   const [, setLocation] = useLocation();
   const { colors } = useTheme();
+  const { symbols: universeSymbols } = useSymbolUniverse();
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+
+  // Auto-set selected symbol when universe loads
+  React.useEffect(() => {
+    if (universeSymbols && universeSymbols.length) {
+      setSelectedSymbol(prev => (prev ? prev : universeSymbols[0].symbol));
+    }
+  }, [universeSymbols]);
   const [baseSize, setBaseSize] = useState(1.0);
 
   // Fetch RL signals
@@ -114,7 +124,7 @@ export default function RLPositionAgent() {
                   <div>
                     <div className="text-sm" style={{ color: colors.textSecondary }}>Success Rate</div>
                     <div className="text-2xl font-bold" style={{ color: colors.success }}>
-                      {((statsData?.stats?.successRate || 0) * 100).toFixed(1)}%
+                      {formatPct((statsData?.stats?.successRate || 0) * 100)}
                     </div>
                   </div>
                   <Target className="w-8 h-8" style={{ color: colors.success }} />
@@ -126,7 +136,7 @@ export default function RLPositionAgent() {
                   <div>
                     <div className="text-sm" style={{ color: colors.textSecondary }}>Avg Reward</div>
                     <div className="text-2xl font-bold" style={{ color: colors.accent }}>
-                      {(statsData?.stats?.avgReward || 0).toFixed(2)}
+                      {formatMetric(statsData?.stats?.avgReward || 0)}
                     </div>
                   </div>
                   <TrendingUp className="w-8 h-8" style={{ color: colors.accent }} />
@@ -138,7 +148,7 @@ export default function RLPositionAgent() {
                   <div>
                     <div className="text-sm" style={{ color: colors.textSecondary }}>Avg R:R Ratio</div>
                     <div className="text-2xl font-bold" style={{ color: colors.text }}>
-                      {(statsData?.stats?.avgRiskReward || 0).toFixed(2)}
+                      {formatMetric(statsData?.stats?.avgRiskReward || 0)}
                     </div>
                   </div>
                   <Shield className="w-8 h-8" style={{ color: colors.warning }} />
@@ -203,10 +213,9 @@ export default function RLPositionAgent() {
                 className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                 style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
               >
-                <option>BTC/USDT</option>
-                <option>ETH/USDT</option>
-                <option>SOL/USDT</option>
-                <option>AVAX/USDT</option>
+                {(universeSymbols && universeSymbols.length ? universeSymbols : [{ symbol: 'BTC/USDT' }, { symbol: 'ETH/USDT' }, { symbol: 'SOL/USDT' }, { symbol: 'AVAX/USDT' }]).map((s: any) => (
+                  <option key={s.symbol} value={s.symbol}>{s.symbol}</option>
+                ))}
               </select>
             </div>
 
@@ -264,7 +273,7 @@ export default function RLPositionAgent() {
                     <div className="text-right">
                       <div className="text-sm" style={{ color: colors.textSecondary }}>Confidence</div>
                       <div className="text-2xl font-bold" style={{ color: colors.accent }}>
-                        {(signal.confidence * 100).toFixed(0)}%
+                        {formatPct(signal.confidence * 100)}
                       </div>
                     </div>
                   </div>

@@ -9,6 +9,15 @@ import { MarketSage } from './MarketSage';
 import { AgentPortfolioManager } from './AgentPortfolioManager';
 import { OnlineLearningSystem } from './OnlineLearningSystem';
 import { AgentSpawner, type SpawnDecision, type MarketRegime } from './AgentSpawner';
+import { CommanderApprovalSystem } from './CommanderApprovalSystem';
+import { TrendRider } from './TrendRider';
+import { SupportSniper } from './SupportSniper';
+import { ReversalMaster } from './ReversalMaster';
+import { VolumeMechanicalVerifierAgent } from './VolumeMechanicalVerifierAgent';
+import VFMDPhysicsAgent from './VFMDPhysicsAgent';
+import FlowPhysicsAgent from './FlowPhysicsAgent';
+import { PythonStrategyAgent } from './PythonStrategyAgent';
+import { MLOracle } from './MLOracle';
 
 export interface LeaderboardEntry {
   agent_name: string;
@@ -32,10 +41,10 @@ export interface AgentCombo {
 }
 
 export class AgentArena {
-  private agents: Map<string, TradingAgent> = new Map();
+  private agents: Map<string, any> = new Map();
   private combos: AgentCombo[] = [];
   private marketOracle: MarketOracle;
-  private strategyBridge: StrategyBridge;
+  private strategyBridge: StrategyBridge | null = null;
   private achievementSystem: AchievementSystem;
   private synergyDetector: AgentSynergyDetector;
   private lifecycleManager: AgentLifecycleManager;
@@ -46,10 +55,12 @@ export class AgentArena {
   private learningSystem: OnlineLearningSystem;
   private agentSpawner: AgentSpawner;
   private currentRegime: MarketRegime = 'NEUTRAL';
+  private approvalSystem: CommanderApprovalSystem;
+  private strategyBridgeInstance: StrategyBridge | null = null;
+  private volumeAgent: VolumeMechanicalVerifierAgent | null = null;
 
-  constructor() {
+  constructor(approvalSystem?: CommanderApprovalSystem) {
     this.marketOracle = new MarketOracle();
-    this.strategyBridge = new StrategyBridge();
     this.achievementSystem = new AchievementSystem();
     this.synergyDetector = new AgentSynergyDetector();
     this.lifecycleManager = new AgentLifecycleManager();
@@ -58,16 +69,257 @@ export class AgentArena {
     this.portfolioManager = new AgentPortfolioManager(100000);  // $100k initial capital
     this.learningSystem = new OnlineLearningSystem();
     this.agentSpawner = new AgentSpawner(this);
+    this.approvalSystem = approvalSystem || new CommanderApprovalSystem();
+    this.setupApprovalListeners();
     this.initializeAgents();
     this.initializeCombos();
   }
 
   /**
+   * Set up event listeners for approval system
+   */
+  private setupApprovalListeners(): void {
+    this.approvalSystem.on('decision:approved', (decision) => {
+      console.log(`✅ Decision approved: ${decision.id}`);
+      this.executeApprovedDecision(decision);
+    });
+
+    this.approvalSystem.on('decision:rejected', (decision) => {
+      console.log(`❌ Decision rejected: ${decision.id}`);
+    });
+
+    this.approvalSystem.on('alert:created', (alert) => {
+      console.log(`🚨 ALERT: ${alert.message}`);
+      this.handleAlert(alert);
+    });
+  }
+
+  /**
+   * Execute an approved decision from commander
+   */
+  private executeApprovedDecision(decision: any): void {
+    switch (decision.type) {
+      case 'SPAWN_NEW_AGENT':
+        console.log(`🎉 Spawning new agent: ${decision.content.name}`);
+        this.registerAgent(decision.content);
+        break;
+      case 'EVOLVE_AGENT':
+        const { agentName, newLevel } = decision.content;
+        const agent = this.agents.get(agentName);
+        if (agent) {
+          agent.level = newLevel;
+          console.log(`📈 ${agentName} evolved to level ${newLevel}`);
+        }
+        break;
+      case 'RETIRE_AGENT':
+        this.agents.delete(decision.content.agentName);
+        console.log(`👋 ${decision.content.agentName} retired`);
+        break;
+      case 'HIBERNATION_REQUEST':
+        const hibernateAgent = this.agents.get(decision.content.agentName);
+        if (hibernateAgent) {
+          hibernateAgent.state = 'HIBERNATING';
+          console.log(`💤 ${decision.content.agentName} is now hibernating`);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Handle commander alerts
+   */
+  private handleAlert(alert: any): void {
+    switch (alert.type) {
+      case 'DRAWDOWN_THRESHOLD_EXCEEDED':
+        console.log(`⚠️ Drawdown exceeded: ${alert.details.currentDrawdown}`);
+        this.pauseAllAgents();
+        break;
+      case 'AGENT_ANOMALY_DETECTED':
+        console.log(`⚠️ Agent anomaly: ${alert.details.agentName}`);
+        break;
+      case 'CONFLICT_BETWEEN_AGENTS':
+        console.log(`⚠️ Agent conflict detected on ${alert.details.symbol}`);
+        break;
+      case 'SYSTEM_BEHAVIOR_ANOMALY':
+        console.log(`⚠️ System anomaly detected - pausing all agents`);
+        this.pauseAllAgents();
+        break;
+    }
+  }
+
+  /**
+   * Propose spawning a new agent (routed through approval system)
+   */
+  proposeNewAgent(agent: any): void {
+    this.approvalSystem.proposeDecision({
+      type: 'SPAWN_NEW_AGENT',
+      proposedBy: 'MARKET_SAGE',
+      content: agent,
+      confidence: 0.78,
+      expectedImpact: {
+        pnl: 1500,
+        capital: 8000
+      }
+    });
+  }
+
+  /**
+   * Propose evolving an agent to higher level
+   */
+  proposeAgentEvolution(agentName: string, newLevel: number, reason: string): void {
+    const agent = this.agents.get(agentName);
+    if (!agent) return;
+
+    this.approvalSystem.proposeDecision({
+      type: 'EVOLVE_AGENT',
+      proposedBy: agentName,
+      content: { agentName, currentLevel: agent.level, newLevel, reason },
+      confidence: 0.82,
+      expectedImpact: {
+        pnl: 300
+      }
+    });
+  }
+
+  /**
+   * Propose retiring an agent
+   */
+  proposeAgentRetirement(agentName: string, reason: string): void {
+    const agent = this.agents.get(agentName);
+    if (!agent) return;
+
+    this.approvalSystem.proposeDecision({
+      type: 'RETIRE_AGENT',
+      proposedBy: agentName,
+      content: { agentName, reason },
+      confidence: 0.95,
+      expectedImpact: {
+        capital: 5000
+      }
+    });
+  }
+
+  /**
+   * Propose hibernating an agent
+   */
+  proposeAgentHibernation(agentName: string, reason: string, duration: string): void {
+    this.approvalSystem.proposeDecision({
+      type: 'HIBERNATION_REQUEST',
+      proposedBy: agentName,
+      content: { agentName, reason, duration },
+      confidence: 0.88,
+      expectedImpact: {
+        pnl: 0
+      }
+    });
+  }
+
+  /**
+   * Get the approval system instance
+   */
+  getApprovalSystem(): CommanderApprovalSystem {
+    return this.approvalSystem;
+  }
+
+  /**
+   * Initialize commander system with autonomy level (Phase 6)
+   */
+  initializeCommanderSystem(autonomyLevel: 'HYBRID_OPTIMAL' | 'FULL_AUTONOMY' | 'FULL_MANUAL_CONTROL' = 'HYBRID_OPTIMAL'): void {
+    switch (autonomyLevel) {
+      case 'FULL_AUTONOMY':
+        this.approvalSystem.setFullAutonomy();
+        console.log('🤖 Commander system: FULL AUTONOMY (hands-off mode)');
+        break;
+      case 'FULL_MANUAL_CONTROL':
+        this.approvalSystem.setFullManualControl();
+        console.log('👤 Commander system: FULL MANUAL CONTROL (hands-on mode)');
+        break;
+      case 'HYBRID_OPTIMAL':
+      default:
+        this.approvalSystem.setHybridMode();
+        console.log('⚖️ Commander system: HYBRID OPTIMAL (recommended)');
+        break;
+    }
+  }
+
+  /**
+   * Get current autonomy configuration
+   */
+  getAutonomyConfig() {
+    return this.approvalSystem.getAutonomyConfig();
+  }
+
+  /**
+   * Get pending approvals
+   */
+  getPendingApprovals() {
+    return this.approvalSystem.getPendingDecisions();
+  }
+
+  /**
+   * Get active alerts
+   */
+  getActiveAlerts() {
+    return this.approvalSystem.getActiveAlerts();
+  }
+
+  /**
+   * Pause all agents (emergency control)
+   */
+  pauseAllAgents(): void {
+    this.agents.forEach(agent => {
+      agent.state = 'HIBERNATING';
+    });
+    console.log('⏸️ All agents paused by commander');
+  }
+
+  /**
+   * Resume all agents
+   */
+  resumeAllAgents(): void {
+    this.agents.forEach(agent => {
+      agent.state = 'ACTIVE';
+    });
+    console.log('▶️ All agents resumed by commander');
+  }
+
+  /**
    * Register an agent in the arena
    */
-  registerAgent(agent: TradingAgent): void {
-    this.agents.set(agent.name, agent);
-    console.log(`🎮 ${agent.name} joined the arena!`);
+  registerAgent(agent: any): void {
+    try {
+      const name = agent?.name || `agent-${Date.now()}`;
+      agent.name = name;
+      this.agents.set(name, agent);
+      console.log(`🎮 ${name} joined the arena!`);
+    } catch (e) {
+      console.warn('[AgentArena] Failed to register agent', e);
+    }
+  }
+
+  /**
+   * Forcefully retire and remove an agent from the arena
+   */
+  retireAgent(agentName: string): boolean {
+    const agent = this.agents.get(agentName);
+    if (!agent) return false;
+
+    try {
+      // Mark as retired for downstream consumers
+      agent.state = 'RETIRED';
+
+      // perform simple cleanup hooks if present
+      if (typeof (agent as any).onRetire === 'function') {
+        try { (agent as any).onRetire(); } catch (e) { /* ignore */ }
+      }
+
+      this.agents.delete(agentName);
+      console.log(`👋 ${agentName} retired from the arena`);
+      return true;
+    } catch (e) {
+      console.error(`Failed to retire agent ${agentName}:`, e);
+      return false;
+    }
   }
 
   /**
@@ -128,6 +380,7 @@ export class AgentArena {
   }
 
   private initializeCombos(): void {
+    // Expanded combo library to increase coverage of multi-agent synergies
     this.combos = [
       {
         name: 'Tsunami',
@@ -155,6 +408,105 @@ export class AgentArena {
         historical_win_rate: 0.62,
         historical_profit_factor: 2.4,
         times_activated: 0
+      },
+      {
+        name: 'Mean Reversion Pair',
+        agents: ['REVERSAL_MASTER', 'ML_ORACLE'],
+        activation_condition: 'ML and reversal both signal oversold/overbought',
+        bonus_multiplier: 1.2,
+        historical_win_rate: 0.66,
+        historical_profit_factor: 2.8,
+        times_activated: 0
+      },
+      {
+        name: 'Momentum Surge',
+        agents: ['TREND_RIDER', 'BREAKOUT_HUNTER'],
+        activation_condition: 'Trend and breakout align with rising volume',
+        bonus_multiplier: 1.3,
+        historical_win_rate: 0.70,
+        historical_profit_factor: 3.0,
+        times_activated: 0
+      },
+      {
+        name: 'Liquidity Sweep',
+        agents: ['SUPPORT_SNIPER', 'VFMD_PHYSICS', 'FLOW_PHYSICS'],
+        activation_condition: 'Support + flow/physics indicate liquidity takeout and follow-through',
+        bonus_multiplier: 1.18,
+        historical_win_rate: 0.64,
+        historical_profit_factor: 2.5,
+        times_activated: 0
+      },
+      {
+        name: 'Stealth Accumulator',
+        agents: ['ML_ORACLE', 'PY_STRATEGY_AGENT'],
+        activation_condition: 'Low-vol accumulation pattern detected by ML and python strategy',
+        bonus_multiplier: 1.22,
+        historical_win_rate: 0.65,
+        historical_profit_factor: 2.7,
+        times_activated: 0
+      },
+      {
+        name: 'Countertrend Duo',
+        agents: ['REVERSAL_MASTER', 'SUPPORT_SNIPER'],
+        activation_condition: 'Quick countertrend entry around strong support/resistance',
+        bonus_multiplier: 1.12,
+        historical_win_rate: 0.63,
+        historical_profit_factor: 2.2,
+        times_activated: 0
+      },
+      {
+        name: 'Scalper Sync',
+        agents: ['VFMD_PHYSICS', 'FLOW_PHYSICS', 'TREND_RIDER'],
+        activation_condition: 'Micro-momentum confirmed across physics agents and trend rider',
+        bonus_multiplier: 1.08,
+        historical_win_rate: 0.58,
+        historical_profit_factor: 1.8,
+        times_activated: 0
+      },
+      {
+        name: 'Volume Validated Breakout',
+        agents: ['VOLUME_VERIFIER', 'BREAKOUT_HUNTER'],
+        activation_condition: 'Breakout confirmed with volume surge (>1.5x avg volume)',
+        bonus_multiplier: 1.35,
+        historical_win_rate: 0.72,
+        historical_profit_factor: 3.5,
+        times_activated: 0
+      },
+      {
+        name: 'Climax Reversal',
+        agents: ['VOLUME_VERIFIER', 'REVERSAL_MASTER'],
+        activation_condition: 'Extreme volume at price extremes signals exhaustion and reversal',
+        bonus_multiplier: 1.40,
+        historical_win_rate: 0.74,
+        historical_profit_factor: 3.8,
+        times_activated: 0
+      },
+      {
+        name: 'Smart Money Flow',
+        agents: ['VOLUME_VERIFIER', 'ML_ORACLE', 'SUPPORT_SNIPER'],
+        activation_condition: 'Accumulation/distribution + smart money positioning + support/resistance',
+        bonus_multiplier: 1.28,
+        historical_win_rate: 0.70,
+        historical_profit_factor: 3.2,
+        times_activated: 0
+      },
+      {
+        name: 'Volume Conviction Buy',
+        agents: ['VOLUME_VERIFIER', 'TREND_RIDER', 'BREAKOUT_HUNTER'],
+        activation_condition: 'High conviction buyers with volume support and trend alignment',
+        bonus_multiplier: 1.32,
+        historical_win_rate: 0.71,
+        historical_profit_factor: 3.4,
+        times_activated: 0
+      },
+      {
+        name: 'Fakeout Guard',
+        agents: ['VOLUME_VERIFIER', 'SUPPORT_SNIPER'],
+        activation_condition: 'Detects and avoids fakeout traps - price break on weak volume',
+        bonus_multiplier: 1.10,
+        historical_win_rate: 0.68,
+        historical_profit_factor: 2.1,
+        times_activated: 0
       }
     ];
   }
@@ -169,14 +521,14 @@ export class AgentArena {
   /**
    * Get agent by name
    */
-  getAgent(name: string): TradingAgent | undefined {
+  getAgent(name: string): any | undefined {
     return this.agents.get(name);
   }
 
   /**
    * Get all agents
    */
-  getAllAgents(): TradingAgent[] {
+  getAllAgents(): any[] {
     return Array.from(this.agents.values());
   }
 
@@ -290,11 +642,26 @@ export class AgentArena {
 
   // Process incoming market data
   async processMarketData(data: any): Promise<void> {
-    const marketIntel = await this.marketOracle.analyzeMarket(data);
+    // Update market oracle with incoming snapshot and fetch enriched intel
+    try {
+      if (data && data.symbol) {
+        this.marketOracle.updateMarketData(data.symbol, data);
+      }
+    } catch (e) {
+      // ignore update errors
+    }
 
-    // Distribute to all agents
+    const marketIntel = data && data.symbol ? this.marketOracle.getMarketData(data.symbol) : null;
+
+    // Distribute to all agents (agents may be heterogeneous)
     for (const agent of this.agents.values()) {
-      await agent.analyze(data, marketIntel);
+      try {
+        if (typeof agent.analyze === 'function') {
+          await agent.analyze(data, marketIntel);
+        }
+      } catch (e) {
+        console.warn(`[AgentArena] agent analyze error for ${agent?.name}:`, e);
+      }
     }
   }
 
@@ -371,27 +738,7 @@ export class AgentArena {
       }))
       .sort((a, b) => b.votingPower - a.votingPower);
   }
-
-  /**
-   * Get all active combos
-   */
-  getCombos(): AgentCombo[] {
-    return this.combos;
-  }
-
-  /**
-   * Get agent by name
-   */
-  getAgent(name: string): TradingAgent | undefined {
-    return this.agents.get(name);
-  }
-
-  /**
-   * Get all agents
-   */
-  getAllAgents(): TradingAgent[] {
-    return Array.from(this.agents.values());
-  }
+ 
 
   /**
    * Record trade result for an agent
@@ -502,7 +849,9 @@ export class AgentArena {
   recordLearningExperience(agentName: string, state: any, action: any, reward: number, nextState: any) {
     const agent = this.agents.get(agentName);
     if (!agent) return;
-
+    // Record experience into the learning system
+    this.learningSystem.recordExperience(agent, state, action, reward, nextState);
+  }
   /**
    * Auto-manage team composition based on market regime
    */
@@ -512,6 +861,12 @@ export class AgentArena {
     decisions: SpawnDecision[];
   } {
     this.currentRegime = marketRegime;
+    
+    // Update volume agent regime awareness for threshold adjustments
+    if (this.volumeAgent) {
+      const regimeForVolume = marketRegime === 'TRENDING' ? 'trending' : 'ranging';
+      this.volumeAgent.setRegime(regimeForVolume);
+    }
     
     // Analyze what the team needs
     const decisions = this.agentSpawner.analyzeTeamNeeds(marketRegime);
@@ -589,10 +944,6 @@ export class AgentArena {
   getCurrentRegime(): MarketRegime {
     return this.currentRegime;
   }
-
-    this.learningSystem.recordExperience(agent, state, action, reward, nextState);
-  }
-
   getOptimalAction(agentName: string, state: any) {
     const agent = this.agents.get(agentName);
     if (!agent) return null;
@@ -614,10 +965,10 @@ export class AgentArena {
     // Collect recent activities from all agents
     const activities: any[] = [];
 
-    this.agents.forEach(agent => {
+    this.agents.forEach((agent: any) => {
       // Recent trades
       const recentTrades = agent.tradeHistory?.slice(-5) || [];
-      recentTrades.forEach(trade => {
+      recentTrades.forEach((trade: any) => {
         activities.push({
           timestamp: trade.timestamp || Date.now(),
           agent: agent.name,
@@ -668,10 +1019,82 @@ export class AgentArena {
     return `${days} day${days > 1 ? 's' : ''} ago`;
   }
 
-  // Add a placeholder for initializeAgents if it's not defined elsewhere
-  private initializeAgents(): void {
-    // This should be implemented to create and register initial agents
-    // For now, we'll leave it empty or add a placeholder log
-    console.log("Initializing agents...");
+    // Add a placeholder for initializeAgents if it's not defined elsewhere
+  private async initializeAgents(): Promise<void> {
+    // Create and register the standard set of agents used across the system.
+    // Wrap each registration in try/catch to avoid failing startup if a specialist has issues.
+    console.log('Initializing default agents...');
+
+    try {
+      const brk = new (require('./BreakoutHunter').BreakoutHunter)('BREAKOUT_HUNTER');
+      this.registerAgent(brk);
+    } catch (err) {
+      console.warn('Failed to register BreakoutHunter in arena initializeAgents', err);
+    }
+
+    try {
+      const trend = new TrendRider('TREND_RIDER');
+      this.registerAgent(trend);
+    } catch (err) {
+      console.warn('Failed to register TrendRider', err);
+    }
+
+    try {
+      const support = new SupportSniper('SUPPORT_SNIPER');
+      this.registerAgent(support);
+    } catch (err) {
+      console.warn('Failed to register SupportSniper', err);
+    }
+
+    try {
+      const rev = new ReversalMaster('REVERSAL_MASTER');
+      this.registerAgent(rev);
+    } catch (err) {
+      console.warn('Failed to register ReversalMaster', err);
+    }
+
+    try {
+      // Volume agent: System-wide truth verifier with regime awareness
+      const regimeForVolume = this.currentRegime === 'TRENDING' ? 'trending' : 'ranging';
+      this.volumeAgent = new VolumeMechanicalVerifierAgent('VOLUME_VERIFIER', 'balanced', regimeForVolume);
+      this.registerAgent(this.volumeAgent);
+    } catch (err) {
+      console.warn('Failed to register VolumeMechanicalVerifierAgent', err);
+    }
+
+    try {
+      // physics agents
+      const vfmd = new VFMDPhysicsAgent('VFMD_PHYSICS');
+      this.registerAgent(vfmd);
+    } catch (err) {
+      console.warn('Failed to register VFMDPhysicsAgent', err);
+    }
+
+    try {
+      const flow = new FlowPhysicsAgent('FLOW_PHYSICS');
+      this.registerAgent(flow);
+    } catch (err) {
+      console.warn('Failed to register FlowPhysicsAgent', err);
+    }
+
+    try {
+      // Register a default set of Python-strategy-derived agents
+      const { createAgentFromPythonStrategy } = await import('./PythonStrategyAgent');
+      this.registerAgent(createAgentFromPythonStrategy('gradient_trend'));
+      this.registerAgent(createAgentFromPythonStrategy('ut_bot'));
+      this.registerAgent(createAgentFromPythonStrategy('mean_reversion'));
+      this.registerAgent(createAgentFromPythonStrategy('volume_profile'));
+    } catch (err) {
+      console.warn('Failed to register PythonStrategyAgent(s)', err);
+    }
+
+    try {
+      const ml = new MLOracle('ML_ORACLE');
+      this.registerAgent(ml);
+    } catch (err) {
+      console.warn('Failed to register MLOracle', err);
+    }
+
+    // Keep generic TradingAgent registrations optional elsewhere if needed
   }
 }

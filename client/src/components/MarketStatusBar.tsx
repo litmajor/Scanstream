@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Activity, Wifi, WifiOff, Clock, DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import type { AttentionItem } from '../lib/attention';
 
 interface MarketStatusBarProps {
   isConnected: boolean;
@@ -13,6 +14,18 @@ interface MarketStatusBarProps {
     isOperational: boolean;
     latency: number;
   };
+  // Market Data Layer (feed) connectivity and retry info
+  mdlConnected?: boolean;
+  mdlRetryInfo?: { attempt?: number; delay?: number } | null;
+  topItems?: AttentionItem[];
+  onAttentionClick?: (item: AttentionItem) => void;
+  // Backfill / replay controls
+  selectedSymbol?: string;
+  onBackfill?: () => Promise<void> | void;
+  backfillInProgress?: boolean;
+  backfillCount?: number;
+  // Live ticker data (replaces hardcoded mock data)
+  liveTickerData?: TickerItem[];
 }
 
 interface TickerItem {
@@ -31,19 +44,29 @@ export default function MarketStatusBar({
   portfolioValue,
   dayChangePercent,
   exchangeStatus,
+  mdlConnected,
+  mdlRetryInfo,
+  topItems = [],
+  onAttentionClick,
+  // Backfill / replay controls (destructure so handlers are available)
+  selectedSymbol,
+  onBackfill,
+  backfillInProgress,
+  backfillCount,
+  liveTickerData,
 }: MarketStatusBarProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [marketStatus, setMarketStatus] = useState<'open' | 'closed'>('closed');
   const [timeUntilChange, setTimeUntilChange] = useState('');
 
-  // Ticker data (in production, this would come from WebSocket/API)
-  const [tickerData] = useState<TickerItem[]>([
-    { symbol: 'BTC', price: currentPrice, change: priceChange, changePercent: priceChangePercent },
-    { symbol: 'ETH', price: 2480, change: 15.30, changePercent: 0.62 },
-    { symbol: 'BNB', price: 312.50, change: -2.10, changePercent: -0.67 },
-    { symbol: 'SOL', price: 98.75, change: 3.25, changePercent: 3.40 },
-    { symbol: 'XRP', price: 0.52, change: 0.01, changePercent: 1.96 },
-  ]);
+  // Use live ticker data if provided, otherwise fallback to minimal default
+  const [tickerData] = useState<TickerItem[]>(
+    liveTickerData && liveTickerData.length > 0 
+      ? liveTickerData 
+      : [
+          { symbol: 'BTC', price: currentPrice, change: priceChange, changePercent: priceChangePercent },
+        ]
+  );
 
   // Update time every second
   useEffect(() => {
@@ -95,6 +118,20 @@ export default function MarketStatusBar({
       <div className="flex items-center justify-between text-xs">
         {/* Left Section: Market Status & Time */}
         <div className="flex items-center space-x-4">
+          {/* Attention Bar: show top 1-3 items */}
+          {topItems && topItems.length > 0 && (
+            <div className="flex items-center space-x-2">
+              {topItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => onAttentionClick?.(item)}
+                  className={`px-3 py-1 rounded-lg border ${item.severity === 'critical' ? 'border-red-400 bg-red-600/10 text-red-300' : item.severity === 'high' ? 'border-yellow-400 bg-yellow-600/5 text-yellow-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}
+                >
+                  <span className="text-xs font-medium">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* Market Status */}
           <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
             <div className="relative">
@@ -154,6 +191,45 @@ export default function MarketStatusBar({
               </>
             )}
           </div>
+
+            {/* Feed (MarketDataLayer) Status */}
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
+              {mdlConnected ? (
+                <>
+                  <Activity className="w-3 h-3 text-green-400" />
+                  <span className="text-green-400 font-medium">Feed</span>
+                  {mdlRetryInfo && (
+                    <span className="text-slate-500">• retry #{mdlRetryInfo.attempt}</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Activity className="w-3 h-3 text-yellow-400" />
+                  <span className="text-yellow-400 font-medium">Feed Unavailable</span>
+                  {mdlRetryInfo && (
+                    <span className="text-slate-500">• retrying in {mdlRetryInfo.delay}ms</span>
+                  )}
+                </>
+              )}
+              {/* Backfill control */}
+              {onBackfill && (
+                <div className="ml-2">
+                  <button
+                    onClick={() => { if (!backfillInProgress) onBackfill(); }}
+                    disabled={backfillInProgress || !selectedSymbol}
+                    className={`inline-flex items-center space-x-2 px-2 py-1 rounded-md text-xs font-medium border ${backfillInProgress ? 'border-slate-600 bg-slate-700/40 text-slate-300' : 'border-slate-700 bg-slate-800/60 text-white'}`}
+                    title={selectedSymbol ? `Backfill ${selectedSymbol}` : 'Select a symbol to backfill'}
+                  >
+                    {backfillInProgress ? (
+                      <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.15"/><path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                    ) : (
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none"><path d="M12 4v4M12 20v-4M4 12h4M20 12h-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    )}
+                    <span>{backfillInProgress ? `Backfilling (${backfillCount || 0})` : 'Backfill'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
           {/* API Health */}
           <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50">

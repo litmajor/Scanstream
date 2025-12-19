@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Waves, Activity, Wind, Zap, TrendingUp, TrendingDown, Info, BarChart3, Play } from 'lucide-react';
 import FlowFieldVisualizer from '@/components/FlowFieldVisualizer';
@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { formatMetric, formatPct, formatCurrency } from '@/utils/formatting';
 
-const SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'LINK/USDT'];
+const DEFAULT_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'LINK/USDT'];
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 
 interface FlowFieldData {
   latestForce: number;
@@ -34,6 +36,13 @@ interface FlowFieldData {
 
 export default function FlowFieldPage() {
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
+  const { symbols: universeSymbols } = useSymbolUniverse();
+
+  useEffect(() => {
+    if (universeSymbols && universeSymbols.length && (!selectedSymbol || selectedSymbol === 'BTC/USDT')) {
+      setSelectedSymbol(universeSymbols[0].symbol);
+    }
+  }, [universeSymbols]);
   const [backtestConfig, setBacktestConfig] = useState({
     initialCapital: 10000,
     positionSize: 0.1,
@@ -150,7 +159,7 @@ export default function FlowFieldPage() {
 
     // Force interpretation
     if (data.latestForce > data.averageForce * 1.3) {
-      insights.push(`Strong ${data.dominantDirection} momentum detected - force is ${((data.latestForce / data.averageForce - 1) * 100).toFixed(0)}% above average`);
+      insights.push(`Strong ${data.dominantDirection} momentum detected - force is ${formatPct(((data.latestForce / data.averageForce - 1) * 100))} above average`);
     } else if (data.latestForce < data.averageForce * 0.7) {
       insights.push('Weakening momentum - force below average');
     }
@@ -252,10 +261,10 @@ export default function FlowFieldPage() {
                 {getDirectionIcon(flowFieldData.dominantDirection)}
               </div>
               <div className="text-3xl font-bold text-white mb-2">
-                {(flowFieldData.latestForce * 100).toFixed(2)}%
+                {formatPct(flowFieldData.latestForce * 100)}
               </div>
               <div className="text-xs text-slate-400">
-                Avg: {(flowFieldData.averageForce * 100).toFixed(2)}%
+                Avg: {formatPct(flowFieldData.averageForce * 100)}
               </div>
               <div className={`mt-3 px-2 py-1 rounded text-xs font-medium inline-block ${
                 flowFieldData.dominantDirection === 'bullish' ? 'bg-green-500/10 text-green-400 border border-green-500/30' :
@@ -275,10 +284,10 @@ export default function FlowFieldPage() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-white mb-2">
-                {(flowFieldData.pressure * 100).toFixed(2)}
+                {formatMetric(flowFieldData.pressure * 100)}
               </div>
               <div className="text-xs text-slate-400">
-                Avg: {(flowFieldData.averagePressure * 100).toFixed(2)}
+                Avg: {formatMetric(flowFieldData.averagePressure * 100)}
               </div>
               <div className={`mt-3 px-2 py-1 rounded text-xs font-medium inline-block ${
                 flowFieldData.pressureTrend === 'rising' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30' :
@@ -298,7 +307,7 @@ export default function FlowFieldPage() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-white mb-2">
-                {(flowFieldData.turbulence * 10000).toFixed(2)}
+                {formatMetric(flowFieldData.turbulence * 10000)}
               </div>
               <div className="text-xs text-slate-400 mb-3">
                 Chaos level
@@ -317,7 +326,7 @@ export default function FlowFieldPage() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-white mb-2">
-                {(flowFieldData.energyGradient * 1000).toFixed(2)}
+                {formatMetric(flowFieldData.energyGradient * 1000)}
               </div>
               <div className="text-xs text-slate-400 mb-3">
                 Gradient
@@ -466,7 +475,7 @@ export default function FlowFieldPage() {
                         <CardContent className="p-4">
                           <div className="text-xs text-slate-400">Win Rate</div>
                           <div className="text-xl font-bold text-green-400">
-                            {backtestMutation.data.results?.winRate?.toFixed(1) || 0}%
+                            {formatPct(backtestMutation.data.results?.winRate || 0)}
                           </div>
                         </CardContent>
                       </Card>
@@ -474,7 +483,7 @@ export default function FlowFieldPage() {
                         <CardContent className="p-4">
                           <div className="text-xs text-slate-400">Total P&L</div>
                           <div className={`text-xl font-bold ${(backtestMutation.data.results?.totalPnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            ${backtestMutation.data.results?.totalPnl?.toFixed(2) || 0}
+                            {formatCurrency(backtestMutation.data.results?.totalPnl || 0)}
                           </div>
                         </CardContent>
                       </Card>
@@ -482,7 +491,7 @@ export default function FlowFieldPage() {
                         <CardContent className="p-4">
                           <div className="text-xs text-slate-400">Sharpe Ratio</div>
                           <div className="text-xl font-bold text-white">
-                            {backtestMutation.data.results?.sharpeRatio?.toFixed(2) || 0}
+                            {formatMetric(backtestMutation.data.results?.sharpeRatio || 0)}
                           </div>
                         </CardContent>
                       </Card>
@@ -492,10 +501,10 @@ export default function FlowFieldPage() {
                       <div className="bg-slate-900/50 border border-slate-700/50 rounded-lg p-4">
                         <h3 className="text-sm font-semibold text-white mb-2">Flow Field Insights</h3>
                         <div className="space-y-1 text-xs text-slate-300">
-                          <p>• Avg Force (Winners): {backtestMutation.data.report.avgForceWinners?.toFixed(4) || 'N/A'}</p>
-                          <p>• Avg Force (Losers): {backtestMutation.data.report.avgForceLosers?.toFixed(4) || 'N/A'}</p>
-                          <p>• Avg Turbulence (Winners): {backtestMutation.data.report.avgTurbulenceWinners?.toFixed(4) || 'N/A'}</p>
-                          <p>• Signal Accuracy: {backtestMutation.data.report.signalAccuracy?.toFixed(1) || 'N/A'}%</p>
+                          <p>• Avg Force (Winners): {formatMetric(backtestMutation.data.report.avgForceWinners) || 'N/A'}</p>
+                          <p>• Avg Force (Losers): {formatMetric(backtestMutation.data.report.avgForceLosers) || 'N/A'}</p>
+                          <p>• Avg Turbulence (Winners): {formatMetric(backtestMutation.data.report.avgTurbulenceWinners) || 'N/A'}</p>
+                          <p>• Signal Accuracy: {formatPct(backtestMutation.data.report.signalAccuracy) || 'N/A'}</p>
                         </div>
                       </div>
                     )}

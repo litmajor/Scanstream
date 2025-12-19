@@ -12,6 +12,7 @@ import { gatewayAlertSystem } from '../services/gateway-alerts';
 import gatewayMetricsRouter from './gateway-metrics';
 import { SignalEngine, defaultTradingConfig } from '../trading-engine';
 import { signalPerformanceTracker } from '../services/signal-performance-tracker';
+import { generateModuleSignal, type ArmDetectionInput, type ModuleState } from '../services/arm-template';
 
 
 const router = Router();
@@ -31,21 +32,46 @@ const gasProvider = new GasProvider(cacheManager);
 const securityValidator = new SecurityValidator(aggregator, liquidityMonitor);
 const signalEngine = new SignalEngine(defaultTradingConfig);
 
-// Initialize aggregator with CCXT and warm cache
+// Initialize aggregator with CCXT and warm cache (non-blocking)
+let isGatewayReady = false;
+
 aggregator.initialize().then(async () => {
   console.log('[Gateway] Aggregator ready');
 
-  // Import and initialize cache warmer
-  const { CacheWarmer } = await import('../services/gateway/cache-warmer');
-  const warmer = new CacheWarmer(aggregator);
+  // Don't block on cache warming - do it in background
+  (async () => {
+    try {
+      const { CacheWarmer } = await import('../services/gateway/cache-warmer');
+      const warmer = new CacheWarmer(aggregator);
 
-  // Warm cache on startup
-  await warmer.warmCache();
+      // Warm cache on startup (non-blocking)
+      await warmer.warmCache();
+      isGatewayReady = true;
+      console.log('[Gateway] Cache warming complete');
 
-  // Start continuous warming (every 60 seconds)
-  warmer.startContinuousWarming(60000);
+      // Start continuous warming (every 60 seconds)
+      warmer.startContinuousWarming(60000);
+    } catch (err) {
+      console.error('[Gateway] Cache warming failed:', err);
+      // Still mark as ready even if warming fails
+      isGatewayReady = true;
+    }
+  })();
+
 }).catch(err => {
   console.error('[Gateway] Aggregator initialization failed:', err);
+  isGatewayReady = true; // Mark ready anyway to serve requests
+});
+
+// Health check endpoint
+router.get('/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    gatewayReady: isGatewayReady,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Initialize rate limits for exchanges
@@ -366,11 +392,101 @@ router.get('/ohlcv/:symbol', async (req: Request, res: Response) => {
       parseInt(limit as string)
     );
 
+    // Add technical indicators to each candle
+    // Convert OHLCV data to array format if needed
+    const ohlcvArray = (ohlcv as any[]).map((candle: any) => [
+      candle[0] || candle.timestamp,
+      candle[1] || candle.open,
+      candle[2] || candle.high,
+      candle[3] || candle.low,
+      candle[4] || candle.close,
+      candle[5] || candle.volume
+    ]);
+    
+    const closes = ohlcvArray.map(c => c[4]); // Extract close prices
+    const dataWithIndicators = ohlcvArray.map((candle: number[], index: number) => {
+      let rsi = null;
+      let macd = null;
+      let ema = null;
+      let volumeAvg = null;
+      let dataQuality = {
+        rsiDataQuality: null as number | null,
+        macdDataQuality: null as number | null,
+        emaDataQuality: null as number | null
+      };
+      
+      // Calculate RSI if we have enough data (14 periods minimum)
+      if (index >= 14) {
+        const closePeriod = closes.slice(Math.max(0, index - 14), index + 1);
+        rsi = calculateRSI(closePeriod, 14);
+        dataQuality.rsiDataQuality = rsi !== null ? 100 : 0;
+      } else {
+        dataQuality.rsiDataQuality = (index / 14) * 100;
+      }
+      
+      // Calculate MACD if we have enough data (34 periods minimum)
+      if (index >= 34) {
+        const closePeriod = closes.slice(Math.max(0, index - 33), index + 1);
+        const macdCalc = calculateMACD(closePeriod);
+        if (macdCalc) {
+          macd = {
+            line: macdCalc.macd,
+            signal: macdCalc.signal,
+            histogram: macdCalc.histogram,
+          };
+          dataQuality.macdDataQuality = 100;
+        } else {
+          dataQuality.macdDataQuality = 0;
+        }
+      } else {
+        dataQuality.macdDataQuality = (index / 34) * 100;
+      }
+      
+      // Calculate EMA (20-period) if we have enough data
+      if (index >= 20) {
+        const closePeriod = closes.slice(Math.max(0, index - 19), index + 1);
+        ema = calculateEMA(closePeriod, 20);
+        dataQuality.emaDataQuality = ema !== null ? 100 : 0;
+      } else {
+        dataQuality.emaDataQuality = (index / 20) * 100;
+      }
+      
+      // Calculate average volume over last 20 periods
+      if (index >= 20) {
+        const volumeWindow = ohlcvArray.slice(Math.max(0, index - 19), index + 1);
+        const volumeData = volumeWindow.map(c => c[5] || 0);
+        const nonZeroVols = volumeData.filter(v => v > 0);
+        
+        if (nonZeroVols.length > 0) {
+          volumeAvg = volumeData.reduce((sum, c) => sum + c, 0) / volumeData.length;
+        }
+      }
+      
+      return {
+        timestamp: candle[0],
+        open: candle[1],
+        high: candle[2],
+        low: candle[3],
+        close: candle[4],
+        volume: candle[5],
+        rsi: rsi,
+        macd: macd,
+        ema: ema,
+        volumeAvg: volumeAvg,
+        dataQuality: dataQuality
+      };
+    });
+
+    // Assess overall data quality
+    const allIndicators = dataWithIndicators.map(d => [d.rsi, d.macd, d.ema]);
+    const overallQuality = assessDataQuality(ohlcvArray, allIndicators);
+
     res.json({
       symbol,
       timeframe,
-      count: ohlcv.length,
-      data: ohlcv
+      count: dataWithIndicators.length,
+      dataQuality: createDataQualityStatus(overallQuality, ohlcvArray),
+      data: dataWithIndicators
     });
   } catch (error: any) {
     console.error(`[Gateway] OHLCV fetch error for ${req.params.symbol}:`, error.message);
@@ -496,12 +612,12 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       volumeTrend: (latest.volume || 0) > (prev.volume || 0) ? 'INCREASING' : 'DECREASING',
 
       // Momentum (8)
-      rsi: rsi || 50,
-      rsiLabel: (rsi || 50) < 30 ? 'OVERSOLD' : (rsi || 50) > 70 ? 'OVERBOUGHT' : 'NEUTRAL',
-      macd: macd.macd || 0,
-      macdSignal: macd.signal || 0,
-      macdHistogram: (macd.macd || 0) - (macd.signal || 0),
-      macdCrossover: (macd.macd || 0) > (macd.signal || 0) ? 'BULLISH' : 'BEARISH',
+      rsi: safeRSIValue(rsi),
+      rsiLabel: safeRSIValue(rsi) < 30 ? 'OVERSOLD' : safeRSIValue(rsi) > 70 ? 'OVERBOUGHT' : 'NEUTRAL',
+      macd: safeMACDValue(macd).line,
+      macdSignal: safeMACDValue(macd).signal,
+      macdHistogram: safeMACDValue(macd).histogram,
+      macdCrossover: safeMACDValue(macd).line > safeMACDValue(macd).signal ? 'BULLISH' : 'BEARISH',
       momentum: momentum,
       momentumTrend: momentum > 0 ? 'RISING' : 'FALLING',
 
@@ -513,7 +629,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       trendStrength: (() => {
         const { confidence } = generateSignalTypeWithScores({
           rsi,
-          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          macdHistogram: safeMACDValue(macd).histogram,
           momentum,
           bbPosition,
           close: latestPrice,
@@ -525,7 +641,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       trendDirection: latestPrice > (ema50 || 0) ? 'UPTREND' : 'DOWNTREND',
 
       // Volatility (4)
-      atr: atr || 0,
+      atr: atr ?? 0, // Now in percentage, null becomes 0
       volatility: volatility,
       volatilityLabel: volatility > 0.05 ? 'HIGH' : 'MEDIUM',
       bbPosition: bbPosition,
@@ -537,42 +653,76 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       spread: ((latest.price as any)?.high || (latest as any).high || 0) - ((latest.price as any)?.low || (latest as any).low || 0),
       orderImbalance: latestPrice > prevPrice ? 'BUY' : 'SELL',
 
+      // Risk context check: ATR must be available for BUY/SELL signals
+      hasRiskContext: atr !== null && atr > 0,
+
       // Signal generation (3)
       signal: (() => {
-        const { type } = generateSignalTypeWithScores({
+        const generated = generateSignalTypeWithScores({
           rsi,
-          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          macdHistogram: safeMACDValue(macd).histogram,
           momentum,
           bbPosition,
           close: latestPrice,
           ema20: ema20 || latestPrice,
           ema50: ema50 || latestPrice,
+          volume: latest.volume || 0,
+          volumeRatio: (latest.volume || 0) / (prev.volume || 1),
         });
-        return type;
+        
+        // CRITICAL: If ATR is unavailable, veto BUY/SELL (force to HOLD)
+        // This prevents risky trades without volatility context
+        if ((generated.type === 'BUY' || generated.type === 'SELL') && !atr) {
+          return 'HOLD';
+        }
+        return generated.type;
+      })(),
+      signalHoldReason: (() => {
+        const generated = generateSignalTypeWithScores({
+          rsi,
+          macdHistogram: safeMACDValue(macd).histogram,
+          momentum,
+          bbPosition,
+          close: latestPrice,
+          ema20: ema20 || latestPrice,
+          ema50: ema50 || latestPrice,
+          volume: latest.volume || 0,
+          volumeRatio: (latest.volume || 0) / (prev.volume || 1),
+        });
+        return generated.holdReason || 'NORMAL';
       })(),
       signalStrength: (() => {
         const { strength } = generateSignalTypeWithScores({
           rsi,
-          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          macdHistogram: safeMACDValue(macd).histogram,
           momentum,
           bbPosition,
           close: latestPrice,
           ema20: ema20 || latestPrice,
           ema50: ema50 || latestPrice,
+          volume: latest.volume || 0,
+          volumeRatio: (latest.volume || 0) / (prev.volume || 1),
         });
         return strength;
       })(),
       signalConfidence: (() => {
-        const { confidence } = generateSignalTypeWithScores({
+        const generated = generateSignalTypeWithScores({
           rsi,
-          macdHistogram: (macd.macd || 0) - (macd.signal || 0),
+          macdHistogram: safeMACDValue(macd).histogram,
           momentum,
           bbPosition,
           close: latestPrice,
           ema20: ema20 || latestPrice,
           ema50: ema50 || latestPrice,
+          volume: latest.volume || 0,
+          volumeRatio: (latest.volume || 0) / (prev.volume || 1),
         });
-        return confidence;
+        
+        // Reduce confidence if ATR is missing
+        if (!atr) {
+          return Math.max(10, generated.confidence * 0.5);
+        }
+        return generated.confidence;
       })(),
 
       // Advanced Moving Averages (6)
@@ -587,7 +737,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       rsi14: rsi,
       rsi7: calculateRSI(closes, 7),
       rsi21: calculateRSI(closes, 21),
-      rsiDivergence: rsi > 70 ? 'OVERBOUGHT' : rsi < 30 ? 'OVERSOLD' : 'NORMAL',
+      rsiDivergence: safeRSIValue(rsi) > 70 ? 'OVERBOUGHT' : safeRSIValue(rsi) < 30 ? 'OVERSOLD' : 'NORMAL',
 
       // Bollinger Bands (6)
       bbUpper: closes.length > 0 ? (Math.max(...closes)) : latestPrice,
@@ -600,8 +750,8 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
       // Stochastic (4)
       stochK: bbPosition * 100,
       stochD: bbPosition * 95,
-      stochRSI: (rsi - 30) / 40 * 100,
-      slowStoch: Math.min(100, Math.max(0, ((rsi - 30) / 40 * 100 + bbPosition * 100) / 2)),
+      stochRSI: (safeRSIValue(rsi) - 30) / 40 * 100,
+      slowStoch: Math.min(100, Math.max(0, ((safeRSIValue(rsi) - 30) / 40 * 100 + bbPosition * 100) / 2)),
 
       // Volume Analysis (6)
       volumeSMA: volumes.length >= 20 ? volumes.slice(-20).reduce((a, b) => a + b) / 20 : latest.volume || 0,
@@ -613,10 +763,10 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
 
       // Momentum Indicators (5)
       roc: closes.length > 12 ? ((closes[closes.length - 1] - closes[closes.length - 13]) / closes[closes.length - 13] * 100) : 0,
-      cmo: calculateRSI(closes, 14) - 50,
+      cmo: (calculateRSI(closes, 14) ?? 50) - 50,
       aos: momentum > 0 ? 'RISING' : 'FALLING',
-      keltner: atr * 2,
-      priceVsKeltner: atr > 0 ? (Math.abs(latestPrice - ema20) / atr) : 0,
+      keltner: atr ? atr * 2 : 0, // ATR now in percentage
+      priceVsKeltner: atr && atr > 0 ? (Math.abs(latestPrice - (ema20 ?? latestPrice)) / (latestPrice * (atr / 100))) : 0,
 
       // Pattern Recognition (4)
       support: Math.min(...closes.slice(-20)),
@@ -640,7 +790,7 @@ router.get('/dataframe/:symbol', async (req: Request, res: Response) => {
 
       // Trend Analysis (4)
       trendIntensity: Math.abs(momentum) / 100,
-      trendScore: Math.abs(momentum) + (rsi < 30 ? 10 : rsi > 70 ? -10 : 0) + (macd.macd > macd.signal ? 5 : -5),
+      trendScore: Math.abs(momentum) + (safeRSIValue(rsi) < 30 ? 10 : safeRSIValue(rsi) > 70 ? -10 : 0) + (safeMACDValue(macd).line > safeMACDValue(macd).signal ? 5 : -5),
       upcandles: closes.filter((c, i) => c > (closes[i - 1] || c)).length,
       downcandles: closes.filter((c, i) => c < (closes[i - 1] || c)).length,
     };
@@ -1079,25 +1229,21 @@ router.get('/signals/history', async (req: Request, res: Response) => {
  */
 router.get('/signals/archive', async (req: Request, res: Response) => {
   try {
-    const { symbol, signalType, outcome, limit = '50', offset = '0' } = req.query;
+    const { symbol, outcome, limit = '50' } = req.query;
     const limitNum = parseInt(limit as string);
-    const offsetNum = parseInt(offset as string);
 
     // Use the signalArchive service to fetch data
-    const archivedSignals = await signalArchive.getSignals({
+    const archivedSignals = await signalArchive.querySignals({
       symbol: symbol as string | undefined,
-      signalType: signalType as string | undefined,
-      outcome: outcome as string | undefined,
-      limit: limitNum,
-      offset: offsetNum
+      outcome: outcome as 'WIN' | 'LOSS' | 'BREAKEVEN' | 'PENDING' | undefined,
+      limit: limitNum
     });
 
     res.json({
       success: true,
-      signals: archivedSignals.data,
-      total: archivedSignals.total,
+      signals: archivedSignals,
+      count: archivedSignals.length,
       limit: limitNum,
-      offset: offsetNum,
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
@@ -1109,9 +1255,139 @@ router.get('/signals/archive', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================================
+// ARM (Asymmetric Reaction Model) System
+// State machine for detecting pressure shifts before edge confirmation
+// ============================================================================
+
+type SignalType = 'BUY' | 'SELL' | 'HOLD' | 'ARM_LONG' | 'ARM_SHORT';
+type HoldReason = 'ZERO_VOLUME' | 'LOW_LIQUIDITY' | 'CONTINUATION' | 'LATE' | 'INSUFFICIENT_EDGE' | 'NORMAL';
+type ArmReason = 'MOMENTUM_DECAY' | 'RSI_SLOPE_SHIFT' | 'VOLATILITY_COMPRESSION';
+
+interface SymbolState {
+  lastArm?: 'LONG' | 'SHORT';
+  armTicks: number;
+  lastUpdate: number;
+}
+
+// Global symbol state tracker for ARM memory
+const symbolStates = new Map<string, SymbolState>();
+
+// Helper: Calculate slope (simple derivative) from array of values
+function slope(values: number[]): number {
+  if (values.length < 2) return 0;
+  return values[values.length - 1] - values[0];
+}
+
+// Helper: Get or create symbol state
+function getSymbolState(symbol: string): SymbolState {
+  if (!symbolStates.has(symbol)) {
+    symbolStates.set(symbol, { armTicks: 0, lastUpdate: Date.now() });
+  }
+  return symbolStates.get(symbol)!;
+}
+
+// Helper: Update ARM state on detection
+function updateArmState(symbol: string, armType: 'LONG' | 'SHORT' | undefined) {
+  const state = getSymbolState(symbol);
+  if (armType) {
+    state.lastArm = armType;
+    state.armTicks = (state.armTicks || 0) + 1;
+  }
+  state.lastUpdate = Date.now();
+}
+
+// Helper: Decay/expire ARM if no confirmation
+function expireArmIfNeeded(symbol: string) {
+  const state = getSymbolState(symbol);
+  // ARM expires after 5 ticks without confirmation
+  if ((state.armTicks || 0) > 5) {
+    state.lastArm = undefined;
+    state.armTicks = 0;
+  }
+}
+
+/**
+ * Generate ARM signal for momentum module using ARM template
+ * Detects pressure shifts from derivatives (momentum decay, RSI shifts, volatility compression)
+ */
+function generateMomentumArmSignal(
+  dataframe: any,
+  rsiHistory: number[] = [],
+  macdHistHistory: number[] = [],
+  momentumHistory: number[] = []
+): { armType: 'LONG' | 'SHORT' | null, armReason: string, confidence: number } {
+  const symbol = dataframe.symbol || 'UNKNOWN';
+  const state = getSymbolState(symbol);
+  
+  // Calculate slopes from history
+  const rsiSlope = rsiHistory.length >= 2 ? slope(rsiHistory) : 0;
+  const macdHistSlope = macdHistHistory.length >= 2 ? slope(macdHistHistory) : 0;
+  const momentumSlope = momentumHistory.length >= 2 ? slope(momentumHistory) : 0;
+  
+  // Build ARM detection input
+  const armInput: ArmDetectionInput = {
+    rsi: dataframe.rsi || 50,
+    rsiSlope: rsiSlope,
+    macd: dataframe.macd || 0,
+    macdHistogram: dataframe.macdHistogram || 0,
+    macdHistSlope: macdHistSlope,
+    momentum: dataframe.momentum || 0,
+    atr: dataframe.atr || 0,
+    atrSlope: dataframe.atrSlope || 0,
+    atrPercentile: dataframe.atrPercentile || 50,
+    volume: dataframe.volume || 0,
+    volumeSlope: dataframe.volumeSlope || 0,
+  };
+  
+  // Volume gate
+  const volumeGate = (dataframe.volumeRatio || 0) > 0.8 && (dataframe.volume || 0) > 0;
+  
+  // Create module state if needed
+  const momentumState: ModuleState = state;
+  
+  // Generate using template
+  const signal = generateModuleSignal({
+    moduleName: 'MomentumClassifier',
+    data: armInput,
+    state: momentumState,
+    volumeGate,
+    
+    // Momentum confirmation conditions
+    confirmLongCondition: (data) => {
+      return (data.rsi ?? 50) < 70 && (data.macdHistSlope ?? 0) > 0 && (data.momentum ?? 0) > 0;
+    },
+    confirmShortCondition: (data) => {
+      return (data.rsi ?? 50) > 30 && (data.macdHistSlope ?? 0) < 0 && (data.momentum ?? 0) < 0;
+    },
+    
+    minArmTicks: 2,
+    baseConfidence: 0.1,
+    armConfidencePerTick: 0.08,
+    confirmedConfidence: 0.55
+  });
+  
+  // Extract ARM info from signal
+  let armType: 'LONG' | 'SHORT' | null = null;
+  let armReason = '';
+  
+  if (signal.type === 'ARM_LONG') {
+    armType = 'LONG';
+    armReason = signal.armReason || 'ARM_LONG_DETECTED';
+  } else if (signal.type === 'ARM_SHORT') {
+    armType = 'SHORT';
+    armReason = signal.armReason || 'ARM_SHORT_DETECTED';
+  }
+  
+  return {
+    armType,
+    armReason,
+    confidence: signal.confidence
+  };
+}
 
 // Generate signal type and confidence using composite technical + order flow + microstructure scoring
-function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 'HOLD', strength: number, confidence: number } {
+function generateSignalTypeWithScores(dataframe: any): { type: SignalType, strength: number, confidence: number, epistemicState: string, epistemicReasons: string[], alignmentPoints: number, holdReason?: HoldReason, armReason?: ArmReason } {
   const rsi = dataframe.rsi || 50;
   const macdHist = dataframe.macdHistogram || 0;
   const momentum = dataframe.momentum || 0;
@@ -1119,26 +1395,64 @@ function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 
   const priceAboveEMA20 = dataframe.close > (dataframe.ema20 || dataframe.close);
   const priceAboveEMA50 = dataframe.close > (dataframe.ema50 || dataframe.close);
   const emaSpread = Math.abs(dataframe.ema20 - dataframe.ema50) / (dataframe.ema50 || 1);
+  
+  // VOLUME GATES: Hard constraints on trade eligibility
+  // Volume is liquidity — absence of volume = absence of buyers/sellers = invalid trade
+  const volumeRatio = dataframe.volumeRatio || 0;
+  const volume = dataframe.volume || 0;
+  
+  // Check 1: Recent volume must exceed average (liquidity requirement)
+  const hasMinimumLiquidity = volumeRatio > 0.8; // At least 80% of previous candle volume
+  
+  // Check 2: Absolute volume must be non-zero (not zero volume)
+  const hasNonZeroVolume = volume > 0;
 
   // TECHNICAL SCORE: RSI + MACD + BB Position + EMA trend
+  // EDGE-BASED: Only reward clear oversold/overbought + trend confirmation
+  // NO partial credit for midpoint bounces
   let technicalScore = 0;
 
   // RSI component (-1 to 1)
-  if (rsi < 30) technicalScore += 0.4; // Oversold, bullish
-  else if (rsi > 70) technicalScore -= 0.4; // Overbought, bearish
-  else technicalScore += (50 - Math.abs(rsi - 50)) / 100; // Neutral zone normalized
+  // ONLY reward extreme RSI + trend confirmation, NOT midpoint bounces
+  if (rsi < 30 && macdHist > 0 && priceAboveEMA50) {
+    technicalScore += 0.45; // Oversold + MACD bullish + above EMA = strong buy edge
+  } else if (rsi < 30 && macdHist > 0) {
+    technicalScore += 0.35; // Oversold + MACD bullish (missing EMA confirmation)
+  } else if (rsi < 30) {
+    technicalScore += 0.15; // Just oversold, no confirmation
+  } else if (rsi > 70 && macdHist < 0 && !priceAboveEMA50) {
+    technicalScore -= 0.45; // Overbought + MACD bearish + below EMA = strong sell edge
+  } else if (rsi > 70 && macdHist < 0) {
+    technicalScore -= 0.35; // Overbought + MACD bearish
+  } else if (rsi > 70) {
+    technicalScore -= 0.15; // Just overbought
+  }
+  // DO NOT reward neutral RSI (50-70) bounces. They're noise, not edge.
 
   // MACD component (-1 to 1)
-  if (macdHist > 0) technicalScore += 0.25; // Bullish crossover
-  else if (macdHist < 0) technicalScore -= 0.25; // Bearish crossover
+  // Only count MACD if there's RSI confirmation (prevent false positives)
+  if (macdHist > 0.5 && rsi < 50) {
+    technicalScore += 0.3; // Strong bullish MACD + low RSI = accumulation
+  } else if (macdHist < -0.5 && rsi > 50) {
+    technicalScore -= 0.3; // Strong bearish MACD + high RSI = distribution
+  }
+  // Small MACD signals ignored unless RSI extreme
 
   // Bollinger Bands component (-1 to 1)
-  if (bbPos < 0.2) technicalScore += 0.2; // Price near lower band
-  else if (bbPos > 0.8) technicalScore -= 0.2; // Price near upper band
+  if (bbPos < 0.15) {
+    technicalScore += 0.25; // Price near lower band = oversold edge
+  } else if (bbPos > 0.85) {
+    technicalScore -= 0.25; // Price near upper band = overbought edge
+  }
+  // Middle bands are noise, ignored
 
   // EMA trend alignment (-1 to 1)
-  if (priceAboveEMA20 && priceAboveEMA50) technicalScore += 0.15; // Bullish alignment
-  else if (!priceAboveEMA20 && !priceAboveEMA50) technicalScore -= 0.15; // Bearish alignment
+  if (priceAboveEMA20 && priceAboveEMA50 && emaSpread > 0.005) {
+    technicalScore += 0.2; // Bullish alignment with divergence = confirmed uptrend
+  } else if (!priceAboveEMA20 && !priceAboveEMA50 && emaSpread > 0.005) {
+    technicalScore -= 0.2; // Bearish alignment with divergence = confirmed downtrend
+  }
+  // Just above one EMA but not both = weak, ignored
 
   technicalScore = Math.max(-1, Math.min(1, technicalScore));
 
@@ -1168,40 +1482,292 @@ function generateSignalTypeWithScores(dataframe: any): { type: 'BUY' | 'SELL' | 
   // STRENGTH: Magnitude of conviction
   const strength = Math.abs(compositeScore);
 
-  // CONFIDENCE: Based on indicator alignment
+  // EXPENSIVE-TO-EARN, CHEAP-TO-LOSE CONFIDENCE
+  // Count alignment points: indicator agreement is mandatory to earn confidence
+  // Require STRONG confirmation, not just binary presence
   const alignmentPoints =
-    (priceAboveEMA20 === priceAboveEMA50 ? 1 : 0) + // EMA alignment
-    (macdHist > 0 === priceAboveEMA50 ? 1 : 0) + // MACD alignment with trend
-    ((rsi < 40 || rsi > 60) ? 1 : 0) + // RSI not in neutral zone
-    (Math.abs(momentum) > 1 ? 1 : 0); // Strong momentum
+    (priceAboveEMA20 === priceAboveEMA50 && emaSpread > 0.005 ? 1 : 0) + // EMA alignment + spread
+    (macdHist > 0.3 && priceAboveEMA50 && rsi < 50 ? 1 : 0) + // Strong bullish MACD + trend + RSI
+    (macdHist < -0.3 && !priceAboveEMA50 && rsi > 50 ? 1 : 0) + // Strong bearish MACD + trend + RSI
+    (rsi < 30 || rsi > 70 ? 1 : 0) + // RSI extreme (not just not-neutral)
+    (Math.abs(momentum) > 2 ? 1 : 0); // Very strong momentum (not just >1)
 
-  const confidence = Math.min(100, 50 + alignmentPoints * 12.5);
+  // Start ultra-low
+  let confidence = 10;
+  const epistemicReasons: string[] = [];
 
+  // Require agreement from multiple sources (gates confidence earning)
+  if (alignmentPoints < 2) {
+    // Insufficient alignment = cannot exceed 40
+    confidence = Math.min(40, 10 + compositeScore * 50);
+    epistemicReasons.push('LOW_ALIGNMENT');
+  } else if (alignmentPoints === 2) {
+    // Moderate alignment = cap at 60
+    confidence = Math.min(60, 10 + compositeScore * 75);
+  } else if (alignmentPoints >= 3) {
+    // Strong alignment = can reach higher
+    confidence = Math.min(100, 10 + alignmentPoints * 20 + Math.abs(compositeScore) * 40);
+  }
+
+  // CHEAP-TO-LOSE: Penalize on disagreement or weak signals
+  if (Math.abs(compositeScore) < 0.1) {
+    // Weak signal overall = reduce by 40%
+    confidence *= 0.6;
+    epistemicReasons.push('WEAK_SIGNAL');
+  }
+
+  // Determine epistemic state
+  let epistemicState = 'CONFIDENT';
+  if (confidence < 30) {
+    epistemicState = 'INSUFFICIENT';
+  } else if (confidence < 50) {
+    epistemicState = 'UNCERTAIN';
+  } else {
+    epistemicState = 'CONFIDENT';
+  }
+
+  // ============================================================================
+  // ARM DETECTION (Asymmetric Reaction Model)
+  // Detect pressure shifts BEFORE edge confirmation
+  // Uses derivatives: momentum decay, RSI slope, volatility compression
+  // ============================================================================
+  
+  // For ARM detection, we need recent indicator history
+  // In a real scenario, pass last 3-5 candles worth of indicators
+  // For now, using single candle as baseline (ARM will be weak but correct)
+  
+  let armReason: ArmReason | undefined = undefined;
+  let type: SignalType = 'HOLD';
+  let holdReason: HoldReason = 'NORMAL'; // Semantic reason for HOLD
+  
+  // ARM_LONG conditions: Pressure shift from bearish to bullish
+  // 1. MOMENTUM_DECAY: MACD negative but histogram rising (sellers losing power)
+  // 2. RSI_SLOPE_SHIFT: RSI below 50 but trending upward (demand recovering)
+  // 3. VOLATILITY_COMPRESSION: ATR contracting after expansion (coiling for breakout)
+  
+  const armLong =
+    !hasNonZeroVolume ? false : 
+    !hasMinimumLiquidity ? false :
+    (
+      // Sellers losing strength even though price still bearish
+      (macdHist < 0 && momentum > -1 && rsi < 50) ||  // MOMENTUM_DECAY proxy
+      // Demand returning but equilibrium not crossed
+      (rsi < 50 && rsi > 30 && momentum > 0) ||        // RSI_SLOPE_SHIFT proxy
+      // Market coiling
+      (Math.abs(momentum) < 2 && Math.abs(compositeScore) > 0 && compositeScore < 0.2)  // VOLATILITY_COMPRESSION proxy
+    );
+
+  // ARM_SHORT conditions: Pressure shift from bullish to bearish
+  // 1. MOMENTUM_DECAY: MACD positive but histogram falling (buyers losing power)
+  // 2. RSI_SLOPE_SHIFT: RSI above 50 but trending downward (supply returning)
+  // 3. VOLATILITY_COMPRESSION: ATR contracting (coiling after expansion)
+  
+  const armShort =
+    !hasNonZeroVolume ? false :
+    !hasMinimumLiquidity ? false :
+    (
+      // Buyers losing strength even though price still bullish
+      (macdHist > 0 && momentum < 1 && rsi > 50) ||    // MOMENTUM_DECAY proxy
+      // Supply returning but equilibrium not crossed
+      (rsi > 50 && rsi < 70 && momentum < 0) ||        // RSI_SLOPE_SHIFT proxy
+      // Market coiling
+      (Math.abs(momentum) < 2 && Math.abs(compositeScore) > 0 && compositeScore > -0.2)  // VOLATILITY_COMPRESSION proxy
+    );
+
+  // Determine dominant ARM reason (for diagnostics)
+  if (armLong) {
+    if (macdHist < 0 && momentum > -1) {
+      armReason = 'MOMENTUM_DECAY';
+    } else if (rsi < 50 && rsi > 30 && momentum > 0) {
+      armReason = 'RSI_SLOPE_SHIFT';
+    } else {
+      armReason = 'VOLATILITY_COMPRESSION';
+    }
+  } else if (armShort) {
+    if (macdHist > 0 && momentum < 1) {
+      armReason = 'MOMENTUM_DECAY';
+    } else if (rsi > 50 && rsi < 70 && momentum < 0) {
+      armReason = 'RSI_SLOPE_SHIFT';
+    } else {
+      armReason = 'VOLATILITY_COMPRESSION';
+    }
+  }
+
+  // ============================================================================
+  // SIGNAL DETERMINATION: Volume Gate → ARM Detection → BUY/SELL Confirmation
+  // ============================================================================
+  
+  // First check: Volume eligibility (hard gate - no volume = no trade)
+  if (!hasNonZeroVolume) {
+    type = 'HOLD';
+    holdReason = 'ZERO_VOLUME'; // No buyers/sellers
+    return {
+      type, strength: strength * 100, confidence: Math.round(confidence),
+      epistemicState, epistemicReasons, alignmentPoints, holdReason
+    };
+  } else if (!hasMinimumLiquidity) {
+    type = 'HOLD';
+    holdReason = 'LOW_LIQUIDITY'; // Volume dropped below average
+    return {
+      type, strength: strength * 100, confidence: Math.round(confidence),
+      epistemicState, epistemicReasons, alignmentPoints, holdReason
+    };
+  }
+
+  // Second check: ARM Detection (pressure shift state)
+  if (armLong) {
+    // Asymmetry detected in buying direction
+    type = 'ARM_LONG';
+    updateArmState(dataframe.symbol, 'LONG');
+    return {
+      type,
+      armReason,
+      strength: Math.abs(compositeScore) * 100 * 0.75, // Capped confidence for ARM
+      confidence: Math.min(50, 10 + Math.abs(compositeScore) * 30), // ARM max 50%
+      epistemicState: 'UNCERTAIN',
+      epistemicReasons: [...epistemicReasons, 'ARM_DETECTED'],
+      alignmentPoints,
+      holdReason: 'CONTINUATION'
+    };
+  } else if (armShort) {
+    // Asymmetry detected in selling direction
+    type = 'ARM_SHORT';
+    updateArmState(dataframe.symbol, 'SHORT');
+    return {
+      type,
+      armReason,
+      strength: Math.abs(compositeScore) * 100 * 0.75, // Capped confidence for ARM
+      confidence: Math.min(50, 10 + Math.abs(compositeScore) * 30), // ARM max 50%
+      epistemicState: 'UNCERTAIN',
+      epistemicReasons: [...epistemicReasons, 'ARM_DETECTED'],
+      alignmentPoints,
+      holdReason: 'CONTINUATION'
+    };
+  }
+
+  // Third check: BUY/SELL confirmation (edge confirmed)
+  // ARM must precede BUY/SELL: Check if BUY/SELL follows ARM
+  // For now, allow BUY/SELL if edge is clear (compositeScore threshold)
+  
   // Determine signal type based on composite score
-  let type: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-  if (compositeScore > 0.15) type = 'BUY';
-  else if (compositeScore < -0.15) type = 'SELL';
+  // EDGE REQUIREMENT: Raise threshold from 0.15 to 0.35
+  // This eliminates midpoint bounces, requires clear oversold/overbought + confirmation
+  
+  if (compositeScore > 0.35) {
+    // CONVICTION GATE: BUY only if confidence is sufficiently high
+    // Low confidence (< 40) = PROBE (watch without position)
+    // Medium confidence (40-60) = PROBE (small position possible)
+    // High confidence (> 60) = BUY (full conviction)
+    
+    if (confidence < 40) {
+      type = 'HOLD';
+      holdReason = 'INSUFFICIENT_EDGE'; // "Edge exists but low conviction"
+      epistemicReasons.push('LOW_CONVICTION');
+    } else {
+      type = 'BUY'; // Confidence >= 40, edge exists, volume adequate
+    }
+  } else if (compositeScore < -0.35) {
+    // CONVICTION GATE: SELL only if confidence is sufficiently high
+    // Same conviction thresholds as BUY
+    
+    if (confidence < 40) {
+      type = 'HOLD';
+      holdReason = 'INSUFFICIENT_EDGE'; // "Edge exists but low conviction"
+      epistemicReasons.push('LOW_CONVICTION');
+    } else {
+      type = 'SELL'; // Confidence >= 40, edge exists, volume adequate
+    }
+  } else {
+    // No edge signal (compositeScore in -0.35 to 0.35 range)
+    type = 'HOLD';
+    
+    // Semantic HOLD reasons:
+    // - CONTINUATION: Price in trend, but no extreme edge to enter
+    // - LATE: Trend extreme reached, waiting for reversal
+    // - INSUFFICIENT: Data quality insufficient for decision
+    
+    if (priceAboveEMA20 === priceAboveEMA50 && emaSpread > 0.01) {
+      // Clear trend exists, but entry point not extreme enough
+      holdReason = 'CONTINUATION';
+    } else if ((rsi > 65 || rsi < 35) && Math.abs(momentum) < 1) {
+      // RSI extreme but momentum not confirming → waiting for confirmation
+      holdReason = 'LATE';
+    } else {
+      // Mixed signals or insufficient data
+      holdReason = 'INSUFFICIENT_EDGE';
+    }
+  }
 
-  return { type, strength: strength * 100, confidence };
+  return {
+    type,
+    strength: strength * 100,
+    confidence: Math.round(confidence),
+    epistemicState,
+    epistemicReasons: epistemicReasons.length > 0 ? epistemicReasons : ['NORMAL'],
+    alignmentPoints,
+    holdReason: holdReason as HoldReason,
+    armReason
+  };
+}
+
+/**
+ * Safe accessors for indicators that may be null
+ */
+function safeMACDValue(macd: any): { line: number; signal: number; histogram: number } {
+  if (!macd) return { line: 0, signal: 0, histogram: 0 };
+  return {
+    line: macd.line ?? macd.macd ?? 0,
+    signal: macd.signal ?? 0,
+    histogram: macd.histogram ?? 0
+  };
+}
+
+function safeRSIValue(rsi: number | null | undefined): number {
+  return rsi ?? 50; // Default to neutral if missing
 }
 
 // Simple indicator calculations
-function calculateRSI(closes: number[], period: number = 14): number {
-  if (closes.length < period) return 50;
-  let gains = 0, losses = 0;
-  for (let i = closes.length - period; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
+function calculateRSI(closes: number[], period: number = 14): number | null {
+  // RSI requires minimum 'period + 1' candles (need period changes to calculate)
+  if (closes.length < period + 1) return null; // Insufficient data = null signal
+  
+  // Calculate price changes
+  const changes: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1]);
   }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
+  
+  // Wilder's smoothing (proper RSI formula)
+  let avgGain = 0, avgLoss = 0;
+  
+  // Initial SMA over first 'period' changes
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i];
+    else avgLoss += Math.abs(changes[i]);
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  
+  // Wilder's smoothing for remaining changes
+  for (let i = period; i < changes.length; i++) {
+    if (changes[i] > 0) {
+      avgGain = (avgGain * (period - 1) + changes[i]) / period;
+      avgLoss = (avgLoss * (period - 1)) / period;
+    } else {
+      avgGain = (avgGain * (period - 1)) / period;
+      avgLoss = (avgLoss * (period - 1) + Math.abs(changes[i])) / period;
+    }
+  }
+  
+  // Calculate RS and RSI
   const rs = avgGain / (avgLoss || 1);
   return 100 - (100 / (1 + rs));
 }
 
-function calculateEMA(closes: number[], period: number): number {
-  if (closes.length < period) return closes[closes.length - 1];
+function calculateEMA(closes: number[], period: number): number | null {
+  // EMA requires minimum period candles
+  if (closes.length < period) return null; // Insufficient data = null signal
+  
   const k = 2 / (period + 1);
   let ema = closes.slice(0, period).reduce((a, b) => a + b) / period;
   for (let i = period; i < closes.length; i++) {
@@ -1210,16 +1776,69 @@ function calculateEMA(closes: number[], period: number): number {
   return ema;
 }
 
-function calculateMACD(closes: number[]) {
-  const ema12 = calculateEMA(closes, 12);
-  const ema26 = calculateEMA(closes, 26);
-  const macd = ema12 - ema26;
-  const signal = (macd + ema26) / 2;
-  return { macd, signal };
+function calculateMACD(closes: number[]): { macd: number | null; signal: number | null; histogram: number | null } | null {
+  // MACD requires minimum 26 periods (slow EMA) + 9 periods for signal = 34+ candles
+  if (closes.length < 34) return null; // Insufficient data = null signal
+  
+  // Calculate 12 and 26 period EMAs
+  const ema12Array: number[] = [];
+  const ema26Array: number[] = [];
+  
+  // EMA 12
+  let ema12 = closes.slice(0, 12).reduce((a, b) => a + b) / 12;
+  ema12Array.push(ema12);
+  const k12 = 2 / (12 + 1);
+  for (let i = 12; i < closes.length; i++) {
+    ema12 = closes[i] * k12 + ema12 * (1 - k12);
+    ema12Array.push(ema12);
+  }
+  
+  // EMA 26
+  let ema26 = closes.slice(0, 26).reduce((a, b) => a + b) / 26;
+  ema26Array.push(ema26);
+  const k26 = 2 / (26 + 1);
+  for (let i = 26; i < closes.length; i++) {
+    ema26 = closes[i] * k26 + ema26 * (1 - k26);
+    ema26Array.push(ema26);
+  }
+  
+  // Calculate MACD line (12-EMA - 26-EMA)
+  const macdLine: number[] = [];
+  const startIdx = Math.max(ema12Array.length, ema26Array.length) - Math.min(ema12Array.length, ema26Array.length);
+  for (let i = startIdx; i < Math.min(ema12Array.length, ema26Array.length); i++) {
+    macdLine.push(ema12Array[i] - ema26Array[i - startIdx]);
+  }
+  
+  // Calculate Signal line (9-period EMA of MACD line)
+  if (macdLine.length < 9) return null;
+  let signal = macdLine.slice(0, 9).reduce((a, b) => a + b) / 9;
+  const kSignal = 2 / (9 + 1);
+  for (let i = 9; i < macdLine.length; i++) {
+    signal = macdLine[i] * kSignal + signal * (1 - kSignal);
+  }
+  
+  // Current values
+  const macd = macdLine[macdLine.length - 1];
+  const histogram = macd - signal;
+  const lastClose = closes[closes.length - 1];
+  
+  // NORMALIZE MACD as percentage of current price to make it cross-asset comparable
+  // BTC at 42k: MACD=-444 → -1.06%
+  // SOL at $200: MACD=-0.7 → -0.35%
+  // Now comparable across price scales
+  const macdNormalized = lastClose !== 0 ? (macd / lastClose) * 100 : 0;
+  const signalNormalized = lastClose !== 0 ? (signal / lastClose) * 100 : 0;
+  const histogramNormalized = macdNormalized - signalNormalized;
+  
+  return { 
+    macd: macdNormalized, 
+    signal: signalNormalized, 
+    histogram: histogramNormalized 
+  };
 }
 
-function calculateATR(frames: any[], period: number = 14): number {
-  if (frames.length < period) return 0;
+function calculateATR(frames: any[], period: number = 14): number | null {
+  if (frames.length < period) return null; // Insufficient data = null (not 0)
   let tr = 0;
   for (let i = frames.length - period; i < frames.length; i++) {
     const high = (frames[i].price as any)?.high || (frames[i] as any).high || 0;
@@ -1227,7 +1846,14 @@ function calculateATR(frames: any[], period: number = 14): number {
     const high_low = high - low;
     tr += high_low;
   }
-  return tr / period;
+  const atrAbsolute = tr / period;
+  
+  // Normalize ATR as percentage of current close price
+  // This makes ATR comparable across price scales
+  const lastClose = ((frames[frames.length - 1].price as any)?.close || (frames[frames.length - 1] as any).close || 0);
+  if (lastClose === 0) return null; // Can't normalize with zero close
+  
+  return (atrAbsolute / lastClose) * 100; // Return as percentage
 }
 
 function calculateVolatility(closes: number[]): number {
@@ -1235,6 +1861,84 @@ function calculateVolatility(closes: number[]): number {
   const mean = closes.reduce((a, b) => a + b) / closes.length;
   const variance = closes.reduce((a, b) => a + Math.pow(b - mean, 2)) / closes.length;
   return Math.sqrt(variance) / mean;
+}
+
+/**
+ * Assess data quality for a set of indicators
+ * Returns quality score (0-100) and reasons for low quality
+ */
+function assessDataQuality(ohlcv: any[], indicators: any[]): {
+  score: number;
+  reasons: string[];
+  sufficient: boolean;
+} {
+  const reasons: string[] = [];
+  let score = 100;
+  
+  // Check 1: Minimum candles
+  if (ohlcv.length < 34) {
+    reasons.push(`INSUFFICIENT_CANDLES: ${ohlcv.length}/34 required for MACD`);
+    score -= 40;
+  } else if (ohlcv.length < 50) {
+    reasons.push(`LOW_SAMPLE_SIZE: ${ohlcv.length} candles (50+ recommended)`);
+    score -= 15;
+  }
+  
+  // Check 2: Volume anomalies
+  const volumes = ohlcv.map(c => c[5] || 0).filter(v => v > 0);
+  if (volumes.length === 0) {
+    reasons.push(`ZERO_VOLUME: All candles have 0 volume`);
+    score -= 50;
+  } else if (volumes.length < ohlcv.length * 0.8) {
+    reasons.push(`SPARSE_VOLUME: ${volumes.length}/${ohlcv.length} candles with volume`);
+    score -= 20;
+  }
+  
+  // Check 3: Price gaps/discontinuities
+  const closes = ohlcv.map(c => c[4]);
+  const changes = [];
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(Math.abs((closes[i] - closes[i-1]) / closes[i-1]));
+  }
+  const largeGaps = changes.filter(c => c > 0.1).length; // > 10% changes
+  if (largeGaps > changes.length * 0.1) {
+    reasons.push(`HIGH_VOLATILITY: ${largeGaps} large gaps (>10%) in last ${changes.length} candles`);
+    score -= 10;
+  }
+  
+  // Check 4: Null indicator count
+  const nullIndicators = indicators.flat().filter(v => v === null).length;
+  if (nullIndicators > 0) {
+    reasons.push(`INSUFFICIENT_INDICATOR_DATA: ${nullIndicators} null values`);
+    score -= Math.min(30, nullIndicators * 5);
+  }
+  
+  // Check 5: Flat/dead market (no price movement)
+  const priceRange = Math.max(...closes) - Math.min(...closes);
+  const priceAvg = closes.reduce((a, b) => a + b) / closes.length;
+  const rangePercent = (priceRange / priceAvg) * 100;
+  if (rangePercent < 0.1) {
+    reasons.push(`FLAT_MARKET: ${rangePercent.toFixed(3)}% price range`);
+    score -= 25;
+  }
+  
+  score = Math.max(0, Math.min(100, score));
+  const sufficient = score >= 50 && ohlcv.length >= 34;
+  
+  return { score, reasons, sufficient };
+}
+
+/**
+ * Create data quality status for frontend
+ */
+function createDataQualityStatus(quality: { score: number; reasons: string[]; sufficient: boolean }, ohlcv: any[]) {
+  return {
+    quality: quality.score,
+    sufficient: quality.sufficient,
+    warnings: quality.reasons,
+    candles: ohlcv.length,
+    timestamp: new Date().toISOString()
+  };
 }
 
 /**
@@ -1259,11 +1963,17 @@ router.post('/scan', async (req: Request, res: Response) => {
 
     console.log(`[Gateway] Scanning ${symbols.length} symbols via CCXT`);
 
+    // Create timeout promise (30 seconds)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Scan timeout (30s)')), 30000)
+    );
+
     // Use static imports from top of file if possible, otherwise dynamic import is fine here
     const { CCXTScanner } = require('../services/gateway/ccxt-scanner');
     const scanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
 
-    const results = await scanner.scanSymbols(symbols, timeframe, options);
+    const resultsPromise = scanner.scanSymbols(symbols, timeframe, options);
+    const results = await Promise.race([resultsPromise, timeoutPromise]);
 
     res.json({
       scanned: results.length,
@@ -1376,6 +2086,115 @@ router.get('/signals/performance/recent', (req: Request, res: Response) => {
   const { limit = '20' } = req.query;
   const recent = signalPerformanceTracker.getRecentPerformance(parseInt(limit as string));
   res.json({ performances: recent });
+});
+
+/**
+ * Integrity-Validated Dataframe Endpoint
+ * Returns dataframe with integrity validation results
+ */
+router.get('/dataframe-validated/:symbol', async (req: Request, res: Response) => {
+  try {
+    let symbol = req.params.symbol;
+    symbol = decodeURIComponent(symbol).replace(/%2F/gi, '/');
+
+    const { timeframe = '1h', limit = '100' } = req.query;
+    const limitNum = parseInt(limit as string) || 100;
+
+    // Get frames from aggregator
+    const frames = await aggregator.getMarketFrames(symbol, timeframe as string, limitNum);
+
+    if (!frames || frames.length === 0) {
+      return res.status(404).json({
+        error: `No data available for ${symbol}`,
+        symbol,
+        timeframe,
+        validated: false,
+        integrity: { totalInput: 0, validCount: 0, rejectedCount: 0, gapCount: 0 }
+      });
+    }
+
+    // Process through integrity gate
+    try {
+      const { getIntegrityGate } = await import('../services/market-data/integrity-gate');
+      const gate = getIntegrityGate();
+
+      const candles = frames.map((f: any) => ({
+        ts: f.timestamp || Date.now(),
+        open: f.price?.open || 0,
+        high: f.price?.high || 0,
+        low: f.price?.low || 0,
+        close: f.price?.close || 0,
+        volume: f.volume || 0,
+        isFinal: true,
+        source: 'ccxt',
+        venue: 'gateway'
+      }));
+
+      // Parse timeframe to seconds
+      const m = (timeframe as string).match(/(\d+)([mhd])/i);
+      let timeframeSeconds = 3600;
+      if (m) {
+        const amount = parseInt(m[1]);
+        const unit = m[2].toLowerCase();
+        if (unit === 'm') timeframeSeconds = amount * 60;
+        else if (unit === 'h') timeframeSeconds = amount * 3600;
+        else if (unit === 'd') timeframeSeconds = amount * 86400;
+      }
+
+      const integrityResult = await gate.storeValidatedCandles(
+        symbol,
+        timeframeSeconds,
+        candles
+      );
+
+      const latest = integrityResult.stored[integrityResult.stored.length - 1];
+
+      res.json({
+        symbol,
+        timeframe,
+        cached: false,
+        validated: true,
+        dataframe: latest || frames[frames.length - 1],
+        integrity: {
+          totalInput: frames.length,
+          validCount: integrityResult.stored.length,
+          rejectedCount: integrityResult.rejected.length,
+          gapCount: integrityResult.gaps.length,
+          rejectionReasons: integrityResult.rejected.map(r => r.reason || 'unknown'),
+          gaps: integrityResult.gaps.map(g => ({
+            from: g.from,
+            to: g.to,
+            missingCandles: g.missing
+          }))
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (integrityError) {
+      console.warn('[Gateway] Integrity validation error:', integrityError);
+      // Return frames without integrity info if validation fails
+      const latest = frames[frames.length - 1];
+      res.json({
+        symbol,
+        timeframe,
+        cached: false,
+        validated: false,
+        dataframe: latest,
+        integrity: {
+          totalInput: frames.length,
+          validCount: frames.length,
+          rejectedCount: 0,
+          gapCount: 0,
+          error: 'Integrity validation unavailable'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      error: error.message,
+      validated: false
+    });
+  }
 });
 
 router.get('/ws/stats', (req: Request, res: Response) => {

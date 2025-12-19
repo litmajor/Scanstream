@@ -52,6 +52,7 @@ export interface Experience {
 
 export class RLPositionAgent {
   private qTable: Map<string, Map<string, number>> = new Map();
+  private regimeQTables: Map<string, Map<string, Map<string, number>>> = new Map(); // regime → state → action → Q-value
   private experienceBuffer: Experience[] = [];
   private readonly bufferSize = 10000;
   private readonly learningRate = 0.1;
@@ -60,11 +61,44 @@ export class RLPositionAgent {
   private readonly epsilonDecay = 0.995;
   private readonly epsilonMin = 0.05;
   
+  // Regime-specific learning rates
+  private regimeLearningRates: Map<string, number> = new Map([
+    ['TRENDING', 0.12], // Trending markets: faster learning
+    ['RANGING', 0.08], // Ranging markets: slower learning (more ambiguous)
+    ['VOLATILE', 0.10], // Volatile: moderate learning
+    ['NEUTRAL', 0.10], // Neutral: default
+  ]);
+  
   // Discretized action space
   private readonly actionSpace: PositionSizingAction[] = this.generateActionSpace();
   
+  // Regime performance tracking
+  private regimePerformance: Map<string, { wins: number; trades: number }> = new Map();
+  
   constructor() {
     this.loadQTable();
+    this.initializeRegimeQTables();
+    this.initializeRegimeTracking();
+  }
+  
+  /**
+   * Initialize regime-specific Q-tables
+   */
+  private initializeRegimeQTables(): void {
+    const regimes = ['TRENDING', 'RANGING', 'VOLATILE', 'NEUTRAL'];
+    for (const regime of regimes) {
+      this.regimeQTables.set(regime, new Map());
+    }
+  }
+  
+  /**
+   * Initialize regime performance tracking
+   */
+  private initializeRegimeTracking(): void {
+    const regimes = ['TRENDING', 'RANGING', 'VOLATILE', 'NEUTRAL'];
+    for (const regime of regimes) {
+      this.regimePerformance.set(regime, { wins: 0, trades: 0 });
+    }
   }
   
   /**
@@ -152,7 +186,7 @@ export class RLPositionAgent {
   }
   
   /**
-   * Select action using epsilon-greedy policy
+   * Select action using epsilon-greedy policy (globally)
    */
   selectAction(state: RLState, explore: boolean = true): PositionSizingAction {
     // Epsilon-greedy exploration
@@ -175,6 +209,84 @@ export class RLPositionAgent {
     
     return bestAction;
   }
+
+  /**
+   * Select action using regime-aware Q-table
+   * Automatically selects from the Q-table specific to current market regime
+   */
+  selectActionRegimeAware(state: RLState, explore: boolean = true): PositionSizingAction {
+    const regime = state.regime;
+    const stateKey = this.stateToKey(state);
+    
+    // Get epsilon for this regime (based on regime performance)
+    const regimeStats = this.regimePerformance.get(regime);
+    const regimeWinRate = regimeStats ? regimeStats.wins / Math.max(1, regimeStats.trades) : 0.5;
+    const adaptiveEpsilon = this.epsilon * (1 - regimeWinRate * 0.5); // Reduce exploration in winning regimes
+    
+    // Epsilon-greedy with regime adaptation
+    if (explore && Math.random() < adaptiveEpsilon) {
+      // Random action
+      return this.actionSpace[Math.floor(Math.random() * this.actionSpace.length)];
+    }
+    
+    // Get regime-specific Q-table
+    let regimeQTable = this.regimeQTables.get(regime);
+    if (!regimeQTable) {
+      regimeQTable = new Map();
+      this.regimeQTables.set(regime, regimeQTable);
+    }
+    
+    // Greedy action (exploit from regime-specific table)
+    let bestAction = this.actionSpace[0];
+    let bestValue = this.getRegimeQValue(regime, state, bestAction);
+    
+    for (const action of this.actionSpace) {
+      const value = this.getRegimeQValue(regime, state, action);
+      if (value > bestValue) {
+        bestValue = value;
+        bestAction = action;
+      }
+    }
+    
+    return bestAction;
+  }
+  
+  /**
+   * Get regime-specific Q-value
+   */
+  private getRegimeQValue(regime: string, state: RLState, action: PositionSizingAction): number {
+    const regimeQTable = this.regimeQTables.get(regime);
+    if (!regimeQTable) return 0;
+    
+    const stateKey = this.stateToKey(state);
+    const actionKey = this.actionToKey(action);
+    
+    if (!regimeQTable.has(stateKey)) {
+      regimeQTable.set(stateKey, new Map());
+    }
+    
+    return regimeQTable.get(stateKey)?.get(actionKey) || 0;
+  }
+  
+  /**
+   * Set regime-specific Q-value
+   */
+  private setRegimeQValue(regime: string, state: RLState, action: PositionSizingAction, value: number): void {
+    let regimeQTable = this.regimeQTables.get(regime);
+    if (!regimeQTable) {
+      regimeQTable = new Map();
+      this.regimeQTables.set(regime, regimeQTable);
+    }
+    
+    const stateKey = this.stateToKey(state);
+    const actionKey = this.actionToKey(action);
+    
+    if (!regimeQTable.has(stateKey)) {
+      regimeQTable.set(stateKey, new Map());
+    }
+    
+    regimeQTable.get(stateKey)!.set(actionKey, value);
+  }
   
   /**
    * Store experience in replay buffer
@@ -189,7 +301,7 @@ export class RLPositionAgent {
   }
   
   /**
-   * Update Q-values using Q-learning
+   * Update Q-values using Q-learning (global)
    */
   learn(experience: Experience): void {
     const { state, action, reward, nextState, done } = experience;
@@ -212,6 +324,44 @@ export class RLPositionAgent {
     );
     
     this.setQValue(state, action, newQ);
+  }
+
+  /**
+   * Update Q-values using regime-aware Q-learning
+   * Learns in regime-specific table with adaptive learning rate
+   */
+  learnRegimeAware(experience: Experience): void {
+    const { state, action, reward, nextState, done } = experience;
+    const regime = state.regime;
+    
+    // Use regime-specific learning rate
+    const regimeLR = this.regimeLearningRates.get(regime) || this.learningRate;
+    
+    // Current regime Q-value
+    const currentQ = this.getRegimeQValue(regime, state, action);
+    
+    // Maximum regime Q-value for next state
+    let maxNextQ = 0;
+    if (!done) {
+      for (const nextAction of this.actionSpace) {
+        const nextQ = this.getRegimeQValue(regime, nextState, nextAction);
+        maxNextQ = Math.max(maxNextQ, nextQ);
+      }
+    }
+    
+    // Q-learning update with regime-specific learning rate
+    const newQ = currentQ + regimeLR * (
+      reward + this.discountFactor * maxNextQ - currentQ
+    );
+    
+    this.setRegimeQValue(regime, state, action, newQ);
+    
+    // Track regime performance for adaptive epsilon
+    const regimeStats = this.regimePerformance.get(regime)!;
+    regimeStats.trades += 1;
+    if (reward > 0) {
+      regimeStats.wins += 1;
+    }
   }
   
   /**

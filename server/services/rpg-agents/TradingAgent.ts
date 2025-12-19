@@ -9,7 +9,7 @@
  * - Mood/confidence states
  */
 
-export type AgentType = 'BREAKOUT' | 'REVERSAL' | 'ML_PREDICTION' | 'MA_CROSSOVER' | 'SUPPORT_BOUNCE' | 'TREND_RIDER';
+export type AgentType = 'BREAKOUT' | 'REVERSAL' | 'ML_PREDICTION' | 'MA_CROSSOVER' | 'SUPPORT_BOUNCE' | 'TREND_RIDER' | 'PHYSICS_FLOW' | 'PHYSICS_VFMD' | 'EXIT_ORCHESTRATOR' | 'OPPOSITION_READER' | 'MICROSTRUCTURE_SPECIALIST';
 export type AgentPersonality = 'aggressive' | 'balanced' | 'conservative';
 export type AgentMood = 'focused' | 'cautious' | 'aggressive' | 'tilted';
 export type AgentRank = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Master';
@@ -40,6 +40,9 @@ export interface AgentSignal {
   reason: string;
   agent_name: string;
   agent_level: number;
+  // Optional enhancements used by agent integrations
+  size_multiplier?: number;
+  estimated_duration_hours?: number;
 }
 
 export interface Achievement {
@@ -73,6 +76,16 @@ export class TradingAgent {
   // UNLOCKED ABILITIES
   abilities: string[] = ['basic_entry'];
 
+  // Compatibility shim for legacy code: explicit skill_levels map
+  skill_levels: Record<string, number> = {};
+
+  // Decisions / learning history
+  decisions_made: any[] = [];
+
+  // Agent runtime state and trade history (used by Arena and other systems)
+  state: string = 'ACTIVE';
+  tradeHistory: any[] = [];
+
   // PERFORMANCE TRACKING
   trades: number = 0;
   wins: number = 0;
@@ -87,6 +100,13 @@ export class TradingAgent {
   mood: AgentMood = 'focused';
   confidence: number = 0.5;
 
+  // Runtime trading configuration (used by UI and routes)
+  riskTolerance: number = 0.5; // 0-1
+  positionSize: number = 1; // relative units or contract count
+  stopLoss: number | null = null; // absolute price or pct depending on system
+  takeProfit: number | null = null; // absolute price or pct depending on system
+  enabled: boolean = true;
+
   // BATTLE STATS
   rank: AgentRank = 'Bronze';
   achievements: Achievement[] = [];
@@ -96,11 +116,26 @@ export class TradingAgent {
   winning_streak: number = 0;
   losing_streak: number = 0;
 
+  // Backwards-compatible stats accessor used by some modules
+  get stats() {
+    return {
+      trades: this.trades,
+      wins: this.wins,
+      losses: this.losses,
+      winRate: this.win_rate,
+      win_rate: this.win_rate,
+      profit_factor: this.profit_factor,
+      profitFactor: this.profit_factor,
+      sharpe: this.sharpe,
+      total_profit: this.total_profit
+    };
+  }
+
   // AGENT SPAWNING
   private canSpawnSubAgents: boolean = false;
   private subAgents: TradingAgent[] = [];
 
-  constructor(name: string, agent_type: AgentType, personality: AgentPersonality) {
+  constructor(name: string, agent_type: AgentType, personality: AgentPersonality = 'balanced') {
     this.name = name;
     this.agent_type = agent_type;
     this.personality = personality;
@@ -451,7 +486,72 @@ export class TradingAgent {
     return subAgent;
   }
 
+  // Record a trade into agent history (used by Arena)
+  recordTrade(result: any) {
+    this.tradeHistory.push(result);
+    // also mirror into recent_trades for compatibility
+    try {
+      const tr: TradeResult = {
+        profit: result.profit ?? 0,
+        profit_pct: result.profit_pct ?? 0,
+        market_difficulty: result.market_difficulty ?? 1,
+        execution_quality: result.execution_quality ?? 1,
+        regime: result.regime ?? 'UNKNOWN',
+        duration_hours: result.duration_hours ?? 0
+      };
+      this.recent_trades.push(tr);
+      if (this.recent_trades.length > 100) this.recent_trades.shift();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Lightweight signal processing hook for compatibility
+  processSignal(marketData: any): any {
+    // Default: no-op signal
+    return { action: 'HOLD', confidence: 0.5, reason: 'noop' } as any;
+  }
+
+  // Analysis hook
+  async analyze(data: any, marketIntel?: any): Promise<void> {
+    // Default implementation: no-op
+    return;
+  }
+
   getSubAgents(): TradingAgent[] {
     return this.subAgents;
+  }
+
+  // --------- Configuration setters used by routes ---------
+  setRiskTolerance(value: number): void {
+    if (typeof value !== 'number' || isNaN(value)) return;
+    this.riskTolerance = Math.max(0, Math.min(1, value));
+  }
+
+  setPositionSize(size: number): void {
+    if (typeof size !== 'number' || isNaN(size)) return;
+    this.positionSize = Math.max(0, size);
+  }
+
+  setStopLoss(value: number | null): void {
+    if (value === null) {
+      this.stopLoss = null;
+      return;
+    }
+    if (typeof value !== 'number' || isNaN(value)) return;
+    this.stopLoss = value;
+  }
+
+  setTakeProfit(value: number | null): void {
+    if (value === null) {
+      this.takeProfit = null;
+      return;
+    }
+    if (typeof value !== 'number' || isNaN(value)) return;
+    this.takeProfit = value;
+  }
+
+  setEnabled(flag: boolean): void {
+    this.enabled = !!flag;
   }
 }

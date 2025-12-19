@@ -26,20 +26,21 @@ export function useGatewaySignals() {
   return useQuery({
     queryKey: ['gateway-signals'],
     queryFn: async () => {
-      const signals: GatewaySignal[] = [];
-      
-      for (const symbol of SYMBOLS) {
+      // Fetch all symbols in PARALLEL instead of sequential loop
+      // This dramatically reduces total load time
+      const promises = SYMBOLS.map(async (symbol) => {
         try {
           const encodedSymbol = symbol.replace('/', '%2F');
           const response = await fetch(
-            `/api/gateway/dataframe/${encodedSymbol}?timeframe=1h&limit=100`
+            `/api/gateway/dataframe/${encodedSymbol}?timeframe=1h&limit=100`,
+            { signal: AbortSignal.timeout(5000) } // 5 second timeout per request
           );
           
           if (response.ok) {
             const json = await response.json();
             if (json.dataframe) {
               const df = json.dataframe;
-              signals.push({
+              return {
                 symbol,
                 signal: df.signal || 'HOLD',
                 signalConfidence: df.signalConfidence || 0,
@@ -53,17 +54,28 @@ export function useGatewaySignals() {
                 ema20: df.ema20 || 0,
                 ema50: df.ema50 || 0,
                 timestamp: new Date().toISOString()
-              });
+              };
             }
           }
+          return null;
         } catch (err) {
-          console.error(`Failed to fetch ${symbol}:`, err);
+          // Avoid noisy errors when backend is not available; return null for this symbol.
+          // Keep a debug log for developers, but don't spam the console in normal usage.
+          if (typeof console !== 'undefined' && (process.env.NODE_ENV === 'development')) {
+            console.debug(`Failed to fetch ${symbol}:`, err);
+          }
+          return null;
         }
-      }
+      });
+
+      // Wait for all requests to complete
+      const results = await Promise.all(promises);
       
-      return signals;
+      // Filter out null results (failed requests)
+      return results.filter((signal): signal is GatewaySignal => signal !== null);
     },
-    refetchInterval: 30000,
-    staleTime: 25000,
+    refetchInterval: 60000, // Increased from 30s to 60s to allow full load before next refresh
+    staleTime: 55000,       // Increased from 25s to 55s
+    gcTime: 5 * 60 * 1000,  // Keep cached data for 5 minutes
   });
 }

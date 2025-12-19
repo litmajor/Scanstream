@@ -1,5 +1,5 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
+  "include": ["client/**/*", "shared/**/*", "server/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
@@ -15,7 +15,7 @@
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "types": ["node", "vite/client"],
-  "target": "es2020",
+    "target": "es2020",
     "downlevelIteration": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {

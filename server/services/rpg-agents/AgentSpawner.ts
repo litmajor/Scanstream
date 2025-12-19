@@ -35,7 +35,12 @@ export class AgentSpawner {
     ['REVERSAL', 2],
     ['ML_PREDICTION', 2],
     ['MA_CROSSOVER', 2],
-    ['SUPPORT_BOUNCE', 2]
+    ['SUPPORT_BOUNCE', 2],
+    ['PHYSICS_FLOW', 2],
+    ['PHYSICS_VFMD', 2],
+    ['EXIT_ORCHESTRATOR', 1],
+    ['OPPOSITION_READER', 1],
+    ['MICROSTRUCTURE_SPECIALIST', 1]
   ]);
 
   constructor(arena: AgentArena) {
@@ -118,6 +123,35 @@ export class AgentSpawner {
         break;
     }
 
+    // === EXIT AGENT SPAWNING (Always critical) ===
+    // Exit agents manage profit and prevent losses - essential for team
+    if ((typeCount.get('EXIT_ORCHESTRATOR') || 0) < 1) {
+      decisions.push({
+        shouldSpawn: true,
+        agentType: 'EXIT_ORCHESTRATOR',
+        reason: 'No exit orchestrator - critical for profit management',
+        priority: 9
+      });
+    }
+
+    if ((typeCount.get('OPPOSITION_READER') || 0) < 1 && currentAgents.length >= 4) {
+      decisions.push({
+        shouldSpawn: true,
+        agentType: 'OPPOSITION_READER',
+        reason: 'Opposition reader needed for technical level analysis',
+        priority: 8
+      });
+    }
+
+    if ((typeCount.get('MICROSTRUCTURE_SPECIALIST') || 0) < 1 && currentAgents.length >= 5) {
+      decisions.push({
+        shouldSpawn: true,
+        agentType: 'MICROSTRUCTURE_SPECIALIST',
+        reason: 'Microstructure specialist needed for liquidity monitoring',
+        priority: 7
+      });
+    }
+
     // Performance-based spawning
     const lowPerformers = currentAgents.filter(a => 
       a.trades >= 20 && a.win_rate < 0.45
@@ -167,6 +201,27 @@ export class AgentSpawner {
         break;
       case 'SUPPORT_BOUNCE':
         agent = new SupportSniper(agentName);
+        break;
+      case 'PHYSICS_FLOW':
+        // Lazy-import to avoid circular deps when not used
+        const { FlowPhysicsAgent } = require('./FlowPhysicsAgent');
+        agent = new FlowPhysicsAgent(agentName);
+        break;
+      case 'PHYSICS_VFMD':
+        const { VFMDPhysicsAgent } = require('./VFMDPhysicsAgent');
+        agent = new VFMDPhysicsAgent(agentName);
+        break;
+      case 'EXIT_ORCHESTRATOR':
+        const { ExitOrchestratorAgent } = require('./SpecializedExitAgents');
+        agent = new ExitOrchestratorAgent(agentName, 'balanced');
+        break;
+      case 'OPPOSITION_READER':
+        const { OppositionResistanceAgent } = require('./SpecializedExitAgents');
+        agent = new OppositionResistanceAgent(agentName, 'balanced');
+        break;
+      case 'MICROSTRUCTURE_SPECIALIST':
+        const { MicrostructureSpecialistAgent } = require('./SpecializedExitAgents');
+        agent = new MicrostructureSpecialistAgent(agentName, 'conservative');
         break;
       default:
         agent = new BreakoutHunter(agentName);

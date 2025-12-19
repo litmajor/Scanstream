@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
+import usePerformanceMark from '../hooks/usePerformanceMark';
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
 
@@ -25,6 +26,7 @@ interface TradingChartProps {
   height?: number;
   maxCandles?: number;
   onError?: (error: Error) => void;
+  onCandleHover?: (timestamp: number | null) => void;
 }
 
 interface ChartConfig {
@@ -318,7 +320,10 @@ export const TradingChart: React.FC<TradingChartProps> = React.memo(({
   height = 400,
   maxCandles = 100,
   onError,
+  onCandleHover,
 }) => {
+  // Performance instrumentation (Phase 4)
+  try { usePerformanceMark('TradingChart'); } catch (e) {}
   const [chartReady, setChartReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -431,6 +436,16 @@ export const TradingChart: React.FC<TradingChartProps> = React.memo(({
       height: mainChartHeight,
       events: {
         mounted: handleChartMounted,
+        mouseMove: ({ dataPointIndex, seriesIndex }: any) => {
+          // Trigger hover callback when user hovers over a candle
+          if (seriesIndex === 0 && dataPointIndex >= 0 && data[dataPointIndex]) {
+            onCandleHover?.(data[dataPointIndex].timestamp);
+          }
+        },
+        mouseLeave: () => {
+          // Clear hover when user leaves the chart
+          onCandleHover?.(null);
+        },
       },
       toolbar: {
         show: true,

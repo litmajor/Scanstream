@@ -1,4 +1,4 @@
-import { type MarketFrame, type Signal, type Trade, type Strategy, type BacktestResult, type InsertMarketFrame, type InsertSignal, type InsertTrade, type InsertStrategy, type InsertBacktestResult, type MarketSentiment, type PortfolioSummary } from "@shared/schema";
+import { type MarketFrame, type Signal, type Trade, type Strategy, type BacktestResult, type InsertMarketFrame, type InsertSignal, type InsertTrade, type InsertStrategy, type InsertBacktestResult, type MarketSentiment, type PortfolioSummary, type ModelMetric, type InsertModelMetric, type InsertAuditLog } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -34,6 +34,13 @@ export interface IStorage {
   // Signal performance tracking
   createSignalPerformance(performance: any): Promise<void>;
   updateSignalPerformance(signalId: string, updates: any): Promise<void>;
+  // Model metrics for drift detection
+  createModelMetric(metric: InsertModelMetric): Promise<void>;
+  getLatestModelMetrics(modelName: string, limit?: number): Promise<ModelMetric[]>;
+  getStaleModelMetrics(): Promise<ModelMetric[]>;
+  // Audit logs
+  createAuditLog(log: InsertAuditLog): Promise<void>;
+  getAuditLogs(entityType?: string, entityId?: string, limit?: number): Promise<InsertAuditLog[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -42,6 +49,8 @@ export class MemStorage implements IStorage {
   private trades: Map<string, Trade> = new Map();
   private strategies: Map<string, Strategy> = new Map();
   private backtestResults: Map<string, BacktestResult> = new Map();
+  private modelMetrics: Map<string, ModelMetric> = new Map();
+  private auditLogs: Map<string, InsertAuditLog> = new Map();
 
   async getMarketFrames(symbol: string, limit = 200): Promise<MarketFrame[]> {
     return Array.from(this.marketFrames.values())
@@ -86,6 +95,11 @@ export class MemStorage implements IStorage {
       regimeState: signalData.regimeState !== undefined ? signalData.regimeState : null,
       legacyLabel: signalData.legacyLabel !== undefined ? signalData.legacyLabel : null,
       signalStrengthScore: signalData.signalStrengthScore !== undefined ? signalData.signalStrengthScore : null,
+      classifications: signalData.classifications ?? [],
+      patternDetails: signalData.patternDetails ?? [],
+      timeframeAlignment: signalData.timeframeAlignment ?? 0,
+      agreementScore: signalData.agreementScore ?? 50,
+      positionSize: signalData.positionSize ?? null,
     };
     this.signals.set(id, signal);
     return signal;
@@ -115,6 +129,7 @@ export class MemStorage implements IStorage {
       exitPrice: tradeData.exitPrice || null,
       pnl: tradeData.pnl || null,
       commission: tradeData.commission || 0,
+      signalId: tradeData.signalId ?? null,
     };
     this.trades.set(id, trade);
     return trade;
@@ -231,7 +246,67 @@ export class MemStorage implements IStorage {
   async getAllSignalPerformances(): Promise<any[]> {
     return Array.from(this.signalPerformances.values());
   }
+
+  // Audit log implementations for MemStorage
+  async createAuditLog(log: InsertAuditLog): Promise<void> {
+    const id = randomUUID();
+    const ts = (log as any).timestamp ? new Date((log as any).timestamp) : new Date();
+    const record: any = {
+      ...log,
+      id,
+      timestamp: ts,
+    };
+    this.auditLogs.set(id, record);
+  }
+
+  async getAuditLogs(entityType?: string, entityId?: string, limit = 100): Promise<InsertAuditLog[]> {
+    let items = Array.from(this.auditLogs.values()) as any[];
+    if (entityType) items = items.filter(i => i.entityType === entityType);
+    if (entityId) items = items.filter(i => i.entityId === entityId);
+    items = items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, limit);
+    return items as InsertAuditLog[];
+  }
+
+  // Model metric implementations for MemStorage
+  async createModelMetric(metric: InsertModelMetric): Promise<void> {
+    const id = randomUUID();
+    const record: ModelMetric = {
+      id,
+      modelName: metric.modelName,
+      timestamp: new Date(),
+      accuracy: metric.accuracy ?? null,
+      precision: metric.precision ?? null,
+      recall: metric.recall ?? null,
+      driftScore: metric.driftScore ?? null,
+      dataPoints: metric.dataPoints ?? 0,
+      isStale: metric.isStale ?? false,
+    } as any;
+    this.modelMetrics.set(id, record);
+  }
+
+  async getLatestModelMetrics(modelName: string, limit = 10): Promise<ModelMetric[]> {
+    let items = Array.from(this.modelMetrics.values()).filter(m => m.modelName === modelName);
+    items = items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, limit);
+    return items;
+  }
+
+  async getStaleModelMetrics(): Promise<ModelMetric[]> {
+    return Array.from(this.modelMetrics.values()).filter(m => m.isStale === true).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
 }
 
 import { DbStorage } from './db-storage';
-export const storage = new DbStorage();
+
+// Initialize with fallback support
+// The DbStorage class now has built-in fallback to MemStorage when database is unavailable
+let storageInstance: IStorage;
+
+try {
+  storageInstance = new DbStorage();
+  console.log('[Storage] Initialized with database backend');
+} catch (error: any) {
+  console.warn('[Storage] Database initialization failed, using in-memory storage:', (error as any).message);
+  storageInstance = new MemStorage();
+}
+
+export const storage = storageInstance;

@@ -27,7 +27,8 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     if (!dataFeed) {
-      dataFeed = new ExchangeDataFeed(['binance', 'coinbase', 'kraken', 'kucoinfutures', 'okx', 'bybit']);
+      // ExchangeDataFeed has a private constructor and must be created via the async factory
+      dataFeed = await ExchangeDataFeed.create();
     }
     const timeframes = ['1h', '4h', '1d'];
     
@@ -35,18 +36,22 @@ router.get('/', async (req: Request, res: Response) => {
     const timeframeData = await Promise.all(
       timeframes.map(async (tf) => {
         try {
-          const data = await dataFeed.fetchOHLCV(symbol, tf, 50);
-          
-          if (!data || data.length < 2) {
+          // ExchangeDataFeed exposes `fetchMarketData` which returns MarketFrame[]
+          // Use a local `feed` variable so TypeScript knows it's non-null across awaits
+          const feed = dataFeed ?? await ExchangeDataFeed.create();
+          dataFeed = feed;
+          const frames = await feed.fetchMarketData(symbol, tf, 50);
+
+          if (!frames || frames.length < 2) {
             return { timeframe: tf, error: 'Insufficient data' };
           }
 
           // Calculate basic metrics
-          const closes = data.map((d: any) => d[4]);
-          const volumes = data.map((d: any) => d[5]);
+          const closes = frames.map((f: any) => (f.price as any)?.close ?? 0);
+          const volumes = frames.map((f: any) => f.volume ?? 0);
           const current = closes[closes.length - 1];
           const previous = closes[closes.length - 2];
-          const change = ((current - previous) / previous) * 100;
+          const change = previous !== 0 ? ((current - previous) / previous) * 100 : 0;
 
           // Determine trend
           const ema5 = calculateEMA(closes, 5);

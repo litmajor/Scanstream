@@ -11,21 +11,30 @@ import {
   ChevronDown
 } from 'lucide-react';
 
+type TimeframeType = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '8h' | '1d' | '3d' | '1w' | '1month';
+
 interface FloatingChartToolbarProps {
-  selectedTimeframe: string;
-  onTimeframeChange: (timeframe: string) => void;
+  selectedTimeframe: TimeframeType | string;
+  onTimeframeChange: (timeframe: TimeframeType) => void;
   isFullscreen: boolean;
   onFullscreenToggle: () => void;
   onScreenshot?: () => void;
   onExport?: () => void;
 }
 
-const timeframes = [
+const timeframes: readonly { value: TimeframeType; label: string; shortcut: string }[] = [
   { value: '1m', label: '1m', shortcut: '1' },
   { value: '5m', label: '5m', shortcut: '2' },
-  { value: '1h', label: '1h', shortcut: '3' },
-  { value: '1d', label: '1d', shortcut: '4' },
-  { value: '1w', label: '1w', shortcut: '5' },
+  { value: '15m', label: '15m', shortcut: '3' },
+  { value: '30m', label: '30m', shortcut: '4' },
+  { value: '1h', label: '1h', shortcut: '5' },
+  { value: '2h', label: '2h', shortcut: '6' },
+  { value: '4h', label: '4h', shortcut: '7' },
+  { value: '8h', label: '8h', shortcut: '8' },
+  { value: '1d', label: '1d', shortcut: '9' },
+  { value: '3d', label: '3d', shortcut: '0' },
+  { value: '1w', label: '1w', shortcut: '' },
+  { value: '1month', label: '1M', shortcut: '' },
 ];
 
 const chartPresets = [
@@ -73,7 +82,7 @@ export default function FloatingChartToolbar({
   const [activeIndicators, setActiveIndicators] = useState<string[]>(['volume']);
 
   const applyPreset = (preset: typeof chartPresets[0]) => {
-    onTimeframeChange(preset.timeframe);
+    onTimeframeChange(preset.timeframe as TimeframeType);
     setActiveIndicators(preset.indicators.map(i => i.toLowerCase()));
     setShowPresets(false);
   };

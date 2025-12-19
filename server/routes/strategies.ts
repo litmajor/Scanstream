@@ -362,8 +362,9 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No market data available for the specified date range' });
     }
 
-    // Get strategy
-    const strategy = await storage.getStrategy(strategyId);
+    // Get strategy (storage exposes getStrategies)
+    const strategies = await storage.getStrategies();
+    const strategy = strategies.find(s => s.id === strategyId);
     if (!strategy) {
       return res.status(404).json({ error: 'Strategy not found' });
     }
@@ -374,15 +375,44 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
     const config = (await import('../../config/trading-config.json', { with: { type: 'json' } })).default;
 
     const signalEngine = new SignalEngine(config);
-    const signals = [];
+    // Normalize market frames to match BacktestOptions expectations
+    const normalizedFrames = filteredFrames.map((f: any, idx: number) => ({
+      ...f,
+      id: f.id ?? `${symbol}-${f.timestamp ?? idx}`,
+      timestamp: f.timestamp instanceof Date ? f.timestamp : new Date(f.timestamp),
+      price: f.price ?? null,
+      volume: f.volume ?? 0,
+      indicators: f.indicators ?? {},
+      orderFlow: f.orderFlow ?? {},
+      marketMicrostructure: f.marketMicrostructure ?? {},
+    }));
 
-    // Generate signals from market frames
-    for (let i = 0; i < filteredFrames.length; i++) {
-      const signal = await signalEngine.generateSignal(filteredFrames, i);
+    const signals: any[] = [];
+    // Generate signals from normalized frames
+    for (let i = 0; i < normalizedFrames.length; i++) {
+      const signal = await signalEngine.generateSignal(normalizedFrames, i);
       if (signal) {
+        // Map signal type to expected union and fill missing properties
+        const mappedType = (signal.type === 'BUY' || signal.type === 'LONG') ? 'BUY'
+          : (signal.type === 'SELL' || signal.type === 'SHORT') ? 'SELL' : 'HOLD';
+
         signals.push({
           ...signal,
-          timestamp: filteredFrames[i].timestamp,
+          id: `${strategyId || id}-${i}-${normalizedFrames[i].timestamp.getTime()}`,
+          symbol: signal.symbol ?? symbol,
+          type: mappedType,
+          confidence: Number(signal.confidence) || 0,
+          strength: Number(signal.strength) || 0,
+          price: typeof signal.price === 'number' ? signal.price : (normalizedFrames[i].price && typeof normalizedFrames[i].price === 'object' ? (normalizedFrames[i].price as any).close ?? 0 : Number(normalizedFrames[i].price) || 0),
+          timestamp: normalizedFrames[i].timestamp,
+          classifications: (signal as any).classifications ?? null,
+          patternDetails: (signal as any).patternDetails ?? {},
+          timeframeAlignment: (signal as any).timeframeAlignment ?? null,
+          positionSize: (signal as any).positionSize ?? null,
+          reasoning: Array.isArray(signal.reasoning) ? signal.reasoning : (signal.reasoning ? [signal.reasoning] : []),
+          stopLoss: signal.stopLoss ?? null,
+          takeProfit: signal.takeProfit ?? null,
+          riskReward: signal.riskReward ?? null,
         });
       }
     }
@@ -391,23 +421,26 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
     const result = await runBacktest({
       initialCapital: initialCapital || 10000,
       signals,
-      marketFrames: filteredFrames,
+      marketFrames: normalizedFrames,
     });
 
     // Calculate metrics
     const metrics = result.metrics;
-    const totalReturn = ((result.portfolio.getBalance() - initialCapital) / initialCapital) * 100;
+    const totalReturn = ((result.portfolio.getCurrentBalance() - (initialCapital || 10000)) / (initialCapital || 10000)) * 100;
 
     // Store backtest result
+    // Avoid duplicating totalReturn if present in metrics
+    const { totalReturn: _maybe, ...metricsWithoutTotal } = metrics as any || {};
+
     const backtestResult = await storage.createBacktestResult({
       strategyId,
       startDate: start,
       endDate: end,
       initialCapital: initialCapital || 10000,
-      finalCapital: result.portfolio.getBalance(),
+      finalCapital: result.portfolio.getCurrentBalance(),
       performance: {
         totalReturn,
-        ...metrics,
+        ...metricsWithoutTotal,
       },
       equityCurve: result.portfolio.getEquityCurve?.() || [],
       monthlyReturns: [],
@@ -493,7 +526,7 @@ router.post('/enhanced-bounce/execute', async (req: Request, res: Response) => {
     if (result.success && result.signal && result.signal !== 'HOLD') {
       const signalData = {
         symbol,
-        type: result.signal === 'BUY' ? 'BUY' : 'SELL',
+        type: (result.signal === 'BUY' || result.signal === 'LONG') ? 'BUY' : (result.signal === 'SELL' || result.signal === 'SHORT') ? 'SELL' : 'HOLD',
         strength: result.metadata?.bounce_strength || 75,
         confidence: result.metadata?.bounce_confidence || 70,
         price: result.price,
@@ -509,7 +542,7 @@ router.post('/enhanced-bounce/execute', async (req: Request, res: Response) => {
         takeProfit: result.price * (result.signal === 'BUY' ? 1.05 : 0.95),
         source: 'strategy',
         strategyId: 'Enhanced Bounce'
-      };
+      } as any;
 
       await storage.createSignal(signalData);
       console.log(`[Enhanced Bounce] Signal created: ${result.signal} ${symbol} @ ${result.price}`);
@@ -549,7 +582,7 @@ router.post('/:id/execute', async (req: Request, res: Response) => {
     if (result.success && result.signal && result.signal !== 'HOLD') {
       const signalData = {
         symbol,
-        type: result.signal === 'BUY' || result.signal === 'LONG' ? 'BUY' : 'SELL',
+        type: (result.signal === 'BUY' || result.signal === 'LONG') ? 'BUY' : (result.signal === 'SELL' || result.signal === 'SHORT') ? 'SELL' : 'HOLD',
         strength: result.metadata?.strength || 75,
         confidence: result.metadata?.confidence || 70,
         price: result.price,
@@ -563,7 +596,7 @@ router.post('/:id/execute', async (req: Request, res: Response) => {
         takeProfit: result.signal === 'BUY' ? result.price * 1.05 : result.price * 0.95,
         source: 'strategy',
         strategyId: strategy.name
-      };
+      } as any;
 
       await storage.createSignal(signalData);
       console.log(`[Strategy ${strategy.name}] Signal created: ${result.signal} ${symbol} @ ${result.price}`);
@@ -822,7 +855,7 @@ router.post('/execute-all', async (req: Request, res: Response) => {
           if (result.success && result.signal && result.signal !== 'HOLD') {
             const signalData = {
               symbol,
-              type: result.signal === 'BUY' || result.signal === 'LONG' ? 'BUY' : 'SELL',
+              type: (result.signal === 'BUY' || result.signal === 'LONG') ? 'BUY' : (result.signal === 'SELL' || result.signal === 'SHORT') ? 'SELL' : 'HOLD',
               strength: result.metadata?.strength || 75,
               confidence: result.metadata?.confidence || 70,
               price: result.price,
@@ -836,7 +869,7 @@ router.post('/execute-all', async (req: Request, res: Response) => {
               takeProfit: result.signal === 'BUY' ? result.price * 1.05 : result.price * 0.95,
               source: 'strategy',
               strategyId: strategy.name
-            };
+            } as any;
 
             await storage.createSignal(signalData);
           }

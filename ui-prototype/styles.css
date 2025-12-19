@@ -1,0 +1,65 @@
+:root{
+  --bg:#0f1724;
+  --surface:#0b1220;
+  --muted:#9ca3af;
+  --text:#e5e7eb;
+  --accent:#2dd4bf;
+  --accent2:#60a5fa;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --success:#10b981;
+  --glass: rgba(255,255,255,0.03);
+  --radius:8px;
+}
+*{box-sizing:border-box;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:var(--text)}
+html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#08101a);}
+.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent);border-bottom:1px solid rgba(255,255,255,0.02)}
+.logo{font-weight:700;color:var(--accent);margin-right:8px}
+.env{background:var(--glass);padding:4px 8px;border-radius:6px;font-size:12px;color:var(--muted)}
+.top-center{flex:1;display:flex;justify-content:center}
+.search{width:60%;max-width:640px;padding:8px 12px;background:var(--surface);border:1px solid rgba(255,255,255,0.03);border-radius:6px;color:var(--muted)}
+.top-right{display:flex;gap:8px;align-items:center}
+.mode{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 10px;border-radius:6px;color:var(--muted)}
+.mode.live{border-color:rgba(45,212,191,0.2);color:var(--accent)}
+
+.app-grid{display:grid;grid-template-columns:220px 1fr 320px;grid-template-rows:1fr;gap:16px;padding:16px;height:calc(100% - 112px)}
+.left-rail{background:var(--surface);border-radius:var(--radius);padding:12px;border:1px solid rgba(255,255,255,0.02);overflow:auto}
+.symbols-header{font-size:13px;color:var(--muted);margin-bottom:8px}
+.symbols{list-style:none;padding:0;margin:0}
+.symbol{display:flex;justify-content:space-between;padding:8px;border-radius:6px;color:var(--muted)}
+.symbol.active{background:linear-gradient(90deg,rgba(45,212,191,0.06),transparent);color:var(--text)}
+.main-canvas{display:flex;flex-direction:column;gap:12px}
+.chart-panel{background:var(--surface);padding:12px;border-radius:var(--radius);border:1px solid rgba(255,255,255,0.02)}
+.chart-toolbar{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+.tf{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:6px}
+.mini-summary{margin-left:auto;color:var(--muted);font-size:13px}
+.chart-area{display:grid;grid-template-rows:1fr 72px;gap:8px}
+.chart-placeholder{background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:6px;padding:40px;text-align:center;color:var(--muted)}
+.volume{background:rgba(255,255,255,0.02);border-radius:6px;padding:10px;color:var(--muted);font-size:12px}
+
+.middle-row{display:grid;grid-template-columns:1fr 1fr 320px;gap:12px}
+.orderbook,.snapshot,.consensus-card{background:var(--surface);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+.orderbook h4,.snapshot h4,.consensus-card h4{margin:0 0 8px 0;color:var(--muted)}
+.snapshot table{width:100%;border-collapse:collapse;color:var(--muted);font-size:13px}
+.snapshot th{text-align:left;padding:6px 8px;color:var(--muted);font-size:12px}
+.snapshot td{padding:6px 8px}
+.consensus-price{font-size:18px;color:var(--accent);margin-bottom:6px}
+
+.lower-tabs{background:var(--surface);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+.tabs{display:flex;gap:8px;margin-bottom:8px}
+.tab{background:transparent;border:1px solid rgba(255,255,255,0.02);padding:6px 10px;border-radius:6px;color:var(--muted)}
+.tab.active{border-color:rgba(96,165,250,0.15);color:var(--text)}
+.event-log{background:#05121a;padding:12px;border-radius:6px;color:#9fd6c8;max-height:120px;overflow:auto;font-family:Consolas,monospace}
+
+.right-rail{display:flex;flex-direction:column;gap:12px}
+.portfolio,.risk,.alerts{background:var(--surface);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+.alert.ok{color:var(--success)}
+
+.statusbar{height:48px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent);display:flex;align-items:center;gap:12px;padding:8px 16px;border-top:1px solid rgba(255,255,255,0.02)}
+
+@media (max-width: 980px){
+  .app-grid{grid-template-columns:1fr;grid-template-rows:auto;padding:8px;height:auto}
+  .right-rail{order:3}
+  .left-rail{order:2}
+  .main-canvas{order:1}
+}

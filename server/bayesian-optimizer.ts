@@ -461,12 +461,12 @@ export class MirrorOptimizer {
           const params = this.rlAgent.getPositionParameters(
             state,
             1.0, // Base size
-            currentFrame.indicators.atr,
-            currentFrame.price.close
+            (currentFrame as any).indicators.atr,
+              (currentFrame as any).price.close
           );
           
           position = {
-            entry: currentFrame.price.close,
+            entry: (currentFrame as any).price.close,
             size: params.positionSize,
             stop: params.stopLoss,
             tp: params.takeProfit
@@ -475,7 +475,7 @@ export class MirrorOptimizer {
         
         // Check if position hit stop or target
         if (position) {
-          const nextPrice = nextFrame.price.close;
+          const nextPrice = (nextFrame as any).price.close;
           let done = false;
           let pnl = 0;
           

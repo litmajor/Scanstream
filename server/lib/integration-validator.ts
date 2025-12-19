@@ -5,7 +5,7 @@
  * and ready for production deployment
  */
 
-import CompletePipelineSignalGenerator, { type CompleteSignal, type MarketData } from './complete-pipeline-signal-generator';
+import CompletePipelineSignalGenerator, { type CompleteSignal } from './complete-pipeline-signal-generator';
 import { RegimeAwareSignalRouter, type MarketRegime } from '../services/regime-aware-signal-router';
 
 export interface ValidationResult {
@@ -259,7 +259,7 @@ export class IntegrationValidator {
         1500,   // volume
         1000,   // prev volume
         65,     // rsi
-        0.05,   // macd
+        { macd: 0.05, signal: 0.03, histogram: 0.02 },   // macd
         99.50,  // ema20
         99.00,  // ema50
         98.50,  // sma200
@@ -268,18 +268,18 @@ export class IntegrationValidator {
         0.02    // volatility
       );
 
-      const hasPatterns = result.detectedPatterns && result.detectedPatterns.length > 0;
+      const hasPatterns = result.patterns && result.patterns.length > 0;
 
       this.results.push({
         component: 'Pattern Detection',
         status: hasPatterns ? 'PASS' : 'WARNING',
         message: hasPatterns
-          ? `✅ Detected ${result.detectedPatterns.length} patterns (confluence: ${result.confluenceCount})`
+          ? `✅ Detected ${result.patterns.length} patterns (confluence: ${result.confluenceCount})`
           : '⚠️ No patterns detected (may be normal for this data)',
         details: {
-          patternsFound: result.detectedPatterns?.length || 0,
+          patternsFound: result.patterns?.length || 0,
           confluence: result.confluenceCount,
-          baseConfidence: result.baseConfidence
+          confidence: result.confidence
         }
       });
     } catch (error) {

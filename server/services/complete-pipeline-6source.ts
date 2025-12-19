@@ -20,6 +20,7 @@ import type { UnifiedSignalFramework } from './unified-framework-6source';
 import { UnifiedFramework } from './unified-framework-6source';
 import { PatternDetectionEngine } from './pattern-detection-contribution';
 import { VolumeMetricsEngine } from './volume-metrics-contribution';
+import type { ClusterMetrics } from './clustering';
 
 export interface MarketData {
   // Price
@@ -57,6 +58,9 @@ export interface MarketData {
   priceVsMA: number; // -1 to +1
   recentSwings: number;
   rangeWidth: number;
+  
+  // NEW: Clustering metrics (system-wide for any asset)
+  clustering?: ClusterMetrics;
 }
 
 export interface CompleteSignalResult {
@@ -157,7 +161,7 @@ export class CompletePipelineSignalGenerator {
       marketData.currentVolume,
       marketData.prevVolume,
       marketData.rsi,
-      marketData.macd,
+      { macd: marketData.macd, signal: marketData.macdSignal },
       marketData.ema20,
       marketData.ema50,
       marketData.sma200,
@@ -220,7 +224,7 @@ export class CompletePipelineSignalGenerator {
     });
 
     // ===== STEP 4: AGGREGATE ALL CONTRIBUTIONS =====
-    const aggregatedSignal = UnifiedSignalAggregator.aggregateSignals(weightedContributions);
+    const aggregatedSignal = UnifiedSignalAggregator.aggregate('UNKNOWN', marketData.currentPrice, 'GLOBAL', weightedContributions);
 
     // ===== STEP 5: MERGE INTO UNIFIED FRAMEWORK WITH VOLUME + PATTERN BOOSTING =====
     const volumeRatio = marketData.avgVolume > 0 ? marketData.currentVolume / marketData.avgVolume : 1.0;
@@ -248,7 +252,7 @@ ${regime.characteristics.join(' | ')}
 `.trim();
 
     return {
-      direction: aggregatedSignal.trend,
+      direction: aggregatedSignal.direction,
       confidence: aggregatedSignal.confidence,
       regime: regime.type,
       sourceCount: contributions.length,
@@ -270,7 +274,7 @@ ${regime.characteristics.join(' | ')}
     ema50: number,
     adx: number
   ): StrategyContribution {
-    let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' = 'SIDEWAYS';
     let confidence = 0;
 
     if (currentPrice > ema20 && ema20 > ema50) {
@@ -280,12 +284,13 @@ ${regime.characteristics.join(' | ')}
       trend = 'BEARISH';
       confidence = Math.min(0.95, 0.6 + (adx / 100) * 0.3);
     } else {
-      trend = 'NEUTRAL';
+      trend = 'SIDEWAYS';
       confidence = 0.5;
     }
 
     return {
       name: 'GradientDirection',
+      weight: 0,
       trend,
       confidence,
       strength: adx,
@@ -302,21 +307,22 @@ ${regime.characteristics.join(' | ')}
   ): StrategyContribution {
     // UT Bot is better in ranging markets (low trend)
     let confidence = 0;
-    let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' = 'SIDEWAYS';
 
     if (volatilityLevel === 'LOW' || volatilityLevel === 'MEDIUM') {
       confidence = 0.65;
       trend = volatilityTrend === 'RISING' ? 'BEARISH' : 'BULLISH'; // Anticipate reversal
     } else if (volatilityLevel === 'HIGH') {
       confidence = 0.55;
-      trend = 'NEUTRAL';
+      trend = 'SIDEWAYS';
     } else {
       confidence = 0.35;
-      trend = 'NEUTRAL';
+      trend = 'SIDEWAYS';
     }
 
     return {
       name: 'UTBotVolatility',
+      weight: 0,
       trend,
       confidence,
       strength: Math.min(100, (volatility / atr) * 50),
@@ -334,7 +340,7 @@ ${regime.characteristics.join(' | ')}
     highestPrice: number,
     lowestPrice: number
   ): StrategyContribution {
-    let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' = 'SIDEWAYS';
     let confidence = 0.6;
 
     const distanceToSupport = Math.abs(currentPrice - support);
@@ -347,7 +353,7 @@ ${regime.characteristics.join(' | ')}
       trend = 'BEARISH';
       confidence = 0.75;
     } else if (currentPrice > support && currentPrice < resistance) {
-      trend = 'NEUTRAL';
+      trend = 'SIDEWAYS';
       confidence = 0.5;
     }
 
@@ -357,6 +363,7 @@ ${regime.characteristics.join(' | ')}
 
     return {
       name: 'MarketStructure',
+      weight: 0,
       trend,
       confidence,
       strength,
@@ -372,7 +379,7 @@ ${regime.characteristics.join(' | ')}
     macdSignal: number,
     adx: number
   ): StrategyContribution {
-    let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' = 'SIDEWAYS';
     let confidence = 0.6;
     let energyTrend: 'ACCELERATING' | 'DECELERATING' = 'DECELERATING';
 
@@ -391,6 +398,7 @@ ${regime.characteristics.join(' | ')}
 
     return {
       name: 'FlowFieldEnergy',
+      weight: 0,
       trend,
       confidence,
       strength: Math.min(100, adx),
@@ -407,7 +415,7 @@ ${regime.characteristics.join(' | ')}
     currentPrice: number,
     sma200: number
   ): StrategyContribution {
-    let trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    let trend: 'BULLISH' | 'BEARISH' | 'SIDEWAYS' = 'SIDEWAYS';
     let confidence = 0.5;
 
     // ML heuristics (simplified)
@@ -427,6 +435,7 @@ ${regime.characteristics.join(' | ')}
 
     return {
       name: 'MLPredictions',
+      weight: 0,
       trend,
       confidence,
       strength: 50 + (rsi > 50 ? rsi - 50 : 50 - rsi),

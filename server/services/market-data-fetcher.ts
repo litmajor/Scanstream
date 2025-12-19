@@ -4,6 +4,7 @@ import { RateLimiter } from './gateway/rate-limiter';
 import { SignalPipeline } from './gateway/signal-pipeline';
 import { signalWebSocketService } from './websocket-signals';
 import { signalArchive } from './signal-archive';
+import { calculateClusterMetrics } from './clustering';
 
 /**
  * Market Data Fetcher Service
@@ -162,6 +163,16 @@ export class MarketDataFetcher {
         const cacheKey = `ohlcv:${symbol}:1h`;
         this.cacheManager.set(cacheKey, hourlyData, 180000); // 3 minute cache
 
+        // NEW: Calculate clustering metrics from OHLCV data
+        const clusterMetrics = calculateClusterMetrics(hourlyData);
+        console.log(
+          `[MarketDataFetcher] Clustering for ${symbol}: strength=${clusterMetrics.cluster_strength.toFixed(2)}, formation=${clusterMetrics.trend_formation_signal}, total_clusters=${clusterMetrics.total_clusters}`
+        );
+
+        // Store clustering metrics in cache for agent access
+        const clusterCacheKey = `clustering:${symbol}:1h`;
+        this.cacheManager.set(clusterCacheKey, clusterMetrics, 180000); // 3 minute cache
+
         // Step 2: Generate trading signal from the market data
         if (this.signalPipeline) {
           try {
@@ -195,7 +206,8 @@ export class MarketDataFetcher {
                 change24h: (signal as any).change24h,
                 volume: latest[5], // volume
                 timestamp: Date.now(),
-                exchange: (signal as any).exchange || 'aggregated'
+                exchange: (signal as any).exchange || 'aggregated',
+                clustering: clusterMetrics // NEW: Include clustering metrics
               };
               signalWebSocketService.broadcastSignal(signalData, 'new');
 
@@ -265,6 +277,24 @@ export class MarketDataFetcher {
       symbols: this.symbols,
       interval: 30,
     };
+  }
+
+  /**
+   * Get clustering metrics for a symbol (from cache)
+   * Available to agents system-wide
+   */
+  getClusteringMetrics(symbol: string): any {
+    const cacheKey = `clustering:${symbol}:1h`;
+    return this.cacheManager.get(cacheKey);
+  }
+
+  /**
+   * Get OHLCV candles for a symbol (from cache)
+   * Used for real-time clustering calculation
+   */
+  getCandles(symbol: string): number[][] {
+    const cacheKey = `ohlcv:${symbol}:1h`;
+    return this.cacheManager.get(cacheKey) || [];
   }
 }
 

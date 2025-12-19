@@ -283,7 +283,7 @@ export function UnifiedSignalDisplay() {
   // WebSocket connection for real-time updates
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/signals`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/socket.io/?transport=websocket&v=${Date.now()}`);
 
     ws.onopen = () => {
       console.log('[WebSocket] Connected to signal stream');

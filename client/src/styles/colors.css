@@ -1,0 +1,132 @@
+/* Semantic Color System */
+:root {
+  /* Market Direction Colors */
+  --color-bullish: #10b981;      /* Green-500 - UP/BUY/GAIN */
+  --color-bearish: #ef4444;      /* Red-500 - DOWN/SELL/LOSS */
+  --color-neutral: #64748b;      /* Slate-500 - HOLD/NEUTRAL */
+
+  /* Action Colors */
+  --color-primary: #3b82f6;      /* Blue-600 - Primary actions (trade, confirm) */
+  --color-primary-hover: #2563eb; /* Blue-700 - Primary hover state */
+  --color-primary-light: #dbeafe; /* Blue-100 - Primary background */
+  
+  --color-secondary: #8b5cf6;    /* Purple-600 - Secondary actions (AI, predictions) */
+  --color-secondary-hover: #7c3aed; /* Purple-700 - Secondary hover */
+  --color-secondary-light: #f3e8ff; /* Purple-100 - Secondary background */
+
+  /* UI Colors - Background */
+  --color-bg-primary: #0f172a;    /* Slate-950 - Page background */
+  --color-bg-secondary: #1e293b;  /* Slate-900 - Panel background */
+  --color-bg-tertiary: #334155;   /* Slate-700 - Input/component background */
+  --color-bg-elevated: #0f172a;   /* Slate-950 - Elevated panels */
+
+  /* UI Colors - Text */
+  --color-text-primary: #f1f5f9;   /* Slate-100 - Primary text */
+  --color-text-secondary: #94a3b8; /* Slate-400 - Secondary text */
+  --color-text-tertiary: #64748b;  /* Slate-500 - Tertiary text (weak emphasis) */
+  --color-text-disabled: #475569;  /* Slate-600 - Disabled text */
+
+  /* UI Colors - Borders & Dividers */
+  --color-border: #334155;         /* Slate-700 - Default border */
+  --color-border-light: #475569;   /* Slate-600 - Light border */
+  --color-border-lighter: #1e293b; /* Slate-900 - Very light border */
+
+  /* Status Colors */
+  --color-success: #10b981;        /* Green-500 */
+  --color-warning: #f59e0b;        /* Amber-500 */
+  --color-error: #ef4444;          /* Red-500 */
+  --color-info: #3b82f6;           /* Blue-500 */
+
+  /* Live/Offline Indicator */
+  --color-live: #10b981;           /* Green - connected */
+  --color-offline: #ef4444;        /* Red - disconnected */
+  --color-degraded: #f59e0b;       /* Amber - degraded mode */
+}
+
+/* Dark mode (default) */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f8fafc;
+    --color-bg-tertiary: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-tertiary: #64748b;
+    --color-border: #e2e8f0;
+  }
+}
+
+/* Utility Classes */
+.text-bullish {
+  color: var(--color-bullish);
+  font-weight: 600;
+}
+
+.text-bearish {
+  color: var(--color-bearish);
+  font-weight: 600;
+}
+
+.text-neutral {
+  color: var(--color-neutral);
+  font-weight: 500;
+}
+
+.bg-bullish-faint {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.bg-bearish-faint {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.border-bullish {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.border-bearish {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Status indicator dot */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-dot.live {
+  background-color: var(--color-live);
+  animation: pulse-live 2s infinite;
+}
+
+.status-dot.offline {
+  background-color: var(--color-offline);
+}
+
+.status-dot.degraded {
+  background-color: var(--color-degraded);
+  animation: pulse-warning 1s infinite;
+}
+
+@keyframes pulse-live {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes pulse-warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

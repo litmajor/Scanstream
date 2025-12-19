@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -112,123 +112,17 @@ export default function AnalyticsDashboard() {
     },
   });
 
-  // Mock data for display
-  const mockStrategies: Strategy[] = [
-    {
-      id: 'gradient_trend_filter',
-      name: 'Gradient Trend Filter',
-      weight: 0.25,
-      baseWeight: 0.25,
-      regimeMultiplier: 1.1,
-      volatilityMultiplier: 0.95,
-      momentumAlignment: 1.05,
-      temporalDecay: 0.98,
-      finalWeight: 0.27,
-      performance: { winRate: 0.68, profitFactor: 2.1, trades: 234 },
-    },
-    {
-      id: 'ut_bot',
-      name: 'UT Bot',
-      weight: 0.20,
-      baseWeight: 0.20,
-      regimeMultiplier: 1.0,
-      volatilityMultiplier: 1.08,
-      momentumAlignment: 0.98,
-      temporalDecay: 0.97,
-      finalWeight: 0.21,
-      performance: { winRate: 0.62, profitFactor: 1.8, trades: 189 },
-    },
-    {
-      id: 'mean_reversion',
-      name: 'Mean Reversion',
-      weight: 0.20,
-      baseWeight: 0.20,
-      regimeMultiplier: 0.85,
-      volatilityMultiplier: 1.2,
-      momentumAlignment: 0.92,
-      temporalDecay: 0.96,
-      finalWeight: 0.18,
-      performance: { winRate: 0.71, profitFactor: 2.3, trades: 156 },
-    },
-    {
-      id: 'volume_profile',
-      name: 'Volume Profile',
-      weight: 0.20,
-      baseWeight: 0.20,
-      regimeMultiplier: 1.05,
-      volatilityMultiplier: 0.9,
-      momentumAlignment: 1.02,
-      temporalDecay: 0.99,
-      finalWeight: 0.19,
-      performance: { winRate: 0.65, profitFactor: 1.9, trades: 201 },
-    },
-    {
-      id: 'market_structure',
-      name: 'Market Structure',
-      weight: 0.15,
-      baseWeight: 0.15,
-      regimeMultiplier: 0.92,
-      volatilityMultiplier: 1.1,
-      momentumAlignment: 0.88,
-      temporalDecay: 0.95,
-      finalWeight: 0.15,
-      performance: { winRate: 0.59, profitFactor: 1.6, trades: 112 },
-    },
-  ];
+  // Prefer API-provided data. If the API returns no items, render empty lists
+  // and let the UI show an empty state rather than using static mocks.
+  const strategies = strategiesData?.strategies ?? [];
+  const regime = strategiesData?.regime ?? null;
+  const models = modelsData?.models ?? [];
 
-  const mockModels: MLModel[] = [
-    {
-      id: '0',
-      name: 'Consensus Ensemble',
-      type: 'Ensemble',
-      symbol: selectedSymbol,
-      accuracy: 89.6,
-      status: 'trained',
-      confidence: 0.88,
-      predictions: { direction: 'UP', nextHour: 45180, nextDay: 46290 },
-    },
-    {
-      id: '1',
-      name: 'LSTM Price Predictor',
-      type: 'LSTM',
-      symbol: selectedSymbol,
-      accuracy: 87.3,
-      status: 'trained',
-      confidence: 0.85,
-      predictions: { direction: 'UP', nextHour: 45120, nextDay: 46250 },
-    },
-    {
-      id: '2',
-      name: 'Random Forest Classifier',
-      type: 'Random Forest',
-      symbol: selectedSymbol,
-      accuracy: 82.1,
-      status: 'trained',
-      confidence: 0.78,
-      predictions: { direction: 'UP', nextHour: 3250, nextDay: 3180 },
-    },
-    {
-      id: '3',
-      name: 'Market Sentiment Analyzer',
-      type: 'BERT',
-      symbol: selectedSymbol,
-      accuracy: 91.5,
-      status: 'trained',
-      confidence: 0.92,
-      predictions: { direction: 'UP', nextHour: 98, nextDay: 105 },
-    },
-  ];
-
-  const mockRegime: MarketRegime = {
-    type: 'BULL_STRONG',
-    volatility: 'medium',
-    momentum: 0.125,
-    trend: 'up',
-  };
-
-  const strategies = strategiesData?.strategies || mockStrategies;
-  const regime = strategiesData?.regime || mockRegime;
-  const models = modelsData?.models || mockModels;
+  const regimeBadgeClass = regime
+    ? (regime.type.includes('BULL') ? 'bg-green-500/20 text-green-400 border-green-700' :
+       regime.type.includes('BEAR') ? 'bg-red-500/20 text-red-400 border-red-700' :
+       'bg-slate-500/20 text-slate-400 border-slate-700')
+    : 'bg-slate-500/20 text-slate-400 border-slate-700';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
@@ -399,42 +293,44 @@ export default function AnalyticsDashboard() {
           </div>
         )}
 
-        {/* Market Regime Card */}
-        <Card className="mb-8 p-6 bg-slate-800/50 border-slate-700">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              Current Market Regime
-            </h2>
-            <Badge className={`px-3 py-1 text-sm font-semibold ${
-              regime.type.includes('BULL') ? 'bg-green-500/20 text-green-400 border-green-700' :
-              regime.type.includes('BEAR') ? 'bg-red-500/20 text-red-400 border-red-700' :
-              'bg-slate-500/20 text-slate-400 border-slate-700'
-            } border`}>
-              {regime.type}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-slate-700/30 p-3 rounded">
-              <p className="text-slate-400 text-sm">Volatility</p>
-              <p className="text-white font-bold text-lg capitalize">{regime.volatility}</p>
+        {/* Market Regime Card (render only when data available) */}
+        {regime ? (
+          <Card className="mb-8 p-6 bg-slate-800/50 border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Zap className="w-5 h-5 text-yellow-400" />
+                Current Market Regime
+              </h2>
+              <Badge className={`px-3 py-1 text-sm font-semibold ${regimeBadgeClass} border`}>
+                {regime.type}
+              </Badge>
             </div>
-            <div className="bg-slate-700/30 p-3 rounded">
-              <p className="text-slate-400 text-sm">Momentum</p>
-              <p className={`font-bold text-lg ${regime.momentum > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {(regime.momentum * 100).toFixed(2)}%
-              </p>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-slate-700/30 p-3 rounded">
+                <p className="text-slate-400 text-sm">Volatility</p>
+                <p className="text-white font-bold text-lg capitalize">{regime.volatility}</p>
+              </div>
+              <div className="bg-slate-700/30 p-3 rounded">
+                <p className="text-slate-400 text-sm">Momentum</p>
+                <p className={`font-bold text-lg ${regime.momentum > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {(regime.momentum * 100).toFixed(2)}%
+                </p>
+              </div>
+              <div className="bg-slate-700/30 p-3 rounded">
+                <p className="text-slate-400 text-sm">Trend</p>
+                <p className="text-white font-bold text-lg capitalize">{regime.trend}</p>
+              </div>
+              <div className="bg-slate-700/30 p-3 rounded">
+                <p className="text-slate-400 text-sm">Symbol</p>
+                <p className="text-white font-bold text-lg">{selectedSymbol}</p>
+              </div>
             </div>
-            <div className="bg-slate-700/30 p-3 rounded">
-              <p className="text-slate-400 text-sm">Trend</p>
-              <p className="text-white font-bold text-lg capitalize">{regime.trend}</p>
-            </div>
-            <div className="bg-slate-700/30 p-3 rounded">
-              <p className="text-slate-400 text-sm">Symbol</p>
-              <p className="text-white font-bold text-lg">{selectedSymbol}</p>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card className="mb-8 p-6 bg-slate-800/50 border-slate-700">
+            <div className="text-slate-400">No market regime data available.</div>
+          </Card>
+        )}
 
         {/* Strategies Grid */}
         <div className="mb-8">

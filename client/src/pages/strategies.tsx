@@ -27,6 +27,8 @@ import StrategyBacktestingSuite from '../components/StrategyBacktestingSuite';
 import StrategyMarketplace from '../components/StrategyMarketplace';
 import StrategyCopyTrading from '../components/StrategyCopyTrading';
 import BounceStrategyDashboard from '../components/BounceStrategyDashboard';
+import { StrategyPanel } from '../components/StrategyPanel'; // Import StrategyPanel
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 
 // Types
 interface Strategy {
@@ -145,6 +147,8 @@ export default function StrategiesPage() {
     refetchConsensus();
   };
 
+  const { symbols: universeSymbols } = useSymbolUniverse();
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
@@ -208,7 +212,7 @@ export default function StrategiesPage() {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'ADA/USDT'],
+                        symbols: (universeSymbols && universeSymbols.length ? universeSymbols.map(s => s.symbol).slice(0,5) : ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'ADA/USDT']),
                         timeframe: '1h'
                       })
                     });
@@ -342,6 +346,20 @@ export default function StrategiesPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Strategy Panel - All 19 Strategies */}
+        <div className="mb-8">
+          <StrategyPanel
+            symbol={consensusSymbol || 'BTC/USDT'}
+            isLoading={isConsensusLoading}
+            onStrategySelect={(strategy) => {
+              console.log('Selected strategy:', strategy);
+            }}
+            onAgentSelect={(agent) => {
+              console.log('Selected agent:', agent);
+            }}
+          />
         </div>
 
         {/* Consensus Trade Panel */}

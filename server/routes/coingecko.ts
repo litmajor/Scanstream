@@ -4,6 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { coinGeckoService } from '../services/coingecko';
 
 const router = Router();
@@ -43,11 +44,56 @@ router.get('/markets', async (req: Request, res: Response) => {
  */
 router.get('/trending', async (req: Request, res: Response) => {
   try {
-    const data = await coinGeckoService.getTrendingCoins();
+    const rawData = await coinGeckoService.getTrendingCoins();
+
+    // Transform CoinGecko trending format to match client expectations
+    // CoinGecko trending endpoint returns 'item' objects with basic data
+    // We need to enrich with market data (price_usd, 24h change)
+    const trendingCoins = (Array.isArray(rawData) ? rawData : []).slice(0, 20);
+    
+    // Extract coin IDs and fetch detailed market data
+    const coinIds = trendingCoins.map((coin: any) => coin.item?.id || coin.id).filter(Boolean);
+    
+    let marketData: any = {};
+    if (coinIds.length > 0) {
+      try {
+        // Fetch market data for all trending coins at once
+        const response = await coinGeckoService.getMarketDataByIds(coinIds.join(','));
+        // Index by id for quick lookup
+        if (Array.isArray(response)) {
+          response.forEach((coin: any) => {
+            marketData[coin.id] = coin;
+          });
+        }
+      } catch (marketError) {
+        console.warn('[CoinGecko] Failed to fetch market data for trending coins:', marketError);
+        // Continue with partial data
+      }
+    }
+
+    const data = trendingCoins.map((coin: any, index: number) => {
+      const item = coin.item || coin;
+      const coinId = item?.id || '';
+      const market = marketData[coinId] || {};
+
+      return {
+        id: coinId,
+        symbol: (item?.symbol || '').toLowerCase(),
+        name: item?.name || '',
+        rank: index + 1,
+        score: item?.market_cap_rank || 0,
+        market_cap_rank: item?.market_cap_rank || market?.market_cap_rank || 0,
+        price_btc: parseFloat(item?.price_btc || '0') || 0,
+        price_usd: market?.current_price || item?.current_price || 0,
+        market_cap_usd: market?.market_cap || item?.market_cap || 0,
+        volume_24h_usd: market?.total_volume || item?.total_volume || 0,
+        change_24h_percent: market?.price_change_percentage_24h || item?.price_change_percentage_24h || 0
+      };
+    });
 
     res.json({
       success: true,
-      data,
+      data: data.length > 0 ? data : [],
       timestamp: new Date().toISOString(),
       attribution: 'Data provided by CoinGecko (coingecko.com)'
     });
@@ -55,7 +101,8 @@ router.get('/trending', async (req: Request, res: Response) => {
     console.error('[CoinGecko] Trending error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch trending coins'
+      error: error.message || 'Failed to fetch trending coins',
+      data: []
     });
   }
 });
@@ -66,7 +113,18 @@ router.get('/trending', async (req: Request, res: Response) => {
  */
 router.get('/global', async (req: Request, res: Response) => {
   try {
-    const data = await coinGeckoService.getGlobalMarket();
+    const rawData = await coinGeckoService.getGlobalMarket();
+
+    // Transform CoinGecko format to match client expectations (snake_case to camelCase)
+    const data = {
+      totalMarketCap: rawData.total_market_cap?.usd || 0,
+      totalVolume: rawData.total_volume?.usd || 0,
+      btcDominance: rawData.market_cap_percentage?.btc || 0,
+      ethDominance: rawData.market_cap_percentage?.eth || 0,
+      activeCryptocurrencies: rawData.active_cryptocurrencies || 0,
+      markets: rawData.markets || 0,
+      marketCapChangePercentage24h: rawData.market_cap_change_percentage_24h_usd || 0
+    };
 
     res.json({
       success: true,
@@ -155,6 +213,37 @@ router.get('/fear-greed', async (req: Request, res: Response) => {
       success: false,
       error: error.message || 'Failed to fetch Fear & Greed Index'
     });
+  }
+});
+
+/**
+ * GET /api/coingecko/alternative-fear-greed
+ * Fetch the official Fear & Greed Index from Alternative.me (the widely-referenced public index)
+ */
+router.get('/alternative-fear-greed', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get('https://api.alternative.me/fng/?limit=1');
+
+    if (response.data && response.data.data && response.data.data.length > 0) {
+      const f = response.data.data[0];
+      const index = parseInt(f.value, 10);
+      const classification = f.value_classification;
+      const timestamp = parseInt(f.timestamp, 10) * 1000; // API returns seconds
+
+      return res.json({
+        success: true,
+        index,
+        classification,
+        timestamp,
+        raw: f,
+        attribution: 'Data provided by Alternative.me (alternative.me)'
+      });
+    }
+
+    return res.status(502).json({ success: false, error: 'No data received from Alternative.me' });
+  } catch (error: any) {
+    console.error('[Alternative.me] Fear & Greed fetch failed:', error?.message || error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch Alternative.me Fear & Greed' });
   }
 });
 

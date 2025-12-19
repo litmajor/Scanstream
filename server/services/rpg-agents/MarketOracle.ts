@@ -70,6 +70,12 @@ export class MarketOracle {
   private subscribers: Array<(data: MarketSnapshot) => void> = [];
   private gatewayAggregator: any; // Will be injected
   
+  constructor() {
+    // Lazy initialization to avoid circular dependency issues
+    this.marketData = new Map();
+    this.subscribers = [];
+  }
+  
   /**
    * Initialize with Gateway Aggregator
    */
@@ -217,4 +223,14 @@ export class MarketOracle {
   }
 }
 
-export const marketOracle = new MarketOracle();
+let _marketOracleInstance: MarketOracle | null = null;
+
+export function getMarketOracle(): MarketOracle {
+  if (!_marketOracleInstance) {
+    _marketOracleInstance = new MarketOracle();
+  }
+  return _marketOracleInstance;
+}
+
+// For backward compatibility
+export const marketOracle = { get instance() { return getMarketOracle(); } };

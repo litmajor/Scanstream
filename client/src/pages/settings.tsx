@@ -21,7 +21,18 @@ import {
   Trash2, 
   Plus,
   Globe,
-  Loader2
+  Loader2,
+  TrendingUp,
+  Percent,
+  LayoutGrid,
+  Shield,
+  Zap,
+  Download,
+  Eye,
+  Clock,
+  LogOut,
+  Lock,
+  AlertCircle
 } from "lucide-react";
 
 interface ApiKey {
@@ -42,6 +53,55 @@ interface Preferences {
   priceAlerts: boolean;
   signalAlerts: boolean;
   soundEnabled: boolean;
+}
+
+interface TradingSettings {
+  positionSize: number; // % of capital
+  defaultStopLoss: number; // %
+  defaultTakeProfit: number; // %
+  orderType: string; // 'MARKET' | 'LIMIT'
+  slippageTolerance: number; // %
+  commissionRate: number; // %
+  riskRewardRatio: number;
+  maxDailyLoss: number; // %
+  maxPositionsOpen: number;
+}
+
+interface DashboardSettings {
+  widgets: string[];
+  layoutName: string;
+  defaultIndicators: string[];
+  refreshInterval: number;
+}
+
+interface AdvancedSettings {
+  apiRateLimit: number;
+  webhookUrl: string;
+  botScheduleEnabled: boolean;
+  botScheduleStart: string;
+  botScheduleEnd: string;
+  alertThrottling: number;
+}
+
+interface SecuritySettings {
+  twoFactorEnabled: boolean;
+  ipWhitelistEnabled: boolean;
+  ipAddresses: string[];
+}
+
+interface LoginSession {
+  id: string;
+  ipAddress: string;
+  userAgent: string;
+  lastActive: string;
+  createdAt: string;
+}
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  details: string;
+  timestamp: string;
 }
 
 export default function SettingsPage() {
@@ -96,6 +156,80 @@ export default function SettingsPage() {
     initialData: [],
   });
 
+  const { data: tradingSettings, isLoading: tradingLoading } = useQuery<TradingSettings>({
+    queryKey: ["/api/user/trading-settings"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: {
+      positionSize: 5,
+      defaultStopLoss: 2,
+      defaultTakeProfit: 5,
+      orderType: "MARKET",
+      slippageTolerance: 0.5,
+      commissionRate: 0.1,
+      riskRewardRatio: 2,
+      maxDailyLoss: 10,
+      maxPositionsOpen: 5,
+    },
+  });
+
+  const { data: dashboardSettings, isLoading: dashLoading } = useQuery<DashboardSettings>({
+    queryKey: ["/api/user/dashboard-settings"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: {
+      widgets: ["price-chart", "portfolio", "signals"],
+      layoutName: "default",
+      defaultIndicators: ["RSI", "MACD", "Bollinger"],
+      refreshInterval: 5,
+    },
+  });
+
+  const { data: advancedSettings, isLoading: advancedLoading } = useQuery<AdvancedSettings>({
+    queryKey: ["/api/user/advanced-settings"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: {
+      apiRateLimit: 1000,
+      webhookUrl: "",
+      botScheduleEnabled: false,
+      botScheduleStart: "09:00",
+      botScheduleEnd: "17:00",
+      alertThrottling: 5,
+    },
+  });
+
+  const { data: securitySettings, isLoading: securityLoading } = useQuery<SecuritySettings>({
+    queryKey: ["/api/user/security"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: {
+      twoFactorEnabled: false,
+      ipWhitelistEnabled: false,
+      ipAddresses: [],
+    },
+  });
+
+  const { data: loginSessions, isLoading: sessionsLoading } = useQuery<LoginSession[]>({
+    queryKey: ["/api/user/login-sessions"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: [],
+  });
+
+  const { data: activityLogs, isLoading: logsLoading } = useQuery<ActivityLog[]>({
+    queryKey: ["/api/user/activity-logs"],
+    enabled: isAuthenticated,
+    retry: 1,
+    staleTime: 5000,
+    initialData: [],
+  });
+
   const updatePreferencesMutation = useMutation({
     mutationFn: async (data: Partial<Preferences>) => {
       return apiRequest("PATCH", "/api/user/preferences", data);
@@ -108,6 +242,23 @@ export default function SettingsPage() {
       toast({ 
         title: "Error", 
         description: error?.message || "Failed to update preferences.", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const updateTradingSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<TradingSettings>) => {
+      return apiRequest("PATCH", "/api/user/trading-settings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/trading-settings"] });
+      toast({ title: "Trading settings updated", description: "Your trading preferences have been saved." });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to update trading settings.", 
         variant: "destructive" 
       });
     },
@@ -149,6 +300,78 @@ export default function SettingsPage() {
     },
   });
 
+  const updateDashboardSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<DashboardSettings>) => {
+      return apiRequest("PATCH", "/api/user/dashboard-settings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/dashboard-settings"] });
+      toast({ title: "Dashboard settings updated", description: "Your layout has been saved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to update dashboard.", variant: "destructive" });
+    },
+  });
+
+  const updateAdvancedSettingsMutation = useMutation({
+    mutationFn: async (data: Partial<AdvancedSettings>) => {
+      return apiRequest("PATCH", "/api/user/advanced-settings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/advanced-settings"] });
+      toast({ title: "Advanced settings updated", description: "Your settings have been saved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to update settings.", variant: "destructive" });
+    },
+  });
+
+  const updateSecuritySettingsMutation = useMutation({
+    mutationFn: async (data: Partial<SecuritySettings>) => {
+      return apiRequest("PATCH", "/api/user/security", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/security"] });
+      toast({ title: "Security settings updated", description: "Your security preferences have been saved." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to update security.", variant: "destructive" });
+    },
+  });
+
+  const revokeSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      return apiRequest("POST", `/api/user/login-sessions/${sessionId}/revoke`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/login-sessions"] });
+      toast({ title: "Session revoked", description: "The session has been terminated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to revoke session.", variant: "destructive" });
+    },
+  });
+
+  const exportDataMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/user/export-data", { headers: { "Accept": "application/json" } });
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `scanstream-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    },
+    onSuccess: () => {
+      toast({ title: "Data exported", description: "Your data has been downloaded." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error?.message || "Failed to export data.", variant: "destructive" });
+    },
+  });
+
   if (authLoading || !isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-full min-h-screen">
@@ -173,18 +396,38 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="preferences" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="preferences" data-testid="tab-preferences">
-            <Palette className="h-4 w-4 mr-2" />
-            Preferences
+        <TabsList className="grid w-full grid-cols-8 h-auto">
+          <TabsTrigger value="preferences" data-testid="tab-preferences" className="text-xs">
+            <Palette className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Preferences</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">
-            <Bell className="h-4 w-4 mr-2" />
-            Notifications
+          <TabsTrigger value="notifications" data-testid="tab-notifications" className="text-xs">
+            <Bell className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
-          <TabsTrigger value="api-keys" data-testid="tab-api-keys">
-            <Key className="h-4 w-4 mr-2" />
-            API Keys
+          <TabsTrigger value="trading" data-testid="tab-trading" className="text-xs">
+            <TrendingUp className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Trading</span>
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" data-testid="tab-dashboard" className="text-xs">
+            <LayoutGrid className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </TabsTrigger>
+          <TabsTrigger value="advanced" data-testid="tab-advanced" className="text-xs">
+            <Zap className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Advanced</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" data-testid="tab-security" className="text-xs">
+            <Shield className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Security</span>
+          </TabsTrigger>
+          <TabsTrigger value="privacy" data-testid="tab-privacy" className="text-xs">
+            <Eye className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Privacy</span>
+          </TabsTrigger>
+          <TabsTrigger value="api-keys" data-testid="tab-api-keys" className="text-xs">
+            <Key className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">API Keys</span>
           </TabsTrigger>
         </TabsList>
 
@@ -513,6 +756,392 @@ export default function SettingsPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="trading">
+          <Card>
+            <CardHeader>
+              <CardTitle>Trading Settings</CardTitle>
+              <CardDescription>Configure your default trading parameters and risk management.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {tradingLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid gap-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="positionSize">Position Size (% of Capital)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="positionSize"
+                          type="number"
+                          min="0.1"
+                          max="100"
+                          step="0.1"
+                          value={tradingSettings?.positionSize || 5}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ positionSize: parseFloat(e.target.value) })}
+                          data-testid="input-position-size"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Default position size per trade</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="defaultStopLoss">Default Stop Loss (%)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="defaultStopLoss"
+                          type="number"
+                          min="0.1"
+                          max="50"
+                          step="0.1"
+                          value={tradingSettings?.defaultStopLoss || 2}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ defaultStopLoss: parseFloat(e.target.value) })}
+                          data-testid="input-stop-loss"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Stop loss percentage</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="defaultTakeProfit">Default Take Profit (%)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="defaultTakeProfit"
+                          type="number"
+                          min="0.1"
+                          max="100"
+                          step="0.1"
+                          value={tradingSettings?.defaultTakeProfit || 5}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ defaultTakeProfit: parseFloat(e.target.value) })}
+                          data-testid="input-take-profit"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Take profit percentage</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="riskRewardRatio">Risk/Reward Ratio</Label>
+                      <Input
+                        id="riskRewardRatio"
+                        type="number"
+                        min="0.5"
+                        max="10"
+                        step="0.1"
+                        value={tradingSettings?.riskRewardRatio || 2}
+                        onChange={(e) => updateTradingSettingsMutation.mutate({ riskRewardRatio: parseFloat(e.target.value) })}
+                        className="mt-2"
+                        data-testid="input-risk-reward"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Minimum risk/reward ratio</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="slippageTolerance">Slippage Tolerance (%)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="slippageTolerance"
+                          type="number"
+                          min="0.01"
+                          max="5"
+                          step="0.01"
+                          value={tradingSettings?.slippageTolerance || 0.5}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ slippageTolerance: parseFloat(e.target.value) })}
+                          data-testid="input-slippage"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Maximum acceptable slippage</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="commissionRate">Commission Rate (%)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="commissionRate"
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.001"
+                          value={tradingSettings?.commissionRate || 0.1}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ commissionRate: parseFloat(e.target.value) })}
+                          data-testid="input-commission"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Exchange commission rate</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="maxDailyLoss">Max Daily Loss (%)</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          id="maxDailyLoss"
+                          type="number"
+                          min="1"
+                          max="100"
+                          step="0.1"
+                          value={tradingSettings?.maxDailyLoss || 10}
+                          onChange={(e) => updateTradingSettingsMutation.mutate({ maxDailyLoss: parseFloat(e.target.value) })}
+                          data-testid="input-max-daily-loss"
+                        />
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Stop trading after loss</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="maxPositionsOpen">Max Open Positions</Label>
+                      <Input
+                        id="maxPositionsOpen"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={tradingSettings?.maxPositionsOpen || 5}
+                        onChange={(e) => updateTradingSettingsMutation.mutate({ maxPositionsOpen: parseInt(e.target.value) })}
+                        className="mt-2"
+                        data-testid="input-max-positions"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Maximum concurrent positions</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="dashboard">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dashboard Customization</CardTitle>
+              <CardDescription>Customize your dashboard layout and indicators.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {dashLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <div>
+                    <Label>Active Widgets</Label>
+                    <p className="text-sm text-muted-foreground mb-2">Select which widgets to display</p>
+                    <div className="space-y-2">
+                      {["price-chart", "portfolio", "signals", "alerts", "heatmap"].map((widget) => (
+                        <div key={widget} className="flex items-center gap-2">
+                          <input type="checkbox" id={widget} defaultChecked={dashboardSettings?.widgets.includes(widget)} className="rounded" data-testid={`check-${widget}`} />
+                          <label htmlFor={widget} className="text-sm capitalize cursor-pointer">{widget.replace("-", " ")}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="layoutName">Saved Layout</Label>
+                    <Select value={dashboardSettings?.layoutName || "default"} onValueChange={(value) => updateDashboardSettingsMutation.mutate({ layoutName: value })}>
+                      <SelectTrigger data-testid="select-layout">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">Default Layout</SelectItem>
+                        <SelectItem value="compact">Compact Layout</SelectItem>
+                        <SelectItem value="detailed">Detailed Layout</SelectItem>
+                        <SelectItem value="custom">Custom Layout</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Separator />
+                  <div>
+                    <Label>Default Indicators</Label>
+                    <p className="text-sm text-muted-foreground mb-2">Technical indicators to display by default</p>
+                    <div className="space-y-2">
+                      {["RSI", "MACD", "Bollinger", "EMA", "SMA"].map((indicator) => (
+                        <div key={indicator} className="flex items-center gap-2">
+                          <input type="checkbox" id={indicator} defaultChecked={dashboardSettings?.defaultIndicators.includes(indicator)} className="rounded" data-testid={`check-ind-${indicator}`} />
+                          <label htmlFor={indicator} className="text-sm cursor-pointer">{indicator}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="refreshInterval">Refresh Interval (seconds)</Label>
+                    <Input id="refreshInterval" type="number" min="1" max="60" value={dashboardSettings?.refreshInterval || 5} onChange={(e) => updateDashboardSettingsMutation.mutate({ refreshInterval: parseInt(e.target.value) })} data-testid="input-refresh" className="mt-2" />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="advanced">
+          <Card>
+            <CardHeader>
+              <CardTitle>Advanced Settings</CardTitle>
+              <CardDescription>Configure API limits, webhooks, and automation.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {advancedLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <div>
+                    <Label htmlFor="apiRateLimit">API Rate Limit (requests/minute)</Label>
+                    <Input id="apiRateLimit" type="number" min="10" max="10000" value={advancedSettings?.apiRateLimit || 1000} onChange={(e) => updateAdvancedSettingsMutation.mutate({ apiRateLimit: parseInt(e.target.value) })} className="mt-2" data-testid="input-rate-limit" />
+                  </div>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="webhookUrl">Webhook URL</Label>
+                    <Input id="webhookUrl" type="url" placeholder="https://your-webhook-endpoint.com" value={advancedSettings?.webhookUrl || ""} onChange={(e) => updateAdvancedSettingsMutation.mutate({ webhookUrl: e.target.value })} className="mt-2" data-testid="input-webhook" />
+                    <p className="text-xs text-muted-foreground mt-1">Receive trading alerts via webhook</p>
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Bot Scheduling</Label>
+                        <p className="text-sm text-muted-foreground">Enable scheduled bot operation</p>
+                      </div>
+                      <Switch checked={advancedSettings?.botScheduleEnabled || false} onCheckedChange={(checked) => updateAdvancedSettingsMutation.mutate({ botScheduleEnabled: checked })} data-testid="switch-bot-schedule" />
+                    </div>
+                    {advancedSettings?.botScheduleEnabled && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4 ml-4">
+                          <div>
+                            <Label htmlFor="scheduleStart">Start Time</Label>
+                            <Input id="scheduleStart" type="time" value={advancedSettings?.botScheduleStart || "09:00"} onChange={(e) => updateAdvancedSettingsMutation.mutate({ botScheduleStart: e.target.value })} className="mt-2" data-testid="input-start-time" />
+                          </div>
+                          <div>
+                            <Label htmlFor="scheduleEnd">End Time</Label>
+                            <Input id="scheduleEnd" type="time" value={advancedSettings?.botScheduleEnd || "17:00"} onChange={(e) => updateAdvancedSettingsMutation.mutate({ botScheduleEnd: e.target.value })} className="mt-2" data-testid="input-end-time" />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <Separator />
+                  <div>
+                    <Label htmlFor="alertThrottling">Alert Throttling (minutes)</Label>
+                    <Input id="alertThrottling" type="number" min="1" max="60" value={advancedSettings?.alertThrottling || 5} onChange={(e) => updateAdvancedSettingsMutation.mutate({ alertThrottling: parseInt(e.target.value) })} className="mt-2" data-testid="input-throttling" />
+                    <p className="text-xs text-muted-foreground mt-1">Minimum time between duplicate alerts</p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle>Security & Sessions</CardTitle>
+              <CardDescription>Manage your security settings and active sessions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {securityLoading || sessionsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Two-Factor Authentication</Label>
+                        <p className="text-sm text-muted-foreground">Add extra security to your account</p>
+                      </div>
+                      <Switch checked={securitySettings?.twoFactorEnabled || false} onCheckedChange={(checked) => updateSecuritySettingsMutation.mutate({ twoFactorEnabled: checked })} data-testid="switch-2fa" />
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>IP Whitelist</Label>
+                        <p className="text-sm text-muted-foreground">Only allow specific IPs</p>
+                      </div>
+                      <Switch checked={securitySettings?.ipWhitelistEnabled || false} onCheckedChange={(checked) => updateSecuritySettingsMutation.mutate({ ipWhitelistEnabled: checked })} data-testid="switch-ip-whitelist" />
+                    </div>
+                  </div>
+                  <Separator />
+                  <div>
+                    <h3 className="font-semibold mb-3">Active Sessions</h3>
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {loginSessions && loginSessions.length > 0 ? (
+                        loginSessions.map((session) => (
+                          <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{session.ipAddress}</p>
+                              <p className="text-xs text-muted-foreground">{session.userAgent?.substring(0, 50)}...</p>
+                              <p className="text-xs text-muted-foreground">Last active: {new Date(session.lastActive).toLocaleDateString()}</p>
+                            </div>
+                            <Button size="sm" variant="ghost" onClick={() => revokeSessionMutation.mutate(session.id)} data-testid={`btn-revoke-${session.id}`}>
+                              <Lock className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No active sessions</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="privacy">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data & Privacy</CardTitle>
+              <CardDescription>Manage your data and privacy settings.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {logsLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    <Button variant="outline" className="w-full justify-start" onClick={() => exportDataMutation.mutate()} disabled={exportDataMutation.isPending} data-testid="btn-export-data">
+                      <Download className="h-4 w-4 mr-2" />
+                      {exportDataMutation.isPending ? "Exporting..." : "Export My Data"}
+                    </Button>
+                  </div>
+                  <Separator />
+                  <div>
+                    <h3 className="font-semibold mb-3">Recent Activity</h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {activityLogs && activityLogs.length > 0 ? (
+                        activityLogs.slice(0, 10).map((log) => (
+                          <div key={log.id} className="p-2 bg-muted/50 rounded text-sm">
+                            <p className="font-medium">{log.action}</p>
+                            <p className="text-xs text-muted-foreground">{log.details}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(log.timestamp).toLocaleString()}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No activity logged</p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

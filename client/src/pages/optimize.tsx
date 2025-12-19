@@ -4,90 +4,66 @@ import { ArrowLeft, Settings, Play, Download, Target, TrendingUp, BarChart3, Zap
 import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Mock optimization data - replace with real data from API
-const mockOptimizationData = {
-  strategies: [
-    {
-      id: '1',
-      name: 'BTC Momentum Strategy',
-      symbol: 'BTC/USDT',
-      timeframe: '1h',
-      parameters: {
-        rsiPeriod: 14,
-        emaPeriod: 20,
-        volumeThreshold: 1.5,
-        stopLoss: 0.02,
-        takeProfit: 0.04
-      },
-      performance: {
-        totalReturn: 45.2,
-        sharpeRatio: 1.85,
-        maxDrawdown: -12.3,
-        winRate: 68.5,
-        profitFactor: 2.1
-      },
-      status: 'optimized',
-      lastOptimized: new Date('2024-10-18')
-    },
-    {
-      id: '2',
-      name: 'ETH Mean Reversion',
-      symbol: 'ETH/USDT',
-      timeframe: '4h',
-      parameters: {
-        rsiPeriod: 21,
-        emaPeriod: 50,
-        volumeThreshold: 1.2,
-        stopLoss: 0.015,
-        takeProfit: 0.03
-      },
-      performance: {
-        totalReturn: 23.8,
-        sharpeRatio: 1.42,
-        maxDrawdown: -8.7,
-        winRate: 72.1,
-        profitFactor: 1.8
-      },
-      status: 'optimizing',
-      lastOptimized: new Date('2024-10-19')
-    }
-  ],
-  optimizationResults: [
-    {
-      parameter: 'RSI Period',
-      current: 14,
-      optimized: 21,
-      improvement: 15.2,
-      impact: 'high'
-    },
-    {
-      parameter: 'EMA Period',
-      current: 20,
-      optimized: 50,
-      improvement: 8.7,
-      impact: 'medium'
-    },
-    {
-      parameter: 'Stop Loss',
-      current: 0.02,
-      optimized: 0.015,
-      improvement: 12.3,
-      impact: 'high'
-    },
-    {
-      parameter: 'Take Profit',
-      current: 0.04,
-      optimized: 0.03,
-      improvement: -2.1,
-      impact: 'low'
-    }
-  ],
-  agents: [
-    { id: 'agent-1', name: 'Scanner Agent', performance: 0.15, status: 'active' },
-    { id: 'agent-2', name: 'ML Model Agent', performance: 0.22, status: 'active' },
-    { id: 'agent-3', name: 'RL Agent', performance: 0.18, status: 'inactive' }
-  ]
-};
+// The optimize page now prefers real API data. When the backend has no
+// optimization report available we return empty arrays and show the
+// empty-state in the UI instead of using hardcoded mock objects.
+
+// Types for optimize page
+interface StrategyUI {
+  id: string;
+  name: string;
+  symbol: string;
+  timeframe: string;
+  // Optional descriptive fields
+  description?: string;
+  tags?: string[];
+  // Parameters for the strategy (optimized values)
+  parameters: Record<string, any>;
+  // Performance summary (UI-friendly)
+  performance: {
+    totalReturn: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+    winRate: number;
+    profitFactor: number;
+    [key: string]: number;
+  };
+  status: string;
+  // Timestamps / metadata
+  lastOptimized: Date | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
+  version?: string;
+}
+
+interface AgentUI {
+  id: string;
+  name: string;
+  performance: number;
+  status: string;
+  // Optional metadata
+  lastActive?: Date | null;
+  version?: string;
+  metrics?: Record<string, number>;
+}
+
+interface OptimizationResult {
+  parameter: string;
+  current: any;
+  optimized: any;
+  improvement: number;
+  impact?: string;
+}
+
+interface OptimizationData {
+  strategies: StrategyUI[];
+  optimizationResults: OptimizationResult[];
+  agents: AgentUI[];
+  // Optional run metadata
+  runId?: string;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+}
 
 export default function OptimizePage() {
   const [, setLocation] = useLocation();
@@ -95,51 +71,52 @@ export default function OptimizePage() {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Fetch optimization data from API
-  const { data: optimizationData, isLoading, error, refetch } = useQuery({
+  const { data: optimizationData, isLoading, error, refetch } = useQuery<OptimizationData, Error>({
     queryKey: ['optimization-data'],
     queryFn: async () => {
       try {
         const response = await fetch('/api/optimize/status');
         if (!response.ok) {
-          // If not initialized, return mock data
-          return mockOptimizationData;
+          console.warn('Optimize status endpoint returned:', response.status);
+          return { strategies: [], optimizationResults: [], agents: [] };
         }
+
         const data = await response.json();
-        
-        if (!data.initialized) {
-          return mockOptimizationData;
-        }
-        
-        // Transform backend data to match UI expectations
-        const report = data.report;
+        const report = data.report || {};
+
+        // Map report.agentPerformance into UI-friendly structures
+        const strategies = Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
+          id: name,
+          name: name.replace(/([A-Z])/g, ' $1').trim(),
+          symbol: perf.symbol || 'UNKNOWN',
+          timeframe: perf.timeframe || 'UNKNOWN',
+          parameters: perf.bestParams || {},
+          performance: {
+            totalReturn: (perf.bestPerformance || 0) * 100,
+            sharpeRatio: perf.iterations?.[perf.iterations.length - 1]?.sharpe || 0,
+            maxDrawdown: perf.maxDrawdown || 0,
+            winRate: perf.winRate || 0,
+            profitFactor: perf.profitFactor || 0
+          },
+          status: perf.iterations && perf.iterations.length > 0 ? 'optimized' : 'pending',
+          lastOptimized: perf.lastOptimized ? new Date(perf.lastOptimized) : new Date()
+        }));
+
+        const agents = Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
+          id: name,
+          name: name.replace(/([A-Z])/g, ' $1').trim(),
+          performance: perf.bestPerformance || 0,
+          status: perf.iterations && perf.iterations.length > 0 ? 'active' : 'inactive'
+        }));
+
         return {
-          strategies: Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
-            id: name,
-            name: name.replace(/([A-Z])/g, ' $1').trim(),
-            symbol: optimizationConfig.symbol,
-            timeframe: optimizationConfig.timeframe,
-            parameters: perf.bestParams || {},
-            performance: {
-              totalReturn: (perf.bestPerformance || 0) * 100,
-              sharpeRatio: perf.iterations?.[perf.iterations.length - 1]?.sharpe || 1.5,
-              maxDrawdown: -10,
-              winRate: 65,
-              profitFactor: 2.0
-            },
-            status: perf.iterations?.length > 0 ? 'optimized' : 'pending',
-            lastOptimized: new Date()
-          })),
-          optimizationResults: [],
-          agents: Object.entries(report.agentPerformance || {}).map(([name, perf]: [string, any]) => ({
-            id: name,
-            name: name.replace(/([A-Z])/g, ' $1').trim(),
-            performance: perf.bestPerformance || 0,
-            status: perf.iterations?.length > 0 ? 'active' : 'inactive'
-          }))
-        };
+          strategies,
+          optimizationResults: report.optimizationResults || [],
+          agents
+        } as OptimizationData;
       } catch (err) {
         console.error('Failed to fetch optimization data:', err);
-        return mockOptimizationData;
+        return { strategies: [], optimizationResults: [], agents: [] } as OptimizationData;
       }
     },
     refetchInterval: 5000, // Refresh every 5 seconds for running optimizations
@@ -165,16 +142,21 @@ export default function OptimizePage() {
         body: JSON.stringify(optimizationConfig)
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || 'Optimization failed');
+        throw new Error((data && (data as any).error) || 'Optimization failed');
       }
 
       console.log('[Optimization] Results:', data);
       await refetch();
 
-      alert(`Optimization Complete!\nOverall Performance: ${(data.results.overallPerformance * 100).toFixed(2)}%`);
+      const overallPerf = (data && (data as any).results && (data as any).results.overallPerformance) ? (data.results.overallPerformance * 100) : null;
+      if (overallPerf !== null) {
+        alert(`Optimization Complete!\nOverall Performance: ${overallPerf.toFixed(2)}%`);
+      } else {
+        alert('Optimization Complete! Results available in the Optimization report.');
+      }
     } catch (error: any) {
       console.error('[Optimization] Error:', error);
       alert(`Optimization failed: ${error.message}`);

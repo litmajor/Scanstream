@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatPct, formatMetric, formatCurrency } from '@/utils/formatting';
 
 export default function AdvancedAgentDashboard() {
   // Market Sage queries
@@ -89,15 +90,15 @@ export default function AdvancedAgentDashboard() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Win Rate</span>
-                      <span className="font-semibold">{(pattern.expected_performance.win_rate * 100).toFixed(1)}%</span>
+                      <span className="font-semibold">{formatPct(pattern.expected_performance.win_rate * 100)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Profit Factor</span>
-                      <span className="font-semibold">{pattern.expected_performance.profit_factor.toFixed(2)}</span>
+                      <span className="font-semibold">{formatMetric(pattern.expected_performance.profit_factor)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Confidence</span>
-                      <span className="font-semibold">{(pattern.confidence * 100).toFixed(0)}%</span>
+                      <span className="font-semibold">{formatPct(pattern.confidence * 100)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Sample Size</span>
@@ -144,11 +145,11 @@ export default function AdvancedAgentDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Portfolio Sharpe</p>
-                    <p className="text-2xl font-bold">{portfolio.metrics.portfolio_sharpe.toFixed(2)}</p>
+                    <p className="text-2xl font-bold">{formatMetric(portfolio.metrics.portfolio_sharpe)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Diversification</p>
-                    <p className="text-2xl font-bold">{(portfolio.metrics.diversification_score * 100).toFixed(0)}%</p>
+                    <p className="text-2xl font-bold">{formatPct(portfolio.metrics.diversification_score * 100)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -162,12 +163,12 @@ export default function AdvancedAgentDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-semibold">{alloc.agent_name}</h4>
-                    <span className="text-lg font-bold">${alloc.capital_allocated.toLocaleString()}</span>
+                    <span className="text-lg font-bold">{formatCurrency(alloc.capital_allocated)}</span>
                   </div>
                   <Progress value={alloc.allocation_percentage * 100} className="mb-2" />
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{(alloc.allocation_percentage * 100).toFixed(1)}% of portfolio</span>
-                    <span>Max position: ${alloc.max_position_size.toLocaleString()}</span>
+                    <span>{formatPct(alloc.allocation_percentage * 100)} of portfolio</span>
+                    <span>Max position: {formatCurrency(alloc.max_position_size)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">{alloc.reason}</p>
                 </CardContent>

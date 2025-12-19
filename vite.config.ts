@@ -39,20 +39,36 @@ export default defineConfig({
       allow: ['..'],
     },
     host: '0.0.0.0',
-    port: 5000,
-    strictPort: true,
+    port: 5173,
+    strictPort: false,
     hmr: {
       protocol: 'ws',
-      host: '0.0.0.0',
-      port: 5000
+      host: 'localhost',
+      port: 5173
     },
     middlewareMode: false,
     allowedHosts: true,
-    watch: {
-      usePolling: false,
-      ignored: ['**/node_modules/**', '**/.git/**']
-    },
     proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true
+      },
+      '/events': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true
+      },
+      '/ws': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true
+      },
+      '/socket': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true
+      },
       '/api/scanner': {
         target: 'http://localhost:5001',
         changeOrigin: true,
@@ -62,12 +78,11 @@ export default defineConfig({
         target: 'http://localhost:5001',
         changeOrigin: true,
         rewrite: (path) => path,
-      },
-      '/health': {
-        target: 'http://localhost:5001',
-        changeOrigin: true,
-        rewrite: (path) => path,
-      },
+      }
     },
+    watch: {
+      usePolling: false,
+      ignored: ['**/node_modules/**', '**/.git/**']
+    }
   },
 });

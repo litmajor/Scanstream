@@ -84,26 +84,43 @@ export class FeatureExtractor {
     ];
 
     // === TECHNICAL INDICATORS ===
+    // Use safe fallbacks for optional indicators to ensure numeric arrays
+    const rsi = current.indicators.rsi ?? 50;
+    const macdLine = current.indicators.macd.macd ?? 0;
+    const macdSignal = current.indicators.macd.signal ?? 0;
+    const macdHist = current.indicators.macd.histogram ?? 0;
+    const bbMiddle = current.indicators.bb.middle ?? ((current.price.high + current.price.low) / 2);
+    const bbUpper = current.indicators.bb.upper ?? current.price.high;
+    const bbLower = current.indicators.bb.lower ?? current.price.low;
+    const stochK = current.indicators.stoch_k ?? 50;
+    const stochD = current.indicators.stoch_d ?? 50;
+    const adx = current.indicators.adx ?? 25;
+    const vwap = current.indicators.vwap ?? current.price.close;
+    const atr = current.indicators.atr ?? 0;
+    const ema20 = current.indicators.ema20 ?? current.price.close;
+    const ema50 = current.indicators.ema50 ?? current.price.close;
+    const ema200 = current.indicators.ema200 ?? current.price.close;
+
     const technicalFeatures = [
-      current.indicators.rsi / 100, // Normalized RSI
-      current.indicators.macd.macd,
-      current.indicators.macd.signal,
-      current.indicators.macd.histogram,
-      (current.price.close - current.indicators.bb.middle) / (current.indicators.bb.upper - current.indicators.bb.lower), // BB position
-      (current.indicators.bb.upper - current.indicators.bb.lower) / current.indicators.bb.middle, // BB width
-      current.indicators.stoch_k / 100,
-      current.indicators.stoch_d / 100,
-      current.indicators.adx / 100,
-      current.indicators.vwap,
-      current.indicators.atr,
-      current.indicators.ema20,
-      current.indicators.ema50,
-      current.indicators.ema200,
-      current.price.close / current.indicators.ema20, // Price/EMA ratios
-      current.price.close / current.indicators.ema50,
-      current.price.close / current.indicators.ema200,
-      current.indicators.ema20 / current.indicators.ema50, // EMA relationships
-      current.indicators.ema50 / current.indicators.ema200,
+      rsi / 100, // Normalized RSI
+      macdLine,
+      macdSignal,
+      macdHist,
+      (current.price.close - bbMiddle) / (bbUpper - bbLower || 1), // BB position
+      (bbUpper - bbLower) / (bbMiddle || 1), // BB width
+      stochK / 100,
+      stochD / 100,
+      adx / 100,
+      vwap,
+      atr,
+      ema20,
+      ema50,
+      ema200,
+      current.price.close / (ema20 || current.price.close), // Price/EMA ratios
+      current.price.close / (ema50 || current.price.close),
+      current.price.close / (ema200 || current.price.close),
+      (ema20 || 1) / (ema50 || 1), // EMA relationships
+      (ema50 || 1) / (ema200 || 1),
     ];
 
     // === VOLUME FEATURES ===

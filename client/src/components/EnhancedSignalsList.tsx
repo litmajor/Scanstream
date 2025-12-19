@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import usePerformanceMark from '../hooks/usePerformanceMark';
 import { TrendingUp, TrendingDown, Zap, Target, Eye, Clock, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
 interface Signal {
@@ -18,6 +19,11 @@ interface Signal {
   advanced?: {
     opportunity_score?: number;
   };
+  holdingPeriod?: {
+    days: number;
+    hours: number;
+    reason: string;
+  };
 }
 
 interface EnhancedSignalsListProps {
@@ -33,7 +39,14 @@ interface CategorizedSignals {
   weakening: Signal[];
 }
 
-export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSignalsListProps) {
+interface BadgeInfo {
+  text: string;
+  color: 'green' | 'purple' | 'cyan' | 'orange';
+}
+
+function EnhancedSignalsList({ signals, isLoading }: EnhancedSignalsListProps) {
+  // Instrument render times for the signals list
+  try { usePerformanceMark('SignalList'); } catch (e) {}
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'earlyRisers' | 'crossExchange' | 'consistent' | 'highMomentum'>('all');
 
   // Categorize signals based on characteristics
@@ -96,6 +109,19 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
     if (selectedCategory === 'highMomentum') return categorizedSignals.highMomentum;
     return signals;
   }, [selectedCategory, signals, categorizedSignals]);
+
+  const getBadgeInfo = (signal: Signal): BadgeInfo | null => {
+    if (categorizedSignals.earlyRisers.includes(signal)) {
+      return { text: 'Early', color: 'green' };
+    } else if (categorizedSignals.crossExchange.includes(signal)) {
+      return { text: 'Multi-Exchange', color: 'purple' };
+    } else if (categorizedSignals.consistent.includes(signal)) {
+      return { text: 'Consistent', color: 'cyan' };
+    } else if (categorizedSignals.highMomentum.includes(signal)) {
+      return { text: 'High Momentum', color: 'orange' };
+    }
+    return null;
+  };
 
   const categoryStats = [
     { 
@@ -193,18 +219,7 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
             const isPositive = change >= 0;
             const strength = signal.strength || 0;
             const opportunityScore = signal.advanced?.opportunity_score || 0;
-            
-            // Determine badge
-            let badge = null;
-            if (categorizedSignals.earlyRisers.includes(signal)) {
-              badge = { text: 'Early', color: 'green' };
-            } else if (categorizedSignals.crossExchange.includes(signal)) {
-              badge = { text: 'Multi-Exchange', color: 'purple' };
-            } else if (categorizedSignals.consistent.includes(signal)) {
-              badge = { text: 'Consistent', color: 'cyan' };
-            } else if (categorizedSignals.highMomentum.includes(signal)) {
-              badge = { text: 'High Momentum', color: 'orange' };
-            }
+            const badge = getBadgeInfo(signal);
 
             return (
               <div
@@ -279,13 +294,13 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
                         <span className="text-xs font-bold text-purple-400">{opportunityScore}/100</span>
                       </div>
                     )}
-
-                    {/* Time */}
-                    <div className="flex items-center space-x-1 text-xs text-slate-500">
-                      <Clock className="h-3 w-3" />
-                      <span>{new Date(signal.timestamp).toLocaleTimeString()}</span>
-                    </div>
                   </div>
+                </div>
+
+                {/* Time */}
+                <div className="flex items-center space-x-1 text-xs text-slate-500 mt-3">
+                  <Clock className="h-3 w-3" />
+                  <span>{new Date(signal.timestamp).toLocaleTimeString()}</span>
                 </div>
 
                 {/* Indicators */}
@@ -325,21 +340,21 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
                 )}
 
                 {/* ML Holding Period */}
-                {(signal as any).holdingPeriod && (
+                {signal.holdingPeriod && (
                   <div className="mt-2 pt-2 border-t border-slate-700/50">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 text-purple-400">
                         <Clock className="w-3 h-3" />
                         <span>Optimal Hold:</span>
                         <span className="font-bold">
-                          {(signal as any).holdingPeriod.days > 0 
-                            ? `${(signal as any).holdingPeriod.days}d`
-                            : `${(signal as any).holdingPeriod.hours}h`
+                          {signal.holdingPeriod.days > 0 
+                            ? `${signal.holdingPeriod.days}d`
+                            : `${signal.holdingPeriod.hours}h`
                           }
                         </span>
                       </div>
                       <span className="text-slate-400 italic">
-                        {(signal as any).holdingPeriod.reason}
+                        {signal.holdingPeriod.reason}
                       </span>
                     </div>
                   </div>
@@ -353,3 +368,5 @@ export default function EnhancedSignalsList({ signals, isLoading }: EnhancedSign
   );
 }
 
+// Memoize to avoid unnecessary re-renders when props are stable
+export default React.memo(EnhancedSignalsList);

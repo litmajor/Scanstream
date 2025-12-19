@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowLeft, RefreshCw, Settings, Filter, Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Star, Download, BarChart3, Bell, BellOff, Calculator, Activity, Target, ChevronDown, ChevronUp, Grid3x3, List, Zap } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Settings, Filter, Search, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Star, Download, BarChart3, Bell, BellOff, Calculator, Activity, Target, ChevronDown, ChevronUp, ChevronRight, Grid3x3, List, Zap } from 'lucide-react';
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '../lib/useWebSocket';
 // Removed: import { QuickScanButton } from '../components/QuickScanButton';
@@ -8,31 +9,91 @@ import { ScanProgress } from '../components/ScanProgress';
 import { SymbolDetailModal } from '../components/SymbolDetailModal';
 import { FlowMetricsPanel } from '../components/FlowMetricsPanel';
 import { SignalFilters } from '../components/SignalFilters'; // Import SignalFilters component
+import ScannerAgentAnalysis from '../components/ScannerAgentAnalysis'; // Import new component
+import EntryDialog, { PositionEntry } from '../components/EntryDialog';
+import { StrategyPanel } from '../components/StrategyPanel'; // Import new strategy panel component
+
+// NEW: Import ARM scanner components and services
+import { ScannerService, ScanRequest, MultiExchangeScanResults } from '../services/scannerService';
+import TopAssetsCard from '../components/TopAssetsCard';
+import CrossExchangeSignalsPanel from '../components/CrossExchangeSignalsPanel';
+import SignalDistributionChart from '../components/SignalDistributionChart';
+import HistoricalTrendChart from '../components/HistoricalTrendChart';
+
+// Types for scanner data
+interface ScannerSignal {
+  id?: string;
+  symbol: string;
+  name?: string;
+  price?: number;
+  // Price / volume / change (both common variants used in different APIs)
+  change?: number;
+  change24h?: number;
+  volume?: number;
+  volume24h?: number;
+  marketCap?: number;
+  market_cap?: number;
+  exchange?: string;
+  timeframe?: string;
+  // Convenience / alternative pricing fields
+  currentPrice?: number;
+  signal?: string;
+  strength?: number;
+  relationships?: any[];
+  market_regime?: any;
+  advanced?: any;
+  indicators?: any;
+  rsi?: number | string;
+  macd?: string | { signal?: string };
+  orderFlow?: any;
+  marketMicrostructure?: any;
+  risk_reward?: any;
+  suggestedStopLoss?: number;
+  suggestedTakeProfit?: number;
+  consensus?: any;
+  agentConsensus?: any;
+}
+
+interface ScannerResponse {
+  signals: ScannerSignal[];
+  filters?: any;
+  metadata?: any;
+}
 
 export default function ScannerPage() {
   const [, setLocation] = useLocation();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState({
-    exchange: 'kucoinfutures',
-    timeframe: 'medium',
-    signal: 'all',
-    minStrength: 0
-  });
-  const [selectedExchange, setSelectedExchange] = useState('kucoinfutures');
-  const [allExchangeSignals, setAllExchangeSignals] = useState<Map<string, any[]>>(new Map());
-  const [showTopSignals, setShowTopSignals] = useState(false);
-  const [watchlist, setWatchlist] = useState<string[]>([]);
-  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
-  const [selectedSymbolDetail, setSelectedSymbolDetail] = useState<any | null>(null);
-  const [alertsEnabled, setAlertsEnabled] = useState(false);
-  const [alertThreshold, setAlertThreshold] = useState(80);
+  const { symbols: universeSymbols } = useSymbolUniverse();
+  
+  // UI State
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [accountBalance, setAccountBalance] = useState(10000);
-  const [riskPerTrade, setRiskPerTrade] = useState(2);
   const [showPositionCalculator, setShowPositionCalculator] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'compact'>('grid');
+  const [selectedScanResult, setSelectedScanResult] = useState<any | null>(null);
+  const [showAgentAnalysisDialog, setShowAgentAnalysisDialog] = useState(false);
+  const [showEntryDialog, setShowEntryDialog] = useState(false);
+  const [showTopSignals, setShowTopSignals] = useState(false);
+  const [selectedSymbolDetail, setSelectedSymbolDetail] = useState<any | null>(null);
+  
+  // Trading State
+  const [accountBalance, setAccountBalance] = useState(10000);
+  const [riskPerTrade, setRiskPerTrade] = useState(2);
+  const [entryAsset, setEntryAsset] = useState<any | null>(null);
+  const [entrySide, setEntrySide] = useState<'LONG' | 'SHORT'>('LONG');
+  
+  // Scan State
+  const [isScanning, setIsScanning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [runAnalysisLoading, setRunAnalysisLoading] = useState(false);
+  const [runAnalysisResults, setRunAnalysisResults] = useState<any | null>(null);
+  const [selectedExchange, setSelectedExchange] = useState<string>('kucoinfutures');
+  const [allExchangeSignals, setAllExchangeSignals] = useState<Map<string, any[]>>(new Map());
+  const [selectedFilters, setSelectedFilters] = useState({
+    exchange: 'kucoinfutures',
+    timeframe: 'all',
+    signal: 'all',
+    minStrength: 0
+  });
 
   // Filter state for the new SignalFilters component
   const [filters, setFilters] = useState({
@@ -46,6 +107,24 @@ export default function ScannerPage() {
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [apiHealthy, setApiHealthy] = useState(true);
   const [scannerInitialized, setScannerInitialized] = useState(false);
+  
+  // Watchlist and UI toggles
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  
+  // Alerts
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState<number>(80);
+  const [scanProgress, setScanProgress] = useState<{ total: number; remaining: number } | null>(null);
+
+  // NEW: ARM Multi-Exchange Scanner State
+  const [showArmScanner, setShowArmScanner] = useState(false);
+  const [armScanLoading, setArmScanLoading] = useState(false);
+  const [armScanResults, setArmScanResults] = useState<MultiExchangeScanResults | null>(null);
+  const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'okx']);
+  const [selectedSymbols, setSelectedSymbols] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
+  const [scannerServiceError, setScannerServiceError] = useState<string | null>(null);
+  const [showHistoricalChart, setShowHistoricalChart] = useState(false);
 
   // Load cached FastScanner results on mount
   useEffect(() => {
@@ -104,9 +183,8 @@ export default function ScannerPage() {
     const interval = setInterval(checkApiHealth, 10000);
     return () => clearInterval(interval);
   }, []);
-  const [scanProgress, setScanProgress] = useState<{ total: number; remaining: number } | null>(null);
 
-  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/socket.io/?transport=websocket&v=${Date.now()}`;
   const { isConnected, lastMessage, send } = useWebSocket(wsUrl);
 
   // Handle WebSocket messages
@@ -159,6 +237,30 @@ export default function ScannerPage() {
         break;
     }
   }, [lastMessage]);
+
+  // Subscribe to symbol-specific WS messages when opening Agent Analysis
+  useEffect(() => {
+    if (!selectedScanResult) return;
+    const symbol = selectedScanResult.symbol;
+    if (!symbol) return;
+
+    try {
+      // Request subscription via WebSocket
+      send({ type: 'subscribe', symbols: [symbol] });
+      console.log('[Scanner] Subscribed to symbol via WS:', symbol);
+    } catch (err) {
+      console.warn('[Scanner] WS subscribe failed:', err);
+    }
+
+    return () => {
+      try {
+        send({ type: 'unsubscribe', symbols: [symbol] });
+        console.log('[Scanner] Unsubscribed from symbol via WS:', symbol);
+      } catch (err) {
+        // ignore
+      }
+    };
+  }, [selectedScanResult, send]);
 
   // Load watchlist from localStorage on mount
   useEffect(() => {
@@ -284,7 +386,7 @@ export default function ScannerPage() {
   };
 
   // Fetch scanner data from API
-  const { data: scannerData, isLoading, error, refetch } = useQuery({
+  const { data: scannerData, isLoading, error, refetch } = useQuery<ScannerResponse, Error>({
     queryKey: ['scanner-data', selectedFilters],
     queryFn: async () => {
       try {
@@ -362,11 +464,17 @@ export default function ScannerPage() {
             console.warn('[Scanner] CoinGecko fallback failed:', err);
           }
 
-          // Still no data, return empty structure
+          // Still no data, return empty structure (no mock fallbacks)
           console.log('[Scanner] No signals available from any source');
           return {
             signals: [],
-            filters: data.filters || mockScannerData.filters, // Use mockScannerData if defined elsewhere, otherwise use empty structure
+            filters: data.filters || {
+              exchanges: [],
+              timeframes: [],
+              signals: [],
+              minStrength: 0,
+              maxStrength: 100
+            },
             metadata: data.metadata || { count: 0, message: 'No signals available. System is starting up...' }
           };
         }
@@ -425,7 +533,7 @@ export default function ScannerPage() {
     displaySignals = displaySignals.filter(s => s.signal === filters.signalType);
   }
   if (filters.minConfidence > 0) {
-    displaySignals = displaySignals.filter(s => s.strength >= filters.minConfidence);
+    displaySignals = displaySignals.filter((s: ScannerSignal) => (s.strength ?? 0) >= filters.minConfidence);
   }
   if (filters.trendDirection !== 'all') {
     displaySignals = displaySignals.filter(s => 
@@ -526,6 +634,90 @@ export default function ScannerPage() {
     }
   };
 
+  // NEW: Handle Multi-Exchange ARM Scan
+  const handleArmMultiExchangeScan = async () => {
+    setArmScanLoading(true);
+    setScannerServiceError(null);
+
+    try {
+      console.log('🚀 Starting ARM multi-exchange scan:', {
+        symbols: selectedSymbols,
+        exchanges: selectedExchanges
+      });
+
+      const scanRequest: ScanRequest = {
+        symbols: selectedSymbols.length > 0 ? selectedSymbols : ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
+        exchanges: selectedExchanges.length > 0 ? selectedExchanges : ['binance', 'coinbase', 'okx'],
+        options: {
+          timeframe: '1h',
+          limit: 100,
+          minVolume: 100000
+        }
+      };
+
+      const results = await ScannerService.multiExchangeScan(scanRequest);
+      console.log('✅ ARM scan complete:', results);
+
+      setArmScanResults(results);
+      
+      // Auto-play historical chart to demonstrate signal trends
+      if (results.topAssets && results.topAssets.length > 0) {
+        setShowHistoricalChart(true);
+      }
+
+      // Show success message
+      alert(`✅ Multi-Exchange Scan Complete!\n\nFound ${results.allResults.length} total results across ${results.exchanges.size} exchanges\n\nTop Asset: ${results.topAssets[0]?.symbol || 'N/A'}\nCross-Exchange Signals: ${results.crossExchangeSignals.length}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('❌ ARM scan error:', error);
+      setScannerServiceError(errorMessage);
+      alert(`❌ Multi-Exchange Scan Failed: ${errorMessage}`);
+    } finally {
+      setArmScanLoading(false);
+    }
+  };
+
+  // Run analysis on current signals
+  const handleRunAnalysis = async () => {
+    setRunAnalysisLoading(true);
+    try {
+      const body = {
+        symbols: displaySignals.slice(0, 50).map((s: any) => s.symbol), // default to currently displayed symbols
+        timeframe: selectedFilters.timeframe === 'all' ? '1h' : selectedFilters.timeframe
+      };
+
+      const resp = await fetch('/api/scanner/run-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || `Run analysis failed (${resp.status})`);
+      }
+
+      const data = await resp.json();
+      if (data && data.success) {
+        setRunAnalysisResults(data);
+        // Use enriched results as primary display for immediate action
+        if (data.results && Array.isArray(data.results)) {
+          setRealTimeSignals(data.results);
+        }
+        setLastScanTime(data.timestamp ? new Date(data.timestamp) : new Date());
+        // Persist to localStorage as before
+        localStorage.setItem('latestScanResults', JSON.stringify({ signals: (data.results || []).slice(0, 10), timestamp: data.timestamp || new Date().toISOString() }));
+      } else {
+        throw new Error(data?.error || 'Run analysis returned no data');
+      }
+    } catch (err) {
+      console.error('Run analysis error:', err);
+      alert(`❌ Run Analysis failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRunAnalysisLoading(false);
+    }
+  };
+
   // NEW: Parallel scan multiple exchanges
   const handleParallelScan = async () => {
     const exchanges = ['binance', 'okx', 'bybit', 'kucoinfutures'];
@@ -568,11 +760,12 @@ export default function ScannerPage() {
   // NEW: Start continuous scanner
   const handleStartContinuous = async () => {
     try {
+      const symbolsToUse = (universeSymbols && universeSymbols.length) ? universeSymbols.map((s: any) => s.symbol).slice(0,10) : ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT'];
       const response = await fetch('/api/scanner/continuous/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT'],
+          symbols: symbolsToUse,
           exchanges: ['binance', 'kucoinfutures']
         }),
       });
@@ -598,7 +791,7 @@ export default function ScannerPage() {
   // NEW: Download training data
   const handleDownloadTrainingData = async () => {
     try {
-      const symbol = 'BTC/USDT';
+      const symbol = (universeSymbols && universeSymbols.length) ? universeSymbols[0].symbol : 'BTC/USDT';
       const response = await fetch(`/api/scanner/training-data/${symbol.replace('/', '%2F')}?days=30`);
       
       if (response.ok) {
@@ -619,7 +812,7 @@ export default function ScannerPage() {
   // NEW: Check confluence
   const handleCheckConfluence = async () => {
     try {
-      const symbol = 'BTC/USDT';
+      const symbol = (universeSymbols && universeSymbols.length) ? universeSymbols[0].symbol : 'BTC/USDT';
       const response = await fetch(`/api/scanner/continuous/confluence/${symbol.replace('/', '%2F')}?min_score=60`);
       
       if (response.ok) {
@@ -919,6 +1112,17 @@ export default function ScannerPage() {
                 <Download className="w-4 h-4" />
               </button>
 
+              <button
+                onClick={handleRunAnalysis}
+                disabled={runAnalysisLoading || !apiHealthy}
+                className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 font-semibold ${runAnalysisLoading ? 'bg-slate-700 text-slate-200' : 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white hover:from-indigo-500 hover:to-blue-500'}`}
+                title="Run Analysis (13-agent consensus)"
+                aria-label="Run analysis"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>{runAnalysisLoading ? 'Running...' : 'Run Analysis'}</span>
+              </button>
+
               {/* Removed Quick Scan Button */}
               {/* <QuickScanButton onScanComplete={handleQuickScan} /> */}
 
@@ -935,6 +1139,16 @@ export default function ScannerPage() {
                 {/* Dropdown Menu */}
                 <div className="absolute right-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                   <div className="p-2 space-y-1">
+                    {/* NEW: ARM Scanner Option */}
+                    <button
+                      onClick={() => setShowArmScanner(!showArmScanner)}
+                      disabled={armScanLoading}
+                      className="w-full px-4 py-2 text-left text-sm text-white hover:bg-slate-700 rounded flex items-center space-x-2 disabled:opacity-50 font-semibold bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30"
+                    >
+                      <Zap className="w-4 h-4 text-purple-400" />
+                      <span>🔬 ARM Multi-Exchange Scan</span>
+                    </button>
+                    
                     <button
                       onClick={handleScan}
                       disabled={isScanning}
@@ -1088,6 +1302,188 @@ export default function ScannerPage() {
 
       {/* Main Content */}
       <div className="relative max-w-[1800px] mx-auto px-6 py-6">
+        {/* NEW: ARM Multi-Exchange Scanner Panel */}
+        {showArmScanner && (
+          <div className="mb-6 bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-700/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-purple-300 flex items-center gap-2">
+                <Zap className="w-6 h-6 text-purple-400" />
+                🔬 ARM Multi-Exchange Scanner
+              </h2>
+              <button
+                onClick={() => setShowArmScanner(false)}
+                className="text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                Close
+              </button>
+            </div>
+
+            {scannerServiceError && (
+              <div className="mb-4 p-3 bg-red-900/20 border border-red-700/50 text-red-300 text-sm rounded-lg">
+                ❌ {scannerServiceError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              {/* Symbol Selection */}
+              <div>
+                <label className="block text-sm font-medium text-purple-300 mb-2">Symbols to Scan</label>
+                <div className="space-y-2">
+                  {['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT'].map(symbol => (
+                    <label key={symbol} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedSymbols.includes(symbol)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSymbols([...selectedSymbols, symbol]);
+                          } else {
+                            setSelectedSymbols(selectedSymbols.filter(s => s !== symbol));
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm text-slate-300">{symbol}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exchange Selection */}
+              <div>
+                <label className="block text-sm font-medium text-purple-300 mb-2">Exchanges</label>
+                <div className="space-y-2">
+                  {['binance', 'coinbase', 'okx', 'bybit', 'kucoinfutures'].map(exchange => (
+                    <label key={exchange} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedExchanges.includes(exchange)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedExchanges([...selectedExchanges, exchange]);
+                          } else {
+                            setSelectedExchanges(selectedExchanges.filter(ex => ex !== exchange));
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm text-slate-300 capitalize">{exchange}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-700/50">
+                <h3 className="text-sm font-semibold text-purple-300 mb-3">Scan Configuration</h3>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-slate-400">Symbols:</span>
+                    <span className="ml-2 font-bold text-purple-300">{selectedSymbols.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Exchanges:</span>
+                    <span className="ml-2 font-bold text-purple-300">{selectedExchanges.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Total Pairs:</span>
+                    <span className="ml-2 font-bold text-green-400">{selectedSymbols.length * selectedExchanges.length}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-700/50">
+                    <p className="text-xs text-slate-400 italic">ARM signal classification + cross-exchange detection</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleArmMultiExchangeScan}
+              disabled={armScanLoading || selectedSymbols.length === 0 || selectedExchanges.length === 0}
+              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20"
+            >
+              {armScanLoading ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Scanning across {selectedExchanges.length} exchanges...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  Start ARM Multi-Exchange Scan
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* NEW: ARM Scan Results Display */}
+        {armScanResults && !showArmScanner && (
+          <div className="space-y-6 mb-6">
+            {/* Top Assets */}
+            <TopAssetsCard
+              assets={armScanResults.topAssets}
+              loading={armScanLoading}
+              onAssetClick={(asset) => {
+                setSelectedScanResult(asset);
+                setShowAgentAnalysisDialog(true);
+              }}
+            />
+
+            {/* Cross-Exchange Signals */}
+            <CrossExchangeSignalsPanel
+              signals={armScanResults.crossExchangeSignals}
+              loading={armScanLoading}
+              onSignalClick={(signal) => {
+                console.log('Cross-exchange signal clicked:', signal);
+              }}
+            />
+
+            {/* Signal Distribution */}
+            <SignalDistributionChart
+              results={armScanResults.allResults}
+              loading={armScanLoading}
+            />
+
+            {/* Historical Trend Chart (if enabled) */}
+            {showHistoricalChart && armScanResults.topAssets.length > 0 && (
+              <HistoricalTrendChart
+                data={armScanResults.topAssets.map(asset => ({
+                  timestamp: Date.now(),
+                  signal: asset.signal || 'NEUTRAL',
+                  confidence: asset.strength || 0,
+                  compositeScore: asset.compositeScore || asset.strength || 0
+                }))}
+                symbol={armScanResults.topAssets[0].symbol}
+              />
+            )}
+
+            {/* Results Summary */}
+            <div className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 border border-slate-700/50 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-4">Scan Summary</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <p className="text-sm text-slate-400 mb-1">Total Results</p>
+                  <p className="text-2xl font-bold text-white">{armScanResults.allResults.length}</p>
+                </div>
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <p className="text-sm text-slate-400 mb-1">Exchanges Scanned</p>
+                  <p className="text-2xl font-bold text-blue-400">{armScanResults.exchanges.size}</p>
+                </div>
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <p className="text-sm text-slate-400 mb-1">Cross-Exchange Signals</p>
+                  <p className="text-2xl font-bold text-purple-400">{armScanResults.crossExchangeSignals.length}</p>
+                </div>
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <p className="text-sm text-slate-400 mb-1">High Quality Assets</p>
+                  <p className="text-2xl font-bold text-green-400">
+                    {armScanResults.topAssets.filter((a: any) => (a.confidence || a.strength || 0) >= 75).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Top Consistent Signals */}
         {showTopSignals && allExchangeSignals.size >= 2 && (
           <div className="mb-6 bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border border-yellow-700/50 rounded-xl p-6">
@@ -1225,7 +1621,7 @@ export default function ScannerPage() {
               <div>
                 <p className="text-xs text-slate-400 mb-1">Avg Strength</p>
                 <p className="text-2xl font-bold text-white">
-                  {displaySignals.length > 0 ? Math.round(displaySignals.reduce((acc: number, s: any) => acc + s.strength, 0) / displaySignals.length) : 0}%
+                  {displaySignals.length > 0 ? Math.round(displaySignals.reduce((acc: number, s: ScannerSignal) => acc + (s.strength ?? 0), 0) / displaySignals.length) : 0}%
                 </p>
               </div>
               <div className="p-3 bg-green-500/10 rounded-lg">
@@ -1259,6 +1655,21 @@ export default function ScannerPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Strategy Panel */}
+        <div className="mb-8">
+          <StrategyPanel
+            symbol={selectedScanResult?.symbol || 'BTC/USDT'}
+            isLoading={isLoading}
+            onStrategySelect={(strategy) => {
+              console.log('Strategy selected:', strategy);
+            }}
+            onAgentSelect={(agent) => {
+              console.log('Agent selected:', agent);
+            }}
+            onRefresh={() => refetch()}
+          />
         </div>
 
         {/* Signals Grid */}
@@ -1395,14 +1806,43 @@ export default function ScannerPage() {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(`https://www.tradingview.com/chart/?symbol=${signal.exchange.toUpperCase()}:${signal.symbol.replace('/', '')}`, '_blank');
+                              setSelectedScanResult(signal);
+                              setShowAgentAnalysisDialog(true);
                             }}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all text-sm shadow-lg shadow-blue-500/20"
+                            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all text-sm"
                           >
-                            Chart
+                            Agents
                           </button>
-                          <button className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-all text-sm shadow-lg shadow-green-500/20">
-                            Trade
+
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const pos = await calculatePosition(signal);
+                              // Build asset payload for EntryDialog
+                              // `signal` comes from external API and may have extra runtime-only
+                              // properties (agentConsensus, strength, risk_reward, etc.) that
+                              // are not present on the static `ScanResult` TS type. Cast to
+                              // `any` here to safely access those optional runtime fields.
+                              const s: any = signal as any;
+                              const consensus = s.consensus || s.agentConsensus || { signal: s.signal || 'HOLD', confidence: (s.strength || 0) / 100, riskScore: 'MEDIUM' };
+                              const asset = {
+                                symbol: s.symbol,
+                                currentPrice: s.price || s.currentPrice || 0,
+                                consensusSignal: consensus.signal === 'BUY' ? 'BUY' : consensus.signal === 'SELL' ? 'SELL' : 'HOLD',
+                                avgConfidence: (consensus.confidence || ((s.strength || 0) / 100)) * 100,
+                                riskScore: consensus.riskScore || 'MEDIUM',
+                                suggestedStopLoss: s.risk_reward?.stop_loss || s.suggestedStopLoss,
+                                suggestedTakeProfit: s.risk_reward?.take_profit || s.suggestedTakeProfit
+                              };
+
+                              setEntryAsset(asset);
+                              setEntrySide((consensus.signal === 'SELL') ? 'SHORT' : 'LONG');
+                              setShowEntryDialog(true);
+                            }}
+                            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg font-medium transition-all flex items-center justify-center space-x-2 shadow-lg shadow-green-500/20"
+                          >
+                            <Zap className="w-4 h-4" />
+                            <span>Trade</span>
                           </button>
                         </div>
                       </div>
@@ -1415,11 +1855,7 @@ export default function ScannerPage() {
               return (
                 <div
                   key={signal.id || signal.symbol}
-                  className="group bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 hover:border-slate-600/50 rounded-xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer"
-                  onClick={() => setSelectedSymbolDetail(signal)}
-                  onKeyDown={(e) => e.key === 'Enter' && setSelectedSymbolDetail(signal)}
-                  role="button"
-                  tabIndex={0}
+                  className="group bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 hover:border-slate-600/50 rounded-xl overflow-hidden transition-all hover:shadow-xl hover:shadow-blue-500/5 text-left w-full"
                 >
                   {/* Card Header */}
                   <div className="p-5 border-b border-slate-700/30">
@@ -1460,6 +1896,14 @@ export default function ScannerPage() {
                         }`}>
                           {signal.signal}
                         </div>
+                        <button
+                          onClick={() => setSelectedSymbolDetail(signal)}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-all"
+                          title={`View details for ${signal.symbol}`}
+                          aria-label={`View details for ${signal.symbol}`}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -1625,14 +2069,36 @@ export default function ScannerPage() {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`https://www.tradingview.com/chart/?symbol=${signal.exchange.toUpperCase()}:${signal.symbol.replace('/', '')}`, '_blank');
+                          setSelectedScanResult(signal);
+                          setShowAgentAnalysisDialog(true);
                         }}
-                        className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-lg font-medium transition-all flex items-center justify-center space-x-2 shadow-lg shadow-blue-500/20"
+                        className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all flex items-center justify-center space-x-2 flex-1"
                       >
                         <BarChart3 className="w-4 h-4" />
-                        <span>Chart</span>
+                        <span>Agents</span>
                       </button>
-                      <button className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg font-medium transition-all flex items-center justify-center space-x-2 shadow-lg shadow-green-500/20">
+                      <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const pos = await calculatePosition(signal);
+                          const s: any = signal as any;
+                          const consensus = s.consensus || s.agentConsensus || { signal: s.signal || 'HOLD', confidence: (s.strength || 0) / 100, riskScore: 'MEDIUM' };
+                          const asset = {
+                            symbol: s.symbol,
+                            currentPrice: s.price || s.currentPrice || 0,
+                            consensusSignal: consensus.signal === 'BUY' ? 'BUY' : consensus.signal === 'SELL' ? 'SELL' : 'HOLD',
+                            avgConfidence: (consensus.confidence || ((s.strength || 0) / 100)) * 100,
+                            riskScore: consensus.riskScore || 'MEDIUM',
+                            suggestedStopLoss: s.risk_reward?.stop_loss || s.suggestedStopLoss,
+                            suggestedTakeProfit: s.risk_reward?.take_profit || s.suggestedTakeProfit
+                          };
+
+                          setEntryAsset(asset);
+                          setEntrySide((consensus.signal === 'SELL') ? 'SHORT' : 'LONG');
+                          setShowEntryDialog(true);
+                        }}
+                        className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white rounded-lg font-medium transition-all flex items-center justify-center space-x-2 shadow-lg shadow-green-500/20"
+                      >
                         <Zap className="w-4 h-4" />
                         <span>Trade</span>
                       </button>
@@ -1682,6 +2148,66 @@ export default function ScannerPage() {
           signal={selectedSymbolDetail}
           onClose={() => setSelectedSymbolDetail(null)}
         />
+      )}
+      {/* Entry Dialog (opened when user clicks Trade) */}
+      {entryAsset && (
+        <EntryDialog
+          isOpen={showEntryDialog}
+          onClose={() => setShowEntryDialog(false)}
+          onConfirm={async (entry: PositionEntry) => {
+            try {
+              const resp = await fetch('/api/paper-trading/open-position', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...entry })
+              });
+
+              if (resp.ok) {
+                const data = await resp.json();
+                alert('Position opened (paper): ' + (data.id || 'ok'));
+              } else {
+                const err = await resp.json().catch(() => ({}));
+                alert('Failed to open position: ' + (err.message || resp.statusText));
+              }
+            } catch (err) {
+              console.error('Failed to open paper position:', err);
+              alert('Error opening position');
+            } finally {
+              setShowEntryDialog(false);
+            }
+          }}
+          asset={entryAsset}
+          accountBalance={accountBalance}
+          side={entrySide}
+        />
+      )}
+      {/* Agent Analysis Drawer */}
+      {showAgentAnalysisDialog && selectedScanResult && (
+        <div className="fixed right-6 top-16 w-[420px] max-h-[80vh] overflow-auto z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold">Agent Analysis</h3>
+              <button onClick={() => { setShowAgentAnalysisDialog(false); setSelectedScanResult(null); }} className="text-sm text-slate-400 hover:text-white">Close</button>
+            </div>
+            <ScannerAgentAnalysis scanResult={selectedScanResult} onTrade={(r) => {
+              // Open entry dialog for selected result
+              const consensus = r.consensus || r.agentConsensus || { signal: r.signal || 'HOLD', confidence: (r.strength || 0) / 100 };
+              const asset = {
+                symbol: r.symbol,
+                currentPrice: r.price || r.currentPrice || 0,
+                consensusSignal: consensus.signal === 'BUY' ? 'BUY' : consensus.signal === 'SELL' ? 'SELL' : 'HOLD',
+                avgConfidence: (consensus.confidence || ((r.strength || 0) / 100)) * 100,
+                riskScore: consensus.riskScore || 'MEDIUM',
+                suggestedStopLoss: r.risk_reward?.stop_loss || r.suggestedStopLoss,
+                suggestedTakeProfit: r.risk_reward?.take_profit || r.suggestedTakeProfit
+              };
+              setEntryAsset(asset);
+              setEntrySide((consensus.signal === 'SELL') ? 'SHORT' : 'LONG');
+              setShowEntryDialog(true);
+              setShowAgentAnalysisDialog(false);
+            }} />
+          </div>
+        </div>
       )}
     </div>
   );

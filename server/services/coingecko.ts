@@ -133,6 +133,24 @@ class CoinGeckoService {
   }
 
   /**
+   * Get market data for specific coin IDs
+   */
+  async getMarketDataByIds(coinIds: string, vsCurrency = 'usd') {
+    // Don't cache IDs queries as they can be different each time
+    const response = await this.client.get('/coins/markets', {
+      params: {
+        vs_currency: vsCurrency,
+        ids: coinIds,
+        order: 'market_cap_desc',
+        per_page: 250,
+        sparkline: false,
+        price_change_percentage: '24h,7d'
+      }
+    });
+    return response.data;
+  }
+
+  /**
    * Get trending coins (social sentiment)
    */
   async getTrendingCoins() {
@@ -353,6 +371,8 @@ class CoinGeckoService {
     btcDominance: number;
     totalMarketCap: number;
     totalVolume: number;
+    epistemicState?: string;
+    epistemicReasons?: string[];
   }> {
     try {
       const global = await this.getGlobalMarket();
@@ -361,37 +381,127 @@ class CoinGeckoService {
       const totalMarketCap = global.total_market_cap?.usd || 0;
       const totalVolume = global.total_volume?.usd || 0;
       const volumeToMcap = totalVolume / totalMarketCap;
+      const marketCapChange = Math.abs(global.market_cap_change_percentage_24h_usd || 0);
 
-      // Determine regime
+      // EXPENSIVE-TO-EARN, CHEAP-TO-LOSE CONFIDENCE
+      // Start ultra-low: require multiple evidence sources to exceed thresholds
       let regime: 'bull' | 'bear' | 'neutral' | 'volatile' = 'neutral';
-      let confidence = 50;
+      let confidence = 10; // Start VERY LOW
+      const epistemicReasons: string[] = [];
 
-      // High volume relative to market cap = volatile
+      // Component 1: Volume confirmation (0-30 points)
+      let volumeConfidence = 0;
+      if (volumeToMcap > 0.08) {
+        volumeConfidence = 30; // Strong volume confirmation
+      } else if (volumeToMcap > 0.06) {
+        volumeConfidence = 25;
+      } else if (volumeToMcap > 0.04) {
+        volumeConfidence = 15;
+      } else if (volumeToMcap > 0.02) {
+        volumeConfidence = 0; // Below threshold = 0 points (not 5)
+        epistemicReasons.push('LOW_VOLUME');
+      } else {
+        volumeConfidence = 0;
+        epistemicReasons.push('INSUFFICIENT_VOLUME');
+      }
+
+      // Component 2: Dominance clarity (0-35 points)
+      let dominanceConfidence = 0;
+      const dominanceDelta = Math.abs(btcDominance - 50); // Distance from neutral
+      if (dominanceDelta > 15) {
+        dominanceConfidence = 35; // Strong dominance signal
+      } else if (dominanceDelta > 10) {
+        dominanceConfidence = 28;
+      } else if (dominanceDelta > 5) {
+        dominanceConfidence = 0; // Weak signal = 0 points (not 18)
+        epistemicReasons.push('WEAK_DOMINANCE');
+      } else {
+        dominanceConfidence = 0; // No signal
+        epistemicReasons.push('NEUTRAL_DOMINANCE');
+      }
+
+      // Component 3: Volatility context (0-20 points)
+      // High volatility = noise = 0 points (not partial credit)
+      // Low volatility = clear signal = full credit
+      let volatilityConfidence = 0;
+      if (marketCapChange < 1) {
+        volatilityConfidence = 20; // Calm market = clear trend
+      } else if (marketCapChange < 2) {
+        volatilityConfidence = 15;
+      } else if (marketCapChange < 4) {
+        volatilityConfidence = 0; // Chaotic = 0 points (not 10)
+        epistemicReasons.push('HIGH_VOLATILITY');
+      } else {
+        volatilityConfidence = 0; // Very chaotic
+        epistemicReasons.push('EXTREME_VOLATILITY');
+      }
+
+      // Component 4: Regime clarity (0-15 points)
+      // Only award if clear signals exist
+      let regimeConfidence = 0;
       if (volumeToMcap > 0.06) {
         regime = 'volatile';
-        confidence = 70;
-      }
-      // BTC dominance trending
-      else if (btcDominance > 55) {
-        regime = 'bear'; // Money flowing to BTC (risk-off)
-        confidence = 65;
+        regimeConfidence = 15; // Clear volatile signal
+      } else if (btcDominance > 55) {
+        regime = 'bear';
+        regimeConfidence = dominanceDelta > 10 ? 15 : 0; // Only if STRONG signal (not 8)
       } else if (btcDominance < 45) {
-        regime = 'bull'; // Money flowing to alts (risk-on)
-        confidence = 65;
+        regime = 'bull';
+        regimeConfidence = dominanceDelta > 10 ? 15 : 0; // Only if STRONG signal (not 8)
+      } else {
+        regime = 'neutral';
+        regimeConfidence = 0; // No clear regime = no bonus
+        epistemicReasons.push('NEUTRAL_REGIME');
+      }
+
+      // Count strong signals (>0 points)
+      const strongSignals = [
+        volumeConfidence > 0 ? 1 : 0,
+        dominanceConfidence > 0 ? 1 : 0,
+        volatilityConfidence > 0 ? 1 : 0,
+        regimeConfidence > 0 ? 1 : 0
+      ].reduce((a, b) => a + b, 0);
+
+      // Sum all components
+      const componentSum = volumeConfidence + dominanceConfidence + volatilityConfidence + regimeConfidence;
+
+      // GATING: Require agreement from multiple sources
+      if (strongSignals < 2) {
+        // Insufficient evidence = cap at 30
+        confidence = Math.min(30, 10 + componentSum * 0.2);
+        epistemicReasons.push('INSUFFICIENT_CORROBORATION');
+      } else if (strongSignals === 2) {
+        // Moderate evidence = cap at 60
+        confidence = Math.min(60, 10 + componentSum * 0.4);
+      } else {
+        // Strong evidence = can reach higher
+        confidence = Math.min(100, componentSum);
+      }
+
+      // Determine epistemic state
+      let epistemicState = 'CONFIDENT';
+      if (confidence < 30) {
+        epistemicState = 'INSUFFICIENT';
+      } else if (confidence < 50) {
+        epistemicState = 'UNCERTAIN';
+      } else {
+        epistemicState = 'CONFIDENT';
       }
 
       return {
         regime,
-        confidence,
+        confidence: Math.round(confidence),
         btcDominance,
         totalMarketCap,
-        totalVolume
+        totalVolume,
+        epistemicState,
+        epistemicReasons: epistemicReasons.length > 0 ? epistemicReasons : ['NORMAL']
       };
     } catch (error) {
       console.error('[CoinGecko] Failed to get market regime:', error);
       return {
         regime: 'neutral',
-        confidence: 0,
+        confidence: 0, // Low confidence on error, not medium-high
         btcDominance: 0,
         totalMarketCap: 0,
         totalVolume: 0

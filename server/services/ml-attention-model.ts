@@ -53,20 +53,37 @@ export class AttentionSequenceModel {
     
     for (let i = 20; i < frames.length; i++) {
       const recentFrames = frames.slice(i - 20, i);
-      const prices = recentFrames.map(f => f.price.close);
-      const volumes = recentFrames.map(f => f.volume);
-      
+      const prices = recentFrames.map(f => {
+        const p = (f as any).price;
+        if (p && typeof p === 'object' && typeof p.close === 'number') return p.close;
+        if (typeof p === 'number') return p;
+        return 0;
+      });
+      const volumes = recentFrames.map(f => {
+        const v = (f as any).volume;
+        return typeof v === 'number' ? v : Number(v) || 0;
+      });
+
+      const last = recentFrames[recentFrames.length - 1] as any;
+      const lastIndicators = last?.indicators ?? {};
+      const lastOrderFlow = last?.orderFlow ?? {};
+      const lastMicro = last?.marketMicrostructure ?? {};
+
+      const safeCurrentPrice = prices[prices.length - 1] || 0;
+      const safeFirstPrice = prices[0] || safeCurrentPrice || 1;
+      const volumeAvg = volumes.length ? (volumes.reduce((a, b) => a + b, 0) / volumes.length) : 1;
+
       features.push([
-        prices[prices.length - 1], // Current price
-        (prices[prices.length - 1] - prices[0]) / prices[0], // Price change
-        Math.max(...prices) / prices[prices.length - 1] - 1, // Distance to high
-        1 - Math.min(...prices) / prices[prices.length - 1], // Distance to low
-        volumes[volumes.length - 1] / (volumes.reduce((a, b) => a + b) / volumes.length), // Volume ratio
-        recentFrames[recentFrames.length - 1].indicators.rsi / 100,
-        recentFrames[recentFrames.length - 1].indicators.macd.histogram,
-        recentFrames[recentFrames.length - 1].orderFlow.netFlow / recentFrames[recentFrames.length - 1].volume,
-        recentFrames[recentFrames.length - 1].marketMicrostructure.spread,
-        recentFrames[recentFrames.length - 1].marketMicrostructure.toxicity
+        safeCurrentPrice, // Current price
+        (safeCurrentPrice - safeFirstPrice) / safeFirstPrice, // Price change
+        (Math.max(...prices) / (safeCurrentPrice || 1)) - 1, // Distance to high
+        1 - (Math.min(...prices) / (safeCurrentPrice || 1)), // Distance to low
+        (volumes[volumes.length - 1] || 0) / (volumeAvg || 1), // Volume ratio
+        (lastIndicators?.rsi ?? 0) / 100,
+        (lastIndicators?.macd?.histogram ?? 0),
+        ((lastOrderFlow?.netFlow ?? 0) / (last?.volume ?? 1)),
+        (lastMicro?.spread ?? 0),
+        (lastMicro?.toxicity ?? 0)
       ]);
     }
     
@@ -111,7 +128,8 @@ export class AttentionSequenceModel {
     const combined = [...query, ...contextVector];
     
     // Simple output projection
-    const currentPrice = frames[frames.length - 1].price.close;
+    const lastFrame = frames[frames.length - 1] as any;
+    const currentPrice = (lastFrame?.price && typeof lastFrame.price === 'object') ? (lastFrame.price.close ?? Number(lastFrame.price) ?? 0) : (Number(lastFrame?.price) || 0);
     let priceChange = 0;
     for (let i = 0; i < Math.min(combined.length, 10); i++) {
       priceChange += combined[i] * 0.01 * (i % 2 === 0 ? 1 : -1);

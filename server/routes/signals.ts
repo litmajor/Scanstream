@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { SignalPersistenceService } from '../services/signal-persistence-service';
 
 const prisma = new PrismaClient();
 const router = Router();
+const signalService = new SignalPersistenceService();
 
 // Simple MA crossover signal
 function checkMACrossover(prices: number[]): { signal: string; strength: number } {
@@ -123,13 +125,15 @@ export function setupSignalRoutes(app: any) {
           price: currentPrice,
           stopLoss: currentPrice * 0.95,
           takeProfit: currentPrice * 1.1,
+          entryPrice: currentPrice,
+          riskReward: (currentPrice * 1.1 - currentPrice) / (currentPrice - currentPrice * 0.95),
           reasoning: {
             maCrossover: maCrossover.signal,
             rsi: rsi.signal,
-            rsiValue: calculateRSI(prices),
-            combined: combinedSignal
-          }
-        }
+            rsiStrength: rsi.strength,
+            combined: combinedSignal,
+          },
+        },
       });
 
       res.json(signal);
@@ -138,5 +142,285 @@ export function setupSignalRoutes(app: any) {
     }
   });
 }
+
+// ============================================================================
+// SIGNAL PERSISTENCE TRACKING ROUTES
+// ============================================================================
+
+/**
+ * POST /api/signals/track
+ * Record a new signal from scanner/generator
+ */
+router.post('/track', async (req: Request, res: Response) => {
+  try {
+    const {
+      symbol,
+      type,
+      strength,
+      confidence,
+      entryPrice,
+      stopLoss,
+      takeProfit,
+      riskReward,
+      primaryPattern,
+      patterns,
+      qualityScore,
+      qualityRating,
+      regimeState,
+      reasoning,
+      timeframe,
+      userId
+    } = req.body;
+
+    // Validate required fields
+    if (!symbol || !type || strength === undefined || confidence === undefined || !entryPrice) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: symbol, type, strength, confidence, entryPrice'
+      });
+    }
+
+    // Record signal
+    const signal = await signalService.recordSignal({
+      symbol,
+      type: type as 'BUY' | 'SELL' | 'HOLD',
+      strength,
+      confidence,
+      entryPrice,
+      stopLoss,
+      takeProfit,
+      riskReward,
+      primaryPattern,
+      patterns: patterns || [],
+      qualityScore,
+      qualityRating: qualityRating as any,
+      regimeState,
+      reasoning,
+      timeframe,
+      userId
+    });
+
+    res.json({
+      success: true,
+      signalId: signal.id,
+      message: `Signal recorded: ${symbol} ${type} @ ${entryPrice}`
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error recording signal:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/signals/:id/outcome
+ * Update signal with exit outcome
+ */
+router.put('/:id/outcome', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      exitPrice,
+      outcome,
+      realizedPnL,
+      realizedPnLPercent,
+      durationSeconds,
+      tradeId,
+      notes
+    } = req.body;
+
+    // Validate
+    if (!exitPrice || !outcome) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: exitPrice, outcome'
+      });
+    }
+
+    if (!['WIN', 'LOSS', 'BREAKEVEN'].includes(outcome)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid outcome. Must be: WIN, LOSS, or BREAKEVEN'
+      });
+    }
+
+    // Update signal
+    const signal = await signalService.updateSignalOutcome({
+      signalId: id,
+      exitPrice,
+      outcome: outcome as 'WIN' | 'LOSS' | 'BREAKEVEN',
+      realizedPnL: realizedPnL || 0,
+      realizedPnLPercent: realizedPnLPercent || 0,
+      durationSeconds,
+      tradeId,
+      notes
+    });
+
+    res.json({
+      success: true,
+      message: `Signal outcome updated: ${outcome}`,
+      pnl: signal.realizedPnL,
+      pnlPercent: signal.realizedPnLPercent
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error updating signal outcome:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/signals/stats/:symbol
+ * Get signal statistics for a symbol
+ */
+router.get('/stats/:symbol', async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const stats = await signalService.getSignalStats(symbol.toUpperCase());
+
+    if (!stats) {
+      return res.json({
+        success: true,
+        message: 'No closed signals for this symbol',
+        stats: null
+      });
+    }
+
+    res.json({
+      success: true,
+      symbol: stats.symbol,
+      stats: {
+        totalSignals: stats.totalSignals,
+        winRate: (stats.winRate * 100).toFixed(2) + '%',
+        profitFactor: stats.profitFactor.toFixed(2),
+        avgPnL: stats.avgPnL.toFixed(2),
+        totalPnL: stats.totalPnL.toFixed(2),
+        patternAccuracy: Object.entries(stats.patternAccuracy).map(([pattern, data]: any) => ({
+          pattern,
+          ...data,
+          winRate: (data.winRate * 100).toFixed(2) + '%'
+        })),
+        qualityVsWinRate: Object.entries(stats.qualityVsWinRate).map(([quality, winRate]: any) => ({
+          quality,
+          winRate: (winRate * 100).toFixed(2) + '%'
+        }))
+      }
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error getting signal stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/signals/open/:symbol
+ * Get open signals for a symbol (not yet closed)
+ */
+router.get('/open/:symbol', async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const signals = await signalService.getOpenSignals(symbol.toUpperCase());
+
+    res.json({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      openSignals: signals.length,
+      signals: signals.map((s: any) => ({
+        id: s.id,
+        type: s.type,
+        entryPrice: s.entryPrice,
+        strength: s.strength,
+        confidence: (s.confidence * 100).toFixed(2) + '%',
+        primaryPattern: s.primaryPattern,
+        qualityRating: s.qualityRating,
+        entryTimestamp: s.entryTimestamp,
+        duration: Math.floor((Date.now() - s.entryTimestamp.getTime()) / 1000) + 's'
+      }))
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error getting open signals:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/signals/recent/:symbol
+ * Get recent signals (closed or open)
+ */
+router.get('/recent/:symbol', async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    
+    const signals = await signalService.getRecentSignals(symbol.toUpperCase(), limit);
+
+    res.json({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      count: signals.length,
+      signals: signals.map((s: any) => ({
+        id: s.id,
+        type: s.type,
+        outcome: s.outcome,
+        entryPrice: s.entryPrice,
+        exitPrice: s.exitPrice,
+        strength: s.strength,
+        confidence: (s.confidence * 100).toFixed(2) + '%',
+        primaryPattern: s.primaryPattern,
+        qualityRating: s.qualityRating,
+        pnl: s.realizedPnL,
+        pnlPercent: s.realizedPnLPercent ? (s.realizedPnLPercent * 100).toFixed(2) + '%' : null,
+        entryTimestamp: s.entryTimestamp,
+        exitTimestamp: s.exitTimestamp,
+        duration: s.durationSeconds ? s.durationSeconds + 's' : null
+      }))
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error getting recent signals:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/signals/patterns/:symbol
+ * Get pattern performance breakdown
+ */
+router.get('/patterns/:symbol', async (req: Request, res: Response) => {
+  try {
+    const { symbol } = req.params;
+    const performance = await signalService.getPatternPerformance(symbol.toUpperCase());
+
+    res.json({
+      success: true,
+      symbol: symbol.toUpperCase(),
+      patterns: Object.entries(performance).map(([pattern, stats]: any) => ({
+        pattern,
+        ...stats,
+        winRate: (stats.winRate * 100).toFixed(2) + '%',
+        avgPnL: stats.avgPnL.toFixed(2),
+        totalPnL: stats.totalPnL.toFixed(2)
+      }))
+    });
+  } catch (error: any) {
+    console.error('[SignalAPI] Error getting pattern performance:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 export default router;

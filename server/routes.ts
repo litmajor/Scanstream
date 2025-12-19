@@ -20,6 +20,11 @@ import notificationRoutes from './routes/notifications';
 // Import user preferences routes
 import userPreferencesRoutes from './routes/user-preferences';
 
+// Import Symbol Universe routes
+import symbolsRouter from './routes/symbols';
+import watchlistsRouter from './routes/watchlists';
+import assetsRouter from './routes/assets';
+
 // Import ML routes
 import mlPredictionsRouter from './routes/ml-predictions';
 import mlTrainingRouter from './routes/ml-training';
@@ -68,6 +73,10 @@ import signalArchiveRouter from './routes/signal-archive';
 import correlationBoostRouter from './routes/correlation-boost';
 // Import strategy deployment router
 import strategyDeploymentRouter from './routes/strategy-deployment';
+// Import agent signal insights router
+import agentSignalInsightsRouter from './routes/agent-signal-insights';
+// Import scanner signal router
+import scannerSignalRouter from './routes/scanner-signal';
 
 // Create prisma instance
 const prisma = new PrismaClient();
@@ -77,11 +86,18 @@ let MirrorOptimizer: any, ScannerAgent: any, MLAgent: any;
 let calculate_volume_profile: any, calculate_anchored_volume_profile: any, calculate_fixed_range_volume_profile: any;
 let calculate_composite_score: any, calculate_volume_composite_score: any, calculate_confidence_score: any;
 let calculate_value_area: any, calculate_poc: any;
-let runBacktest, ExchangeDataFeed, SignalEngine, defaultTradingConfig;
-let MLSignalEnhancer, EnhancedMultiTimeframeAnalyzer;
-let registerChartApi, registerAdvancedIndicatorApi;
-let StrategyIntegrationEngine;
-let velocityProfilesRouter; // Declare velocityProfilesRouter here
+
+// Explicitly type optional dynamic imports to avoid implicit 'any' locations
+let runBacktest: ((opts: import('./backtest-runner').BacktestOptions) => Promise<import('./backtest-runner').BacktestResult>) | undefined = undefined;
+let ExchangeDataFeed: (typeof import('./trading-engine').ExchangeDataFeed) | undefined = undefined;
+let SignalEngine: (typeof import('./trading-engine').SignalEngine) | undefined = undefined;
+let defaultTradingConfig: any = undefined;
+let MLSignalEnhancer: (typeof import('./ml-engine').MLSignalEnhancer) | undefined = undefined;
+let EnhancedMultiTimeframeAnalyzer: (typeof import('./multi-timeframe').EnhancedMultiTimeframeAnalyzer) | undefined = undefined;
+let registerChartApi: ((app: import('express').Express) => void) | undefined = undefined;
+let registerAdvancedIndicatorApi: ((app: import('express').Express) => void) | undefined = undefined;
+let StrategyIntegrationEngine: (typeof import('./strategy-integration').StrategyIntegrationEngine) | undefined = undefined;
+let velocityProfilesRouter: import('express').Router | undefined; // Declare velocityProfilesRouter here
 
 try {
   const bayesianModule = await import('./bayesian-optimizer').catch(() => null);
@@ -241,6 +257,9 @@ try {
 
     // Register signal quality routes
     app.use('/api/signals', signalQualityRouter);
+
+    // Register agent signal insights routes
+    app.use('/api/agents/signals', agentSignalInsightsRouter);
 
     // --- Advanced Volume Profile & Composite Analytics API ---
   console.log('Registering POST /api/analytics/volume-profile');
@@ -1268,8 +1287,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
       if (!runBacktest) {
         return res.status(501).json({ error: 'Backtest engine not available' });
       }
-      const { strategy, symbol, timeframe, startDate, endDate } = req.body;
-      const results = await runBacktest(strategy, symbol, timeframe, startDate, endDate);
+      const { signals, marketFrames, initialCapital, slippage, commission } = req.body;
+      const results = await runBacktest({ signals, marketFrames, initialCapital, slippage, commission });
       res.json(results);
     } catch (error: any) {
       console.error('Backtest error:', error);
@@ -1324,6 +1343,11 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
         });
       }
 
+      // Ensure strategy engine is available
+      if (!strategyEngine) {
+        return res.status(501).json({ success: false, error: 'Strategy engine not available' });
+      }
+
       // Synthesize signal
       const synthesizedSignal = await strategyEngine.synthesizeSignals(symbol, timeframe, frames);
 
@@ -1349,6 +1373,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   // Get strategy weights endpoint
   app.get('/api/strategies/weights', async (req, res) => {
     try {
+      if (!strategyEngine) {
+        return res.status(501).json({ success: false, error: 'Strategy engine not available' });
+      }
       const weights = strategyEngine.getStrategyWeights();
       res.json({
         success: true,
@@ -1497,194 +1524,15 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     }
   ];
 
-  // GET /api/strategies - List all strategies (real data from database)
-  app.get('/api/strategies', async (req: Request, res: Response) => {
-    try {
-      const strategies = await prisma.strategy.findMany();
-
-      // Transform database records to include real performance metrics
-      const enrichedStrategies = strategies.map(s => ({
-        id: s.id,
-        name: s.name,
-        description: s.description,
-        type: (s as any).type || 'Unknown',
-        features: (s as any).features || [],
-        parameters: (s as any).parameters || {},
-        performance: s.performance || {
-          winRate: 0,
-          avgReturn: 0,
-          sharpeRatio: 0,
-          maxDrawdown: 0
-        },
-        isActive: s.isActive,
-        lastUpdated: new Date().toISOString()
-      }));
-
-      res.json({
-        success: true,
-        strategies: enrichedStrategies,
-        total: enrichedStrategies.length
-      });
-    } catch (error) {
-      console.error('Error fetching strategies:', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch strategies' });
-    }
-  });
-
-  // GET /api/strategies/signals - Get latest signals from all strategies
-  app.get('/api/strategies/signals', async (req: Request, res: Response) => {
-    try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const signals = await storage.getLatestSignals(limit);
-
-      res.json({
-        success: true,
-        signals,
-        total: signals.length,
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Error fetching strategy signals:', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch strategy signals' });
-    }
-  });
-
-  // GET /api/strategies/:id - Get strategy details (real data)
-  app.get('/api/strategies/:id', async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const strategy = await prisma.strategy.findUnique({
-        where: { id },
-        include: { backtests: { take: 5, orderBy: { createdAt: 'desc' } } }
-      });
-
-      if (!strategy) {
-        return res.status(404).json({ success: false, error: 'Strategy not found' });
-      }
-
-      res.json({ success: true, strategy });
-    } catch (error) {
-      console.error('Error fetching strategy:', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch strategy' });
-    }
-  });
-
-  // POST /api/strategies/consensus - Get consensus trade from all strategies (real signals)
-  app.post('/api/strategies/consensus', async (req: Request, res: Response) => {
-    try {
-      const { symbol, timeframes = ['D1', 'H4', 'H1', 'M15'], equity = 10000 } = req.body;
-
-      if (!symbol) {
-        return res.status(400).json({ success: false, error: 'Symbol required' });
-      }
-
-      // Fetch latest signals from gateway/scanner for this symbol
-      const latestSignals = await prisma.signal.findMany({
-        where: { symbol },
-        orderBy: { timestamp: 'desc' },
-        take: 50
-      });
-
-      if (latestSignals.length === 0) {
-        // Return neutral consensus if no signals available
-        return res.json({
-          success: true,
-          consensus: {
-            direction: 'NEUTRAL',
-            entryPrice: 0,
-            stopLoss: 0,
-            takeProfit: [0],
-            positionSize: 0,
-            confidence: 0,
-            riskRewardRatio: 0,
-            contributingStrategies: [],
-            timeframeAlignment: {},
-            edgeScore: 0,
-            timestamp: new Date().toISOString()
-          }
-        });
-      }
-
-      // Analyze signals to generate consensus
-      const buySignals = latestSignals.filter(s => s.type === 'BUY');
-      const sellSignals = latestSignals.filter(s => s.type === 'SELL');
-      const avgPrice = latestSignals.reduce((sum: number, s: any) => sum + s.price, 0) / latestSignals.length;
-      const avgConfidence = latestSignals.reduce((sum: number, s: any) => sum + s.confidence, 0) / latestSignals.length;
-
-      // Determine consensus direction
-      let direction = 'NEUTRAL';
-      let confidence = avgConfidence;
-      if (buySignals.length > sellSignals.length * 1.5) {
-        direction = 'LONG';
-      } else if (sellSignals.length > buySignals.length * 1.5) {
-        direction = 'SHORT';
-      }
-
-      // Calculate position size based on equity and volatility
-      const volatility = latestSignals.length > 1
-        ? Math.sqrt(latestSignals.reduce((sum: number, s: any, i: number) => {
-            if (i === 0) return 0;
-            const ret = (s.price - latestSignals[i-1].price) / latestSignals[i-1].price;
-            return sum + ret * ret;
-          }, 0) / (latestSignals.length - 1))
-        : 0.02;
-
-      const positionSize = Math.min(0.5, equity / (avgPrice * 100) * (1 / Math.max(volatility, 0.01)));
-
-      // Calculate risk/reward
-      const stopLoss = avgPrice * (1 - volatility * 2);
-      const takeProfit1 = avgPrice * (1 + volatility * 2);
-      const takeProfit2 = avgPrice * (1 + volatility * 3);
-      const takeProfit3 = avgPrice * (1 + volatility * 4);
-      const riskRewardRatio = (takeProfit1 - avgPrice) / (avgPrice - stopLoss);
-
-      // Get contributing strategies from actual signals
-      const strategiesSet = new Set(latestSignals.map((s: any) => s.reasoning?.strategy || 'Scanner').filter(Boolean));
-      const contributingStrategies = Array.from(strategiesSet).slice(0, 5);
-
-      // Build timeframe alignment from signal reasoning
-      const timeframeAlignment: { [key: string]: string } = {};
-      for (const tf of timeframes) {
-        const tfSignals = latestSignals.filter((s: any) => (s.reasoning as any)?.timeframe === tf);
-        if (tfSignals.length > 0) {
-          const buys = tfSignals.filter((s: any) => s.type === 'BUY').length;
-          const sells = tfSignals.filter((s: any) => s.type === 'SELL').length;
-          timeframeAlignment[tf] = buys > sells ? 'LONG' : sells > buys ? 'SHORT' : 'NEUTRAL';
-        } else {
-          timeframeAlignment[tf] = 'NEUTRAL';
-        }
-      }
-
-      // Edge score based on signal strength and agreement
-      const edgeScore = Math.min(
-        100,
-        confidence * 1.2 + (Math.abs(buySignals.length - sellSignals.length) / latestSignals.length) * 30
-      );
-
-      const consensus = {
-        direction,
-        entryPrice: avgPrice,
-        stopLoss: stopLoss,
-        takeProfit: [takeProfit1, takeProfit2, takeProfit3],
-        positionSize: Math.round(positionSize * 1000) / 1000,
-        confidence: Math.round(confidence * 10) / 10,
-        riskRewardRatio: Math.round(riskRewardRatio * 10) / 10,
-        contributingStrategies,
-        timeframeAlignment,
-        edgeScore: Math.round(edgeScore * 10) / 10,
-        timestamp: new Date().toISOString()
-      };
-
-      res.json({ success: true, consensus });
-    } catch (error) {
-      console.error('Error generating consensus:', error);
-      res.status(500).json({ success: false, error: 'Failed to generate consensus' });
-    }
-  });
-
   // Mount strategy routes and paper trading routes
   app.use('/api/strategies', strategyRoutes);
   app.use('/api/paper-trading', paperTradingRoutes);
+
+  // Mount Symbol Universe routes
+  app.use('/api/symbols', symbolsRouter);
+  app.use('/api/watchlists', watchlistsRouter);
+  app.use('/api/assets', assetsRouter);
+  console.log('[express] Symbol Universe APIs registered at /api/symbols, /api/watchlists, /api/assets');
 
   // Mount signal performance routes
   app.use('/api/gateway/signals/performance', signalPerformanceRoutes);
@@ -1720,6 +1568,28 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
   });
 
+  // Read-only regime analysis endpoint
+  // Example: GET /api/analysis/regime?symbol=BTC/USDT&timeframe=60
+  app.get('/api/analysis/regime', async (req: Request, res: Response) => {
+    const symbol = (req.query.symbol as string) || (req.query.s as string);
+    const timeframe = Number(req.query.timeframe || req.query.tf || 60);
+
+    if (!symbol) {
+      return res.status(400).json({ success: false, error: 'Missing symbol query param' });
+    }
+
+    try {
+      const { getRegimeService } = await import('./services/regime-service');
+      const regimeSvc = getRegimeService();
+      const regime = await regimeSvc.computeRegime(symbol, timeframe);
+      if (!regime) return res.status(204).json({ success: true, regime: null });
+      return res.json({ success: true, regime });
+    } catch (error: any) {
+      console.error('[routes] /api/analysis/regime error:', error?.message || error);
+      return res.status(500).json({ success: false, error: 'Failed to compute regime' });
+    }
+  });
+
   // Register MTF confirmation routes
   app.use('/api/mtf-confirmation', mtfConfirmationRouter);
   // Mount position sizing v2 endpoint
@@ -1741,6 +1611,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/rpg-agents', rpgAgents);
   // Mount feature engineering routes
   app.use('/api/feature-engineering', featureEngineeringRouter);
+  // Mount scanner signal routes
+  app.use('/api/scanner', scannerSignalRouter);
 
   console.log('[Routes] All routes registered successfully');
 

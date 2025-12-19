@@ -52,12 +52,12 @@ export function MarketOverview() {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 
-  // Fetching Fear & Greed data
-  const { data: fearGreedData } = useQuery<FearGreedData>({
-    queryKey: ['coingecko-fear-greed'],
+  // Fetching Official Fear & Greed (Alternative.me)
+  const { data: fearGreedData } = useQuery<any>({
+    queryKey: ['alternative-fear-greed'],
     queryFn: async () => {
-      const response = await fetch('/api/coingecko/fear-greed');
-      if (!response.ok) throw new Error('Failed to fetch fear & greed');
+      const response = await fetch('/api/coingecko/alternative-fear-greed');
+      if (!response.ok) throw new Error('Failed to fetch official Fear & Greed');
       return response.json();
     },
     refetchInterval: 60000, // 1 minute
@@ -172,7 +172,7 @@ export function MarketOverview() {
                   {fearGreedData.index}
                 </span>
                 <span className="text-slate-500 text-[10px]">
-                  {fearGreedData.sentiment}
+                  {fearGreedData.classification || 'N/A'}
                 </span>
               </div>
             </div>

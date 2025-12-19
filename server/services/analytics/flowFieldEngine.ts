@@ -346,3 +346,72 @@ export function detectFlowDivergence(
   return { hasDivergence, type, strength };
 }
 
+/**
+ * ARM detection for flow field asymmetry
+ * Detects momentum flow asymmetry (pre-edge condition)
+ */
+export function detectFlowArm(
+  flowField: FlowFieldResult,
+  priceData: FlowFieldPoint[]
+): {
+  armType: 'LONG' | 'SHORT' | null;
+  confidence: number;
+  reason: string;
+} {
+  if (flowField.forceVectors.length < 3) {
+    return { armType: null, confidence: 0, reason: 'INSUFFICIENT_DATA' };
+  }
+
+  const recentVectors = flowField.forceVectors.slice(-5);
+  const recentPrices = priceData.slice(-5);
+
+  if (recentVectors.length < 2) {
+    return { armType: null, confidence: 0, reason: 'INSUFFICIENT_DATA' };
+  }
+
+  // Calculate flow direction trend (slope of force angles)
+  const angles = recentVectors.map(v => v.angle);
+  const angleTrend = angles[angles.length - 1] - angles[0];
+
+  // Calculate force magnitude trend
+  const magnitudes = recentVectors.map(v => v.magnitude);
+  const magnitudeTrend = magnitudes[magnitudes.length - 1] - magnitudes[0];
+
+  // Calculate price position
+  const currentPrice = priceData[priceData.length - 1]?.price || 0;
+  const avgPrice = priceData.reduce((sum, p) => sum + p.price, 0) / priceData.length;
+  const pricePosition = currentPrice > avgPrice ? 'ABOVE' : currentPrice < avgPrice ? 'BELOW' : 'AT';
+
+  // ARM_LONG: Flow angle shifting bullish with magnitude stabilizing
+  // Indicators: angles becoming more positive (bullish), forces not collapsing
+  const armLong =
+    angleTrend > 0 && // Angles trending bullish
+    magnitudeTrend >= -0.1 && // Forces not collapsing significantly
+    flowField.pressureTrend !== 'falling' && // Pressure not dropping
+    pricePosition !== 'BELOW'; // Price not deeply bearish
+
+  // ARM_SHORT: Flow angle shifting bearish with magnitude stabilizing
+  // Indicators: angles becoming more negative (bearish), forces not collapsing
+  const armShort =
+    angleTrend < 0 && // Angles trending bearish
+    magnitudeTrend >= -0.1 && // Forces not collapsing significantly
+    flowField.pressureTrend !== 'rising' && // Pressure not rising
+    pricePosition !== 'ABOVE'; // Price not deeply bullish
+
+  let armType: 'LONG' | 'SHORT' | null = null;
+  let confidence = 0;
+  let reason = 'NO_ARM';
+
+  if (armLong) {
+    armType = 'LONG';
+    confidence = Math.min(1.0, Math.abs(angleTrend) * 0.3);
+    reason = `FLOW_SHIFT_BULLISH (angle:${angleTrend.toFixed(2)}, force:${magnitudeTrend.toFixed(2)})`;
+  } else if (armShort) {
+    armType = 'SHORT';
+    confidence = Math.min(1.0, Math.abs(angleTrend) * 0.3);
+    reason = `FLOW_SHIFT_BEARISH (angle:${angleTrend.toFixed(2)}, force:${magnitudeTrend.toFixed(2)})`;
+  }
+
+  return { armType, confidence, reason };
+}
+

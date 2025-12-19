@@ -15,6 +15,13 @@
  */
 
 import type { StrategyContribution } from './unified-signal-aggregator';
+import { 
+  generateModuleSignal, 
+  type Signal, 
+  type ModuleState,
+  type ArmDetectionInput,
+  slope
+} from './arm-template';
 
 export interface VolumeMetricsResult {
   // Raw metrics
@@ -39,6 +46,9 @@ export class VolumeMetricsEngine {
   private static readonly SPIKE_THRESHOLD = 1.5; // 1.5x average volume
   private static readonly STRONG_VOLUME = 1.2;
   private static readonly WEAK_VOLUME = 0.8;
+  
+  // ARM state tracking for volume pressure shifts
+  private static armState: ModuleState = { armTicks: 0 };
 
   /**
    * Analyze volume metrics as independent signal source
@@ -185,8 +195,9 @@ export class VolumeMetricsEngine {
    * Convert volume metrics to StrategyContribution for unified framework
    */
   static toStrategyContribution(result: VolumeMetricsResult, baseWeight: number = 0.12): StrategyContribution {
-    // Determine dominant volume direction
-    const volumeTrend = result.bullishVolume > result.bearishVolume ? 'BULLISH' : 'BEARISH';
+    // Determine dominant volume direction (treat near-equal as SIDEWAYS)
+    const diff = result.bullishVolume - result.bearishVolume;
+    const volumeTrend = Math.abs(diff) < 0.05 ? 'SIDEWAYS' : (diff > 0 ? 'BULLISH' : 'BEARISH');
     const confidence = Math.max(result.bullishVolume, result.bearishVolume);
 
     // Adjust confidence based on strength
@@ -206,6 +217,7 @@ export class VolumeMetricsEngine {
 
     return {
       name: 'VolumeMetrics',
+      weight: baseWeight,
       trend: volumeTrend,
       confidence: finalConfidence,
       strength,
@@ -249,6 +261,62 @@ export class VolumeMetricsEngine {
     if (result.strength === 'STRONG') return 1.5;
     if (result.strength === 'NORMAL') return 1.0;
     return 0.7; // WEAK volume = reduce position
+  }
+
+  /**
+   * ARM-based signal generation for volume metrics
+   * Detects volume pressure shifts (pre-edge conditions)
+   */
+  static generateArmSignal(
+    volumeSeries: number[],
+    avgVolume: number,
+    trend: 'BULLISH' | 'BEARISH' | 'NEUTRAL',
+    volumeGate: boolean
+  ): Signal {
+    if (volumeSeries.length < 2) {
+      return {
+        type: 'HOLD',
+        holdReason: 'INSUFFICIENT_DATA',
+        confidence: 0.05,
+        module: 'VolumeMetrics'
+      };
+    }
+
+    // Calculate volume slope (derivative)
+    const volumeSlope = slope(volumeSeries);
+    const currentVolume = volumeSeries[volumeSeries.length - 1];
+    const volumeRatio = avgVolume > 0 ? currentVolume / avgVolume : 1.0;
+
+    // ARM detection input for volume analysis
+    const armInput: ArmDetectionInput = {
+      volume: currentVolume,
+      volumeSlope: volumeSlope,
+      volumeRatio: volumeRatio,
+      momentum: trend === 'BULLISH' ? 1 : trend === 'BEARISH' ? -1 : 0
+    };
+
+    // Generate ARM signal using template
+    return generateModuleSignal({
+      moduleName: 'VolumeMetrics',
+      data: armInput,
+      state: this.armState,
+      volumeGate,
+      
+      // Confirmation conditions for volume
+      confirmLongCondition: (data) => {
+        // Confirm bullish if volume sustains high ratio
+        return (data.volumeRatio ?? 1.0) > 1.2 && (data.volumeSlope ?? 0) >= 0;
+      },
+      confirmShortCondition: (data) => {
+        // Confirm bearish if volume sustains high ratio
+        return (data.volumeRatio ?? 1.0) > 1.2 && (data.volumeSlope ?? 0) <= 0;
+      },
+      
+      minArmTicks: 2,
+      baseConfidence: 0.15,
+      armConfidencePerTick: 0.08,
+      confirmedConfidence: 0.5
+    });
   }
 }
 

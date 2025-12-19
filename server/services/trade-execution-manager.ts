@@ -4,11 +4,13 @@
  * 1. Loss Limiter - Cut losses early
  * 2. Drawdown Monitor - Prevent catastrophic losses
  * 3. Win Amplifier - Maximize winners
+ * 4. Clustering Integration - Dynamic risk limits & exit strategies
  */
 
 import { LossLimiter, type LossLimitConfig } from './loss-limiter';
 import { DrawdownMonitor } from './drawdown-monitor';
 import { WinAmplifier } from './win-amplifier';
+import { getClusterMetrics, createExitStrategySelector, createStopLossOptimizer } from './clustering/index';
 import type { Signal, Trade } from '@shared/schema';
 
 export interface ExecutionDecision {
@@ -22,6 +24,12 @@ export interface ExecutionDecision {
   positionSize: number; // For new trades
   overallStatus: 'HEALTHY' | 'WARNING' | 'SEVERE' | 'CRITICAL';
   summary: string;
+  clusteringContext?: {
+    cluster_strength: number;
+    exit_strategy: string;
+    stop_loss_adjusted: boolean;
+    size_multiplier_applied: number;
+  };
 }
 
 export class TradeExecutionManager {
@@ -47,7 +55,7 @@ export class TradeExecutionManager {
   }
 
   /**
-   * Comprehensive execution decision
+   * Comprehensive execution decision with clustering integration
    */
   makeExecutionDecision(
     signal: Signal,
@@ -75,17 +83,77 @@ export class TradeExecutionManager {
     const drawdownState = this.drawdownMonitor.getDrawdownState(portfolioState.totalValue);
     const drawdownAction = this.drawdownMonitor.getAction(portfolioState.totalValue);
 
-    // 3. Calculate position size for new trades
+    // 3. CLUSTERING INTEGRATION - Get cluster metrics and apply dynamic adjustments
+    let clusteringContext: ExecutionDecision['clusteringContext'] | undefined;
+    let clusterSizeMultiplier = 1.0;
+    let clusterStopLossAdjustment = 1.0;
+    let selectedExitStrategy = 'profit_target'; // default
+    let clusterMetrics: any = undefined;
+    
+    const symbol = (signal as any).symbol;
+    if (symbol) {
+      clusterMetrics = getClusterMetrics(symbol);
+      
+      if (clusterMetrics && clusterMetrics.cluster_strength > 0) {
+        // STEP 1: Apply clustering size multiplier (from TrendRider)
+        const sizeMultiplier = (signal as any).size_multiplier || 1.0; // Already calculated by agent
+        clusterSizeMultiplier = Math.max(0.5, Math.min(2.0, sizeMultiplier)); // Clamp 0.5x-2.0x
+        
+        // STEP 2: Adjust stops based on cluster strength
+        const stopOptimizer = createStopLossOptimizer();
+        const stopAdjustment = stopOptimizer.optimizeStop({
+          base_stop: (signal as any).stop || 0.95, // 5% default stop
+          cluster_strength: clusterMetrics.cluster_strength,
+          trend_formation: clusterMetrics.trend_formation_signal,
+          directional_ratio: clusterMetrics.directional_ratio
+        });
+        clusterStopLossAdjustment = stopAdjustment.stop_multiplier; // 0.8x to 1.2x
+        
+        // STEP 3: Select exit strategy based on clusters
+        const exitSelector = createExitStrategySelector();
+        const exitRec = exitSelector.selectStrategy(
+          {
+            current_profit_pct: 0, // Will be updated when holding
+            cluster_strength: clusterMetrics.cluster_strength,
+            trend_formation: clusterMetrics.trend_formation_signal,
+            bars_held: 0,
+            directional_ratio: clusterMetrics.directional_ratio,
+            follow_through: clusterMetrics.follow_through
+          },
+          (signal as any).entry || 0,
+          (signal as any).entry || 0
+        );
+        selectedExitStrategy = exitRec.strategy;
+        
+        clusteringContext = {
+          cluster_strength: clusterMetrics.cluster_strength,
+          exit_strategy: selectedExitStrategy,
+          stop_loss_adjusted: clusterStopLossAdjustment !== 1.0,
+          size_multiplier_applied: clusterSizeMultiplier
+        };
+        
+        console.log(
+          `[TradeExecutionManager] Risk adjustment for ${symbol}: ` +
+          `size_mult=${clusterSizeMultiplier.toFixed(2)}x, ` +
+          `stop_adj=${clusterStopLossAdjustment.toFixed(2)}x, ` +
+          `exit=${selectedExitStrategy}, ` +
+          `cluster_strength=${clusterMetrics.cluster_strength.toFixed(2)}`
+        );
+      }
+    }
+
+    // 4. Calculate position size for new trades (with clustering multiplier applied)
     const positionScaling = this.winAmplifier.calculatePositionSize(
       signal,
       basePositionSize,
       historicalWinRate
     );
 
-    // 4. Analyze existing positions
+    // 5. Analyze existing positions
     const positionActions = this.analyzePositions(
       portfolioState.openPositions,
-      portfolioState.prices
+      portfolioState.prices,
+      clusterMetrics // Pass cluster metrics for dynamic exit decisions
     );
 
     // Determine overall status
@@ -102,7 +170,7 @@ export class TradeExecutionManager {
     let canOpenNewPosition = lossCheck.canTrade && drawdownAction.action === 'CONTINUE';
 
     // Cap position size by drawdown
-    let finalPositionSize = positionScaling.baseSize * positionScaling.scaleMultiplier;
+    let finalPositionSize = positionScaling.baseSize * positionScaling.scaleMultiplier * clusterSizeMultiplier;
     if (drawdownState.isWarning) {
       finalPositionSize *= 0.75; // Reduce 25% on warning
     }
@@ -122,6 +190,10 @@ export class TradeExecutionManager {
       messages.push(`✅ Can open: Size ${finalPositionSize.toFixed(0)} USD`);
     }
 
+    if (clusteringContext) {
+      messages.push(`🎯 Clustering: ${selectedExitStrategy} exit, size=${clusterSizeMultiplier.toFixed(1)}x`);
+    }
+
     if (lossCheck.shouldCutLoss) {
       messages.push(`🔴 Cut loss on trade: ${lossCheck.shouldCutLoss}`);
     }
@@ -135,16 +207,18 @@ export class TradeExecutionManager {
       positionActions,
       positionSize: finalPositionSize,
       overallStatus,
-      summary: messages.join(' | ')
+      summary: messages.join(' | '),
+      clusteringContext
     };
   }
 
   /**
-   * Analyze existing positions for actions
+   * Analyze existing positions for actions (with clustering exit strategies)
    */
   private analyzePositions(
     positions: Trade[],
-    prices: Map<string, number>
+    prices: Map<string, number>,
+    clusterMetrics?: any
   ): ExecutionDecision['positionActions'] {
     const actions: ExecutionDecision['positionActions'] = [];
 
@@ -153,6 +227,7 @@ export class TradeExecutionManager {
 
       const currentPrice = prices.get(trade.symbol) || trade.entryPrice;
       const unrealizedPnL = this.calculateUnrealizedPnL(trade, currentPrice);
+      const unrealizedPnLPct = (unrealizedPnL / (trade.entryPrice * trade.quantity)) * 100;
 
       // Loss limit check
       const { shouldCut, reason } = this.lossLimiter.shouldCutPosition(
@@ -165,14 +240,23 @@ export class TradeExecutionManager {
         actions.push({
           tradeId: trade.id,
           action: 'CLOSE',
-          reason
+          reason: `Risk limit: ${reason}`
         });
+      } else if (clusterMetrics && clusterMetrics.cluster_strength < 0.3) {
+        // CLUSTERING EXIT TRIGGER: If clusters collapse (strength < 0.3), exit winning trades
+        if (unrealizedPnLPct > 0.5) {
+          actions.push({
+            tradeId: trade.id,
+            action: 'CLOSE',
+            reason: `Cluster breakdown detected (strength=${clusterMetrics.cluster_strength.toFixed(2)}), exiting profit: +${unrealizedPnLPct.toFixed(2)}%`
+          });
+        }
       } else if (unrealizedPnL > 0) {
-        // Winning position - consider adding
+        // Winning position - consider adding or holding based on exit strategy
         actions.push({
           tradeId: trade.id,
-          action: 'ADD_TO',
-          reason: `Winning trade: +${unrealizedPnL.toFixed(2)} USD`
+          action: 'HOLD',
+          reason: `Winning trade: +${unrealizedPnLPct.toFixed(2)}%, cluster strength=${clusterMetrics?.cluster_strength?.toFixed(2) || 'N/A'}`
         });
       }
     }

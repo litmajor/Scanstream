@@ -1,4 +1,3 @@
-
 /**
  * Strategy Bridge
  * 
@@ -8,7 +7,7 @@
  * 3. Syncs with Bayesian Belief Updater for weight adjustments
  */
 
-import { marketOracle } from './MarketOracle';
+import { getMarketOracle } from './MarketOracle';
 import { AgentArena } from './AgentArena';
 import { BreakoutHunter } from './BreakoutHunter';
 import { ReversalMaster } from './ReversalMaster';
@@ -19,22 +18,38 @@ import { SupportSniper } from './SupportSniper';
 import { createAgentFromPythonStrategy } from './PythonStrategyAgent';
 
 export class StrategyBridge {
-  private arena: AgentArena;
+  private arena: AgentArena | null = null;
   private gatewayAggregator: any;
+  private initialized: boolean = false;
   
-  constructor(gatewayAggregator?: any) {
-    this.arena = new AgentArena();
+  constructor(gatewayAggregator?: any, arena?: AgentArena) {
+    this.arena = arena || null;
     this.gatewayAggregator = gatewayAggregator;
     
     // Initialize Market Oracle with Gateway
     if (gatewayAggregator) {
-      marketOracle.initialize(gatewayAggregator);
+      getMarketOracle().initialize(gatewayAggregator);
     }
     
-    this.initializeAgents();
+    // Only initialize agents if arena is provided
+    if (this.arena) {
+      this.initializeAgents();
+    }
+  }
+  
+  /**
+   * Set arena and initialize agents if not already done
+   */
+  setArena(arena: AgentArena): void {
+    if (!this.arena && !this.initialized) {
+      this.arena = arena;
+      this.initializeAgents();
+    }
   }
   
   private initializeAgents(): void {
+    if (!this.arena || this.initialized) return;
+    
     // Native TypeScript RPG agents
     this.arena.registerAgent(new BreakoutHunter('BREAKOUT_HUNTER'));
     this.arena.registerAgent(new ReversalMaster('REVERSAL_MASTER'));
@@ -48,6 +63,7 @@ export class StrategyBridge {
     this.arena.registerAgent(createAgentFromPythonStrategy('mean_reversion'));
     this.arena.registerAgent(createAgentFromPythonStrategy('volume_profile'));
     
+    this.initialized = true;
     console.log('[Strategy Bridge] Initialized 9 RPG agents (5 native + 4 Python-trait)');
   }
   
@@ -55,8 +71,12 @@ export class StrategyBridge {
    * Process market data and get RPG agent signals
    */
   async processMarketData(marketData: any): Promise<any> {
+    if (!this.arena) {
+      return { error: 'Arena not initialized' };
+    }
+    
     // Update Market Oracle
-    marketOracle.updateMarketData(marketData.symbol, marketData);
+    getMarketOracle().updateMarketData(marketData.symbol, marketData);
     
     // Get signals from all agents
     const agentSignals = [];
@@ -82,6 +102,8 @@ export class StrategyBridge {
    * Update agent performance after trade closes
    */
   updateAgentPerformance(agentName: string, tradeResult: any): void {
+    if (!this.arena) return;
+    
     const agent = this.arena.getAgent(agentName);
     if (!agent) return;
     
@@ -99,6 +121,7 @@ export class StrategyBridge {
    * Get leaderboard for UI
    */
   getLeaderboard() {
+    if (!this.arena) return [];
     return this.arena.getLeaderboard();
   }
   
@@ -106,6 +129,7 @@ export class StrategyBridge {
    * Get combos for UI
    */
   getCombos() {
+    if (!this.arena) return [];
     return this.arena.getCombos();
   }
   
@@ -114,6 +138,8 @@ export class StrategyBridge {
    */
   getWeightsForBayesian(): Record<string, number> {
     const weights: Record<string, number> = {};
+    
+    if (!this.arena) return weights;
     
     for (const agent of this.arena.getAllAgents()) {
       const status = agent.getStatus();
@@ -125,4 +151,14 @@ export class StrategyBridge {
   }
 }
 
-export const strategyBridge = new StrategyBridge();
+let _strategyBridgeInstance: StrategyBridge | null = null;
+
+export function getStrategyBridge(): StrategyBridge {
+  if (!_strategyBridgeInstance) {
+    _strategyBridgeInstance = new StrategyBridge();
+  }
+  return _strategyBridgeInstance;
+}
+
+// For backward compatibility
+export const strategyBridge = { get instance() { return getStrategyBridge(); } };

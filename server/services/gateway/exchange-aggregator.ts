@@ -261,7 +261,52 @@ export class ExchangeAggregator {
         );
 
         this.rateLimiter.recordSuccess(exchange);
-        return frames;
+
+        // NEW: Process through integrity gate before returning
+        try {
+          const { getIntegrityGate } = await import('../market-data/integrity-gate');
+          const gate = getIntegrityGate();
+
+          // Convert to candle format
+          const candles = frames.map(f => ({
+            ts: f.timestamp || Date.now(),
+            open: (f.price as any)?.open || f.open || 0,
+            high: (f.price as any)?.high || f.high || 0,
+            low: (f.price as any)?.low || f.low || 0,
+            close: (f.price as any)?.close || f.close || 0,
+            volume: f.volume || 0,
+            isFinal: true,
+            source: 'ccxt',
+            venue: exchange
+          }));
+
+          // Get timeframe in seconds
+          const timeframeSeconds = this.parseTimeframeToSeconds(timeframe);
+
+          // Validate through integrity layer
+          const result = await gate.storeValidatedCandles(
+            symbol,
+            timeframeSeconds,
+            candles
+          );
+
+          if (result.rejected.length > 0 || result.gaps.length > 0) {
+            console.log(
+              `[Aggregator] Integrity check for ${symbol}/${timeframe}: ` +
+              `${result.stored.length} valid, ${result.rejected.length} rejected, ${result.gaps.length} gaps`
+            );
+          }
+
+          // Return validated frames (map back to original format)
+          const validatedFrames = frames.filter(f =>
+            result.stored.some(c => c.ts === f.timestamp)
+          );
+
+          return validatedFrames.length > 0 ? validatedFrames : frames;
+        } catch (integrityError) {
+          console.warn('[Aggregator] Integrity gate check failed, returning frames as-is:', integrityError);
+          return frames;
+        }
       } catch (error: any) {
         this.rateLimiter.recordFailure(exchange);
         this.updateExchangeHealth(exchange, false, 0, error);
@@ -274,6 +319,22 @@ export class ExchangeAggregator {
     }
 
     throw new Error(`Failed to fetch market frames for ${symbol}`);
+  }
+
+  /**
+   * Parse timeframe string to seconds
+   */
+  private parseTimeframeToSeconds(timeframe: string): number {
+    const m = timeframe.match(/(\d+)([mhd])/i);
+    if (!m) return 60;
+
+    const amount = parseInt(m[1]);
+    const unit = m[2].toLowerCase();
+
+    if (unit === 'm') return amount * 60;
+    if (unit === 'h') return amount * 3600;
+    if (unit === 'd') return amount * 86400;
+    return 60;
   }
 
   /**

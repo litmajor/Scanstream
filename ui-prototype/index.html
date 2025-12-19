@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scanstream — UI Prototype</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="top-left">
+      <div class="logo">Scanstream</div>
+      <div class="env">dev</div>
+    </div>
+    <div class="top-center">
+      <input class="search" placeholder="Search symbols, signals, executions..." />
+    </div>
+    <div class="top-right">
+      <button class="mode live">Live</button>
+      <button class="mode simulate">Simulate</button>
+      <div class="user">Operator</div>
+    </div>
+  </header>
+
+  <div class="app-grid">
+    <nav class="left-rail">
+      <div class="symbols-header">Symbols</div>
+      <ul class="symbols">
+        <li class="symbol active"><span class="sym">BTC/USDT</span><span class="meta">92%</span></li>
+        <li class="symbol"><span class="sym">ETH/USDT</span><span class="meta">88%</span></li>
+        <li class="symbol"><span class="sym">EUR/USD</span><span class="meta">85%</span></li>
+        <li class="symbol"><span class="sym">GBP/JPY</span><span class="meta">78%</span></li>
+      </ul>
+    </nav>
+
+    <main class="main-canvas">
+      <section class="chart-panel">
+        <div class="chart-toolbar">
+          <div class="tf">5m</div>
+          <div class="indicators">Indicators ▾</div>
+          <div class="consensus-toggle">Consensus: ON</div>
+          <div class="mini-summary">Last: <strong>43050</strong>  Spread: <em>10</em>  Conf: <em>92%</em></div>
+        </div>
+        <div class="chart-area">
+          <div class="chart-placeholder">[ Candlestick / Aggregated Chart ]</div>
+          <div class="volume">[ Volume ]</div>
+        </div>
+      </section>
+
+      <section class="middle-row">
+        <div class="orderbook">
+          <h4>Orderbook</h4>
+          <div class="depth">[Depth chart placeholder]</div>
+          <button class="quick-order">Quick Order</button>
+        </div>
+
+        <div class="snapshot">
+          <h4>Aggregated Snapshot</h4>
+          <table>
+            <thead><tr><th>Venue</th><th>Bid</th><th>Ask</th><th>Size</th><th>Age</th></tr></thead>
+            <tbody>
+              <tr><td>binance</td><td>43040</td><td>43050</td><td>12</td><td>1s</td></tr>
+              <tr><td>coinbase</td><td>43038</td><td>43052</td><td>8</td><td>2s</td></tr>
+              <tr><td>oanda</td><td>43039</td><td>43051</td><td>20</td><td>3s</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <aside class="consensus-card">
+          <h4>Consensus</h4>
+          <div class="consensus-price">43045 <span class="conf">(88%)</span></div>
+          <div class="sources">Sources: binance · coinbase · oanda</div>
+          <div class="healing">No gaps</div>
+        </aside>
+      </section>
+
+      <section class="lower-tabs">
+        <div class="tabs">
+          <button class="tab active">Signals</button>
+          <button class="tab">Executions</button>
+          <button class="tab">Event Log</button>
+        </div>
+        <div class="tab-content">
+          <div class="signals-list">
+            <div class="signal">ARB: BTC/USDT — spread 0.03% — <em>medium</em></div>
+            <div class="signal">DISCOVERY: New symbol spotted: SOL/USDT</div>
+          </div>
+
+          <div class="executions" hidden>
+            <table>
+              <thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Size</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>12:00:01</td><td>Buy</td><td>43010</td><td>0.1</td><td>Filled</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <pre class="event-log" aria-live="polite">[12:00:00] world.tick BTC/USDT 5m close=43050
+[12:00:01] consensus.updated BTC/USDT 43045 conf=88%
+[12:00:02] arb.signal BTC/USDT — spread 0.03%</pre>
+        </div>
+      </section>
+    </main>
+
+    <aside class="right-rail">
+      <div class="portfolio">
+        <h4>Portfolio</h4>
+        <div>Positions: 3</div>
+        <div>PnL: <strong>+0.3%</strong></div>
+      </div>
+
+      <div class="risk">
+        <h4>Risk</h4>
+        <div>Exposure: 12%</div>
+        <div>Limit: 80%</div>
+      </div>
+
+      <div class="alerts">
+        <h4>Alerts</h4>
+        <div class="alert ok">No active gaps</div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="statusbar">
+    <div>Clock: <span id="clock">12:00:03</span></div>
+    <div>Last stored: 12:00:02</div>
+    <div>DB: OK · Bus: OK</div>
+  </footer>
+
+</body>
+</html>

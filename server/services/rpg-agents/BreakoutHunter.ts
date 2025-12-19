@@ -1,5 +1,8 @@
 
 import { TradingAgent, type AgentSignal, type TradeResult } from './TradingAgent';
+import {
+  getClusterMetrics
+} from '../clustering';
 
 export class BreakoutHunter extends TradingAgent {
   // Specialist stats
@@ -15,7 +18,7 @@ export class BreakoutHunter extends TradingAgent {
    * Process momentum data and generate breakout signals
    */
   processSignal(marketData: any): AgentSignal | null {
-    const { price, resistance, volume, avg_volume, regime, atr, velocity } = marketData;
+    const { price, resistance, volume, avg_volume, regime, atr, velocity, symbol } = marketData;
     
     // Base breakout logic
     const is_breakout = price > resistance;
@@ -23,9 +26,52 @@ export class BreakoutHunter extends TradingAgent {
     
     if (!is_breakout || !volume_spike) return null;
     
+    // CLUSTERING CONFIRMATION - NEW CRITICAL LAYER
+    let cluster_confirmation_quality = 0;
+    let breakout_direction_alignment = 'UNKNOWN';
+    
+    if (symbol) {
+      const clusterMetrics = getClusterMetrics(symbol);
+      
+      if (clusterMetrics && clusterMetrics.cluster_strength > 0) {
+        // Check if clusters are aligned with breakout direction (bullish)
+        const trend_forming = clusterMetrics.trend_formation_signal;
+        const directional_strength = clusterMetrics.directional_ratio; // 0-1, % in dominant direction
+        const bullish_clusters = clusterMetrics.bullish_clusters || 0;
+        const total_clusters = clusterMetrics.total_clusters || 1;
+        const bullish_ratio = bullish_clusters / total_clusters;
+        
+        // Strong confirmation: trend forming + bullish clusters + high directional ratio
+        if (trend_forming && bullish_ratio > 0.65 && directional_strength > 0.6) {
+          cluster_confirmation_quality = 0.35; // Strong bonus
+          breakout_direction_alignment = 'PERFECT';
+        } else if (bullish_ratio > 0.55 && directional_strength > 0.5) {
+          cluster_confirmation_quality = 0.20; // Moderate bonus
+          breakout_direction_alignment = 'ALIGNED';
+        } else if (bullish_ratio > 0.45) {
+          cluster_confirmation_quality = 0.10; // Weak bonus
+          breakout_direction_alignment = 'PARTIAL';
+        } else {
+          cluster_confirmation_quality = -0.15; // Penalty: clusters not aligned
+          breakout_direction_alignment = 'MISALIGNED';
+        }
+        
+        console.log(
+          `[BreakoutHunter] Cluster confirmation for ${symbol}: ` +
+          `strength=${clusterMetrics.cluster_strength.toFixed(2)}, ` +
+          `formation=${trend_forming}, ` +
+          `bullish_ratio=${bullish_ratio.toFixed(2)}, ` +
+          `alignment=${breakout_direction_alignment}`
+        );
+      }
+    }
+    
     // Skill-based pattern quality enhancement
     let pattern_quality = this.detectBreakoutQuality(marketData);
     pattern_quality *= (this.skills.pattern_recognition / 10);
+    
+    // ADD CLUSTERING CONFIRMATION
+    pattern_quality += cluster_confirmation_quality;
     
     // Regime awareness (if unlocked)
     if (this.abilities.includes('regime_adaptation')) {
@@ -52,7 +98,7 @@ export class BreakoutHunter extends TradingAgent {
       entry: price,
       target,
       stop,
-      reason: `Breakout with ${(volume / avg_volume).toFixed(1)}x volume confirmation`,
+      reason: `Breakout with ${(volume / avg_volume).toFixed(1)}x volume • cluster alignment: ${breakout_direction_alignment}`,
       agent_name: this.name,
       agent_level: this.level
     };

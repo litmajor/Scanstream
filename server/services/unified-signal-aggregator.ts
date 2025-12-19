@@ -25,6 +25,7 @@ export interface StrategyContribution {
   energyTrend?: 'ACCELERATING' | 'STABLE' | 'DECELERATING'; // From flow field
   trendShiftMarker?: boolean; // Gradient detected trend change
   reason: string; // Why this strategy contributes what it does
+  timestamp?: string;
 }
 
 export interface UnifiedSignal {

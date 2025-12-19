@@ -32,26 +32,44 @@ export class AnomalyDetector {
    * Calculate baseline metrics from historical data
    */
   private calculateBaseline(frames: MarketFrame[]): void {
-    const prices = frames.map(f => f.price.close);
-    const volumes = frames.map(f => f.volume);
-    const spreads = frames.map(f => f.marketMicrostructure.spread);
-    const netFlows = frames.map(f => f.orderFlow.netFlow);
-    
-    // Price volatility
-    const returns = prices.slice(1).map((p, i) => Math.abs((p - prices[i]) / prices[i]));
-    const priceVolatility = returns.reduce((a, b) => a + b, 0) / returns.length;
-    
-    // Volume average
-    const volumeAvg = volumes.reduce((a, b) => a + b, 0) / volumes.length;
-    
-    // Spread average
-    const spreadAvg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
-    
+    // Safely extract values since MarketFrame fields may be unknown at compile-time
+    const prices: number[] = frames
+      .map(f => (f as any)?.price?.close)
+      .filter((v): v is number => typeof v === 'number');
+
+    const volumes: number[] = frames
+      .map(f => (f as any)?.volume)
+      .filter((v): v is number => typeof v === 'number');
+
+    const spreads: number[] = frames
+      .map(f => (f as any)?.marketMicrostructure?.spread)
+      .filter((v): v is number => typeof v === 'number');
+
+    const netFlows: number[] = frames
+      .map(f => (f as any)?.orderFlow?.netFlow)
+      .filter((v): v is number => typeof v === 'number');
+
+    // Guard against insufficient clean data
+    const safeAvg = (arr: number[]) => (arr.length === 0 ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length);
+
+    // Price volatility (use returns if available)
+    let priceVolatility = 0.0001;
+    if (prices.length > 1) {
+      const returns = prices.slice(1).map((p, i) => Math.abs((p - prices[i]) / prices[i]));
+      priceVolatility = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0.0001;
+    }
+
+    const volumeAvg = safeAvg(volumes) || 1;
+    const spreadAvg = safeAvg(spreads) || 1;
+
     // Net flow standard deviation
-    const netFlowMean = netFlows.reduce((a, b) => a + b, 0) / netFlows.length;
-    const netFlowVariance = netFlows.reduce((sum, nf) => sum + Math.pow(nf - netFlowMean, 2), 0) / netFlows.length;
-    const netFlowStd = Math.sqrt(netFlowVariance);
-    
+    let netFlowStd = 0.0001;
+    if (netFlows.length > 0) {
+      const netFlowMean = netFlows.reduce((a, b) => a + b, 0) / netFlows.length;
+      const netFlowVariance = netFlows.reduce((sum, nf) => sum + Math.pow(nf - netFlowMean, 2), 0) / netFlows.length;
+      netFlowStd = Math.sqrt(netFlowVariance) || 0.0001;
+    }
+
     this.baselineMetrics = {
       priceVolatility,
       volumeAvg,
@@ -82,22 +100,33 @@ export class AnomalyDetector {
     const current = frames[frames.length - 1];
     const previous = frames[frames.length - 2];
     const baseline = this.baselineMetrics!;
-    
+
+    // Safe accessors with sensible fallbacks
+    const getPriceClose = (f: MarketFrame) => Number((f as any)?.price?.close ?? 0);
+    const getVolume = (f: MarketFrame) => Number((f as any)?.volume ?? 0);
+    const getSpread = (f: MarketFrame) => Number((f as any)?.marketMicrostructure?.spread ?? 0);
+    const getToxicity = (f: MarketFrame) => Number((f as any)?.marketMicrostructure?.toxicity ?? 0);
+    const getDepth = (f: MarketFrame) => Number((f as any)?.marketMicrostructure?.depth ?? 0);
+    const getNetFlow = (f: MarketFrame) => Number((f as any)?.orderFlow?.netFlow ?? 0);
+    const getLargeOrders = (f: MarketFrame) => Number((f as any)?.orderFlow?.largeOrders ?? 0);
+
     // Check for price spikes
-    const priceChange = Math.abs((current.price.close - previous.price.close) / previous.price.close);
-    const priceAnomalyScore = priceChange / baseline.priceVolatility;
-    
+    const prevPrice = getPriceClose(previous) || 1;
+    const currPrice = getPriceClose(current) || prevPrice;
+    const priceChange = Math.abs((currPrice - prevPrice) / prevPrice);
+    const priceAnomalyScore = baseline.priceVolatility > 0 ? priceChange / baseline.priceVolatility : priceChange / 0.0001;
+
     // Check for volume surges
-    const volumeAnomalyScore = current.volume / baseline.volumeAvg;
-    
+    const volumeAnomalyScore = (getVolume(current) || 0) / (baseline.volumeAvg || 1);
+
     // Check for spread widening
-    const spreadAnomalyScore = current.marketMicrostructure.spread / baseline.spreadAvg;
-    
+    const spreadAnomalyScore = (getSpread(current) || 0) / (baseline.spreadAvg || 1);
+
     // Check for unusual order flow
-    const netFlowAnomalyScore = Math.abs(current.orderFlow.netFlow / baseline.netFlowStd);
-    
+    const netFlowAnomalyScore = Math.abs((getNetFlow(current) || 0) / (baseline.netFlowStd || 0.0001));
+
     // Toxicity spike
-    const toxicityScore = current.marketMicrostructure.toxicity;
+    const toxicityScore = getToxicity(current);
     
     // Determine anomaly type
     let type: Anomaly['type'] = 'normal';
@@ -124,15 +153,15 @@ export class AnomalyDetector {
       confidence = 0.75;
       description = `Spread widening ${spreadAnomalyScore.toFixed(1)}x with high toxicity`;
       recommendation = 'Liquidity issue detected. Avoid new positions, exit with limit orders.';
-    } else if (current.marketMicrostructure.depth < baseline.volumeAvg * 0.3) {
+    } else if (getDepth(current) < baseline.volumeAvg * 0.3) {
       type = 'liquidity_drain';
       severity = 7;
       confidence = 0.7;
       description = 'Market depth significantly below normal';
       recommendation = 'Low liquidity environment. Use smaller positions, expect slippage.';
     } else if (
-      current.orderFlow.largeOrders > current.volume * 0.6 &&
-      Math.abs(current.orderFlow.netFlow) > current.volume * 0.8
+      getLargeOrders(current) > getVolume(current) * 0.6 &&
+      Math.abs(getNetFlow(current)) > getVolume(current) * 0.8
     ) {
       type = 'manipulation';
       severity = 8;

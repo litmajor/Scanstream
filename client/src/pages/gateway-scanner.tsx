@@ -25,11 +25,12 @@ interface Dataframe {
   fullData?: FullDataframe;
 }
 
-const SYMBOLS = [
+const DEFAULT_SYMBOLS = [
   'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'AVAX/USDT', 'ADA/USDT',
   'DOT/USDT', 'LINK/USDT', 'XRP/USDT', 'DOGE/USDT', 'ATOM/USDT',
   'ARB/USDT', 'OP/USDT', 'AAVE/USDT', 'UNI/USDT', 'NEAR/USDT'
 ];
+import { useSymbolUniverse } from '../hooks/useSymbolUniverse';
 
 export default function GatewayScannerPage() {
   const [data, setData] = useState<Record<string, Dataframe>>({});
@@ -44,6 +45,7 @@ export default function GatewayScannerPage() {
     patterns: true,
     risk: true,
   });
+  const { symbols: universeSymbols } = useSymbolUniverse();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,7 +54,8 @@ export default function GatewayScannerPage() {
         const results: Record<string, Dataframe> = {};
         let successCount = 0;
 
-        for (const symbol of SYMBOLS) {
+        const symbolsToFetch = (universeSymbols && universeSymbols.length) ? universeSymbols.map(s => s.symbol).slice(0,15) : DEFAULT_SYMBOLS;
+        for (const symbol of symbolsToFetch) {
           try {
             const encodedSymbol = symbol.replace('/', '%2F');
             const response = await fetch(
@@ -183,6 +186,9 @@ export default function GatewayScannerPage() {
   }
 
   const selectedData = selectedSymbol ? data[selectedSymbol]?.fullData : null;
+
+  // Symbol list used for rendering grid; prefer universeSymbols if available
+  const SYMBOLS = (universeSymbols && universeSymbols.length) ? universeSymbols.map(s => s.symbol).slice(0,15) : DEFAULT_SYMBOLS;
 
   return (
     <div className="space-y-6 p-6">

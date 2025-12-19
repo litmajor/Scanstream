@@ -129,7 +129,85 @@ export class CCXTScanner {
       // Step 3: Get full market frames for calculations
       const frames = await this.aggregator.getMarketFrames(symbol, timeframe, limit);
 
-      // Step 4: Calculate basic metrics
+      // Step 4: Store market frames in shared storage for ML/RL agents
+      // 
+      // CRITICAL ORDERING:
+      // 1. Integrity gate validates all candles
+      // 2. Integrity gate stores validated candles to storage
+      // 3. Integrity gate emits 'world.tick' events for each valid candle
+      // 4. Agents subscribe to 'world.tick', NOT to storage polling
+      try {
+        const { getIntegrityGate } = await import('../market-data/integrity-gate');
+        
+        const gate = getIntegrityGate();
+
+        // Convert to candle format
+        const candles = frames.map(f => ({
+          ts: (f.timestamp instanceof Date ? f.timestamp.getTime() : Number(f.timestamp)) || Date.now(),
+          open: (f.price as any)?.open ?? 0,
+          high: (f.price as any)?.high ?? 0,
+          low: (f.price as any)?.low ?? 0,
+          close: (f.price as any)?.close ?? 0,
+          volume: f.volume ?? 0,
+          isFinal: true,
+          source: 'ccxt',
+          venue: 'scanner'
+        }));
+
+        // Get timeframe in seconds
+        const timeframeSeconds = this.parseTimeframeToSeconds(timeframe);
+
+        // Validate through integrity layer
+        const result = await gate.storeValidatedCandles(
+          symbol,
+          timeframeSeconds,
+          candles
+        );
+
+        console.log(
+          `[CCXT Scanner] Integrity check for ${symbol}/${timeframe}: ` +
+          `${result.stored.length} valid, ${result.rejected.length} rejected, ${result.gaps.length} gaps`
+        );
+
+        // ✅ Integrity gate already stored validated candles
+        // ✅ Integrity gate already emitted 'world.tick' events
+        // ✅ No need to call storage.createMarketFrame() again!
+
+        // Log rejected candles as warnings
+        if (result.rejected.length > 0) {
+          console.warn(`[CCXT Scanner] Rejected ${result.rejected.length} invalid candles for ${symbol}`);
+        }
+
+        // Return the world ticks for monitoring
+        console.log(`[CCXT Scanner] Emitted ${result.ticks.length} world ticks for ${symbol}`);
+
+      } catch (integrityError) {
+        console.warn('[CCXT Scanner] Integrity gate check failed, falling back to direct storage:', integrityError);
+
+        // Fallback: store directly if integrity gate fails
+        try {
+          const { storage } = await import('../../storage');
+          for (const frame of frames) {
+            try {
+              // Insert without timestamp to match InsertMarketFrame shape; storage will set timestamp
+              await storage.createMarketFrame({
+                symbol: frame.symbol,
+                price: frame.price,
+                volume: frame.volume,
+                indicators: frame.indicators,
+                orderFlow: frame.orderFlow,
+                marketMicrostructure: frame.marketMicrostructure
+              } as any);
+            } catch (storageError) {
+              console.warn(`[CCXT Scanner] Failed to store frame for ${symbol}:`, (storageError as any).message);
+            }
+          }
+        } catch (importError) {
+          console.warn('[CCXT Scanner] Storage module not available for frame persistence');
+        }
+      }
+
+      // Step 5: Calculate basic metrics
       const metrics = this.calculateMetrics(frames, priceData);
 
       const result: ScanResult = {
@@ -298,6 +376,22 @@ export class CCXTScanner {
   }
 
   /**
+   * Parse timeframe string to seconds (e.g., "1h" -> 3600)
+   */
+  private parseTimeframeToSeconds(timeframe: string): number {
+    const m = timeframe.match(/(\d+)([mhd])/i);
+    if (!m) return 60;
+
+    const amount = parseInt(m[1]);
+    const unit = m[2].toLowerCase();
+
+    if (unit === 'm') return amount * 60;
+    if (unit === 'h') return amount * 3600;
+    if (unit === 'd') return amount * 86400;
+    return 60;
+  }
+
+  /**
    * Clear scan results
    */
   clearResults(): void {
@@ -323,6 +417,42 @@ interface ScanResult {
   metrics: ScanMetrics;
   timestamp: Date;
   dataQuality: number;
+  // Optional runtime fields used by UI and downstream services
+  id?: string;
+  exchange?: string;
+  // Derived/consensus fields
+  consensus?: {
+    signal?: 'BUY' | 'SELL' | 'HOLD';
+    confidence?: number;
+    riskScore?: 'LOW' | 'MEDIUM' | 'HIGH';
+    agentAgreement?: number;
+  };
+  agentConsensus?: {
+    signal?: 'BUY' | 'SELL' | 'HOLD';
+    confidence?: number;
+    riskScore?: string;
+  };
+  agentSignals?: any[];
+  // UI convenience fields
+  signal?: 'BUY' | 'SELL' | 'HOLD';
+  strength?: number;
+  currentPrice?: number;
+  // Risk/reward structure used by frontend
+  risk_reward?: {
+    entry_price?: number;
+    stop_loss?: number;
+    take_profit?: number;
+    stop_loss_pct?: number;
+    take_profit_pct?: number;
+    risk_reward_ratio?: number;
+  };
+  suggestedStopLoss?: number;
+  suggestedTakeProfit?: number;
+  // Extended diagnostic/meta
+  advanced?: any;
+  indicators?: any;
+  orderFlow?: any;
+  marketMicrostructure?: any;
 }
 
 interface ScanMetrics {

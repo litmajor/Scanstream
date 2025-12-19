@@ -15,6 +15,15 @@
 import type { StrategyContribution } from './unified-signal-aggregator';
 import type { PatternDetectionResult } from './pattern-detection-contribution';
 
+export type Weights = {
+  gradient: number;
+  utBot: number;
+  structure: number;
+  flowField: number;
+  mlPredictions: number;
+  patterns: number;
+};
+
 export interface UnifiedSignalFramework {
   // 6 Core Sources
   sources: {
@@ -102,10 +111,11 @@ export class UnifiedFramework {
 
     sources.forEach(({ source, weight }) => {
       totalWeight += weight;
+      const conf = source.confidence ?? 0;
       if (source.trend === 'BULLISH') {
-        bullishScore += source.confidence * weight;
+        bullishScore += conf * weight;
       } else if (source.trend === 'BEARISH') {
-        bearishScore += source.confidence * weight;
+        bearishScore += conf * weight;
       }
     });
 
@@ -146,7 +156,7 @@ export class UnifiedFramework {
     }
 
     // ========== CALCULATE OVERALL STRENGTH ==========
-    const sourceStrengths = sources.map(s => s.source.strength || 50);
+    const sourceStrengths = sources.map(s => (s.source.strength ?? 50));
     const avgStrength = sourceStrengths.reduce((a, b) => a + b, 0) / sourceStrengths.length;
     const strength = Math.min(100, avgStrength * (1 + patternConfluence * 0.1));
 
@@ -164,7 +174,7 @@ export class UnifiedFramework {
     if (flowField.energyTrend === 'DECELERATING') riskScore += 15;
 
     // Lower risk in trending with clear structure
-    if (regime === 'TRENDING' && structure.confidence > 0.7) riskScore -= 15;
+    if (regime === 'TRENDING' && (structure.confidence ?? 0) > 0.7) riskScore -= 15;
 
     riskScore = Math.max(0, Math.min(100, riskScore));
 
@@ -190,12 +200,12 @@ Reasons: ${sourceReasons.join(' | ')}
 
     // ========== BUILD CONTRIBUTION BREAKDOWN ==========
     const contributionBreakdown = {
-      gradient: gradient.confidence * weights.gradient,
-      utBot: utBot.confidence * weights.utBot,
-      structure: structure.confidence * weights.structure,
-      flowField: flowField.confidence * weights.flowField,
-      mlPredictions: mlPredictions.confidence * weights.mlPredictions,
-      patterns: patterns.confidence * weights.patterns
+      gradient: (gradient.confidence ?? 0) * weights.gradient,
+      utBot: (utBot.confidence ?? 0) * weights.utBot,
+      structure: (structure.confidence ?? 0) * weights.structure,
+      flowField: (flowField.confidence ?? 0) * weights.flowField,
+      mlPredictions: (mlPredictions.confidence ?? 0) * weights.mlPredictions,
+      patterns: (patterns.confidence ?? 0) * weights.patterns
     };
 
     return {
@@ -230,8 +240,8 @@ Reasons: ${sourceReasons.join(' | ')}
   /**
    * Get regime-specific weights for all 6 sources
    */
-  static getRegimeWeights(regime: string): Record<string, number> {
-    const weights: Record<string, Record<string, number>> = {
+  static getRegimeWeights(regime: string): Weights {
+    const weights: Record<string, Weights> = {
       TRENDING: {
         gradient: 0.35,
         utBot: 0.12,
@@ -274,7 +284,7 @@ Reasons: ${sourceReasons.join(' | ')}
       }
     };
 
-    return weights[regime] || weights.SIDEWAYS;
+    return (weights as any)[regime] || weights.SIDEWAYS;
   }
 
   /**

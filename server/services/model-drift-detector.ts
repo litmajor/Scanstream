@@ -1,6 +1,6 @@
 
 import { db } from "../db-storage";
-import { modelMetrics, type InsertModelMetric } from "../../shared/schema";
+import { type InsertModelMetric } from "../../shared/schema";
 import { auditLogger } from "./audit-logger";
 
 interface PredictionResult {
@@ -101,7 +101,7 @@ export class ModelDriftDetector {
     const driftScore = this.calculateDriftScore(metrics.accuracy, baselineAccuracy);
     const isStale = driftScore > this.driftThreshold;
 
-    // Log to database
+    // Log to database (use storage API)
     const metricRecord: InsertModelMetric = {
       modelName,
       accuracy: metrics.accuracy,
@@ -112,7 +112,7 @@ export class ModelDriftDetector {
       isStale,
     };
 
-    await db.insert(modelMetrics).values(metricRecord);
+    await db.createModelMetric(metricRecord);
 
     // Log to audit trail if model is stale
     if (isStale) {
@@ -131,23 +131,14 @@ export class ModelDriftDetector {
    * Get latest metrics for a model
    */
   async getLatestMetrics(modelName: string, limit: number = 10) {
-    return await db
-      .select()
-      .from(modelMetrics)
-      .where((m) => m.modelName === modelName)
-      .orderBy((m) => m.timestamp)
-      .limit(limit);
+    return await db.getLatestModelMetrics(modelName, limit);
   }
 
   /**
    * Check if any models are stale
    */
   async getStaleModels() {
-    return await db
-      .select()
-      .from(modelMetrics)
-      .where((m) => m.isStale === true)
-      .orderBy((m) => m.timestamp);
+    return await db.getStaleModelMetrics();
   }
 
   /**

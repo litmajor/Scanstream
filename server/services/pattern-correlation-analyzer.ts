@@ -5,7 +5,8 @@
  */
 
 import { SignalClassification } from '../lib/signal-classifier';
-import { storage } from '../lib/storage';
+import { storage } from '../storage';
+import type { Signal } from '@shared/schema';
 
 interface PatternCorrelation {
   pattern1: SignalClassification;
@@ -19,8 +20,8 @@ interface PatternCorrelation {
 interface CorrelationAnalysisResult {
   totalPatterns: number;
   correlatedPairs: PatternCorrelation[];
-  redundantPatterns: SignalClassification[];
-  optimizedPatternSet: SignalClassification[];
+  redundantPatterns: string[];
+  optimizedPatternSet: string[];
   estimatedReduction: number;
   analysisWindow: number; // Number of signals analyzed
 }
@@ -75,12 +76,11 @@ export class PatternCorrelationAnalyzer {
   /**
    * Fetch recent signals from database
    */
-  private async fetchRecentSignals(limit: number = 500): Promise<any[]> {
+  private async fetchRecentSignals(limit: number = 500): Promise<Signal[]> {
     try {
-      // In a real implementation, this would query the signals table
-      // For now, return empty array (would be populated from DB)
-      const signals = await storage.getRecentSignals?.(limit) || [];
-      return signals;
+      // Use the storage layer's `getLatestSignals` implementation to fetch recent signals
+      const signals = await (storage.getLatestSignals ? storage.getLatestSignals(limit) : ([] as Signal[]));
+      return signals || [];
     } catch (error) {
       console.error('[PatternAnalyzer] Failed to fetch signals:', error);
       return [];
@@ -91,7 +91,8 @@ export class PatternCorrelationAnalyzer {
    * Build pattern occurrence matrix for correlation analysis
    * Each row = signal, each column = pattern (0/1 occurrence)
    */
-  private buildPatternMatrix(signals: any[]): Map<SignalClassification, boolean[]> {
+  private buildPatternMatrix(signals: Signal[]): Map<SignalClassification, boolean[]> {
+    // Define the pattern universe as SignalClassification literals to keep types consistent
     const allPatterns: SignalClassification[] = [
       'BREAKOUT', 'REVERSAL', 'CONTINUATION', 'PULLBACK', 'DIVERGENCE',
       'SUPPORT_BOUNCE', 'RESISTANCE_BREAK', 'TREND_CONFIRMATION', 'CONSOLIDATION_BREAK',
@@ -102,13 +103,13 @@ export class PatternCorrelationAnalyzer {
     ];
 
     const matrix = new Map<SignalClassification, boolean[]>();
-    
+
     // Initialize pattern arrays
     allPatterns.forEach(pattern => {
       matrix.set(pattern, new Array(signals.length).fill(false));
     });
 
-    // Fill matrix: 1 if pattern appears in signal, 0 otherwise
+    // Fill matrix: true if pattern appears in signal, false otherwise
     signals.forEach((signal, signalIdx) => {
       const classifications = (signal.classifications as SignalClassification[]) || [];
       classifications.forEach(pattern => {

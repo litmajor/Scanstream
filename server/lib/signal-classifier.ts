@@ -23,8 +23,16 @@ export type SignalClassification =
   | 'BEAR_EARLY'
   | 'ACCUMULATION'
   | 'DISTRIBUTION'
-  | 'SPIKE';
-  // Removed redundant patterns: TOPPING, BOTTOMING, RANGING, LAGGING, LEADING, TREND_EXHAUSTION, TREND_ESTABLISHMENT, RETEST, FLIP
+  | 'SPIKE'
+  | 'TOPPING'
+  | 'BOTTOMING'
+  | 'RANGING'
+  | 'LAGGING'
+  | 'LEADING'
+  | 'TREND_EXHAUSTION'
+  | 'TREND_ESTABLISHMENT'
+  | 'RETEST'
+  | 'FLIP';
 
 export interface PatternMatch {
   pattern: SignalClassification;
@@ -256,6 +264,60 @@ export class SignalClassifier {
       });
     }
 
+    // --- Additional lightweight detections for extended pattern set ---
+    // TOPPING: very high RSI then immediate weakness
+    if (indicators.rsi && indicators.rsi > 85 && indicators.price < indicators.prevPrice) {
+      patterns.push({ pattern: 'TOPPING', confidence: 0.5, strength: 50, reasoning: 'Extreme RSI followed by price weakness - possible topping' });
+    }
+
+    // BOTTOMING: very low RSI then bounce
+    if (indicators.rsi && indicators.rsi < 15 && indicators.price > indicators.prevPrice) {
+      patterns.push({ pattern: 'BOTTOMING', confidence: 0.5, strength: 50, reasoning: 'Extreme RSI then recovery - possible bottoming' });
+    }
+
+    // RANGING: narrow Bollinger band
+    if (indicators.bollingerBands && indicators.bollingerBands.upper && indicators.bollingerBands.lower && indicators.bollingerBands.middle) {
+      const width = (indicators.bollingerBands.upper - indicators.bollingerBands.lower) / (indicators.bollingerBands.middle || 1);
+      if (width < 0.02) {
+        patterns.push({ pattern: 'RANGING', confidence: 0.55, strength: 45, reasoning: 'Narrow BB width - market likely ranging' });
+      }
+    }
+
+    // RETEST: price crossed a level and returned
+    if (indicators.resistance && indicators.prevPrice > indicators.resistance && indicators.price < indicators.resistance) {
+      patterns.push({ pattern: 'RETEST', confidence: 0.6, strength: 55, reasoning: 'Price retested resistance after prior breach' });
+    }
+    if (indicators.support && indicators.prevPrice < indicators.support && indicators.price > indicators.support) {
+      patterns.push({ pattern: 'RETEST', confidence: 0.6, strength: 55, reasoning: 'Price retested support after prior breach' });
+    }
+
+    // FLIP: support/resistance flip (simple detection)
+    if (indicators.resistance && indicators.prevPrice < indicators.resistance && indicators.price > indicators.resistance) {
+      patterns.push({ pattern: 'FLIP', confidence: 0.6, strength: 60, reasoning: 'Resistance flipped to support - momentum validated' });
+    }
+
+    // TREND_ESTABLISHMENT: EMAs aligned and price above short EMA
+    if (indicators.ema20 && indicators.ema50 && indicators.ema20 > indicators.ema50 && indicators.price > indicators.ema20) {
+      patterns.push({ pattern: 'TREND_ESTABLISHMENT', confidence: 0.65, strength: 68, reasoning: 'EMA alignment and price above EMA20 - trend establishing' });
+    }
+
+    // TREND_EXHAUSTION: high RSI + falling volume
+    if (indicators.rsi && indicators.rsi > 80 && indicators.prevVolume && indicators.volume && indicators.volume < indicators.prevVolume) {
+      patterns.push({ pattern: 'TREND_EXHAUSTION', confidence: 0.6, strength: 55, reasoning: 'High RSI but declining volume - exhaustion possible' });
+    }
+
+    // LEADING / LAGGING (heuristic based on MACD)
+    if (indicators.macd) {
+      const macdLine = indicators.macd.macd ?? 0;
+      const macdSignal = indicators.macd.signal ?? 0;
+      const macdHist = indicators.macd.histogram ?? 0;
+      if (macdLine > macdSignal && macdHist > 0.5) {
+        patterns.push({ pattern: 'LEADING', confidence: 0.5, strength: 50, reasoning: 'MACD leading signal with positive histogram' });
+      } else if (Math.abs(macdHist) < 0.05) {
+        patterns.push({ pattern: 'LAGGING', confidence: 0.45, strength: 40, reasoning: 'Low MACD histogram - momentum lagging' });
+      }
+    }
+
     // Build result
     const classifications = patterns.map(p => p.pattern);
     const primaryPattern = patterns.length > 0 ? patterns[0].pattern : "CONFLUENCE";
@@ -295,7 +357,7 @@ export class SignalClassifier {
   }
 
   private getPatternDescription(classification: SignalClassification): string {
-    const descriptions: Record<SignalClassification, string> = {
+    const descriptions: Partial<Record<SignalClassification, string>> = {
       BREAKOUT: "Price broke through key resistance - momentum continuation likely",
       REVERSAL: "Price reversed from previous trend - change of direction detected",
       CONTINUATION: "Price continues established trend - trend strength maintained",
@@ -316,6 +378,15 @@ export class SignalClassifier {
       ACCUMULATION: "Price accumulating at support - large buyers accumulating positions",
       DISTRIBUTION: "Price distributing at resistance - large sellers offloading positions",
       SPIKE: "Sharp vertical move detected - spike or flash move pattern",
+      TOPPING: "Price shows characteristics of a local top (extreme momentum then weakness)",
+      BOTTOMING: "Price shows characteristics of a local bottom (extreme oversold then recovery)",
+      RANGING: "Low volatility band - price trading sideways",
+      LAGGING: "Momentum indicators are subdued - trend may be lagging",
+      LEADING: "Leading indicator shows early momentum - potential early move",
+      TREND_EXHAUSTION: "Signs of trend exhaustion - high readings but weakening participation",
+      TREND_ESTABLISHMENT: "EMAs and price indicate trend is being established",
+      RETEST: "Price retested a key support/resistance level",
+      FLIP: "Support/resistance flip detected - previous resistance now support (or vice versa)",
     };
     return descriptions[classification] || "Signal detected";
   }

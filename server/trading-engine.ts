@@ -118,6 +118,8 @@ class YFinanceForexAdapter {
   }
 }
 import { storage } from './storage'; // Note: Ensure storage module is implemented
+import { getRegimeService } from './services/regime-service';
+import type { RegimeContext as ArmRegimeContext } from './arm-evaluator';
 import { SignalClassifier } from './signal-classifier'; // Note: Ensure SignalClassifier module is implemented
 
 /**
@@ -701,13 +703,47 @@ class SignalEngine {
         thresholds,
         additionalIndicators,
       };
+      // Best-effort: fetch central regime and pass to classifier
+      let armRegime: ArmRegimeContext | undefined;
+      try {
+        const regimeSvc = getRegimeService();
+        // estimate timeframe from frame timestamps (ms -> minutes)
+        let tfMinutes = 60; // default 1h
+        try {
+          const prevTs = frames[index - 1]?.timestamp ?? frames[Math.max(0, index - 2)]?.timestamp;
+          const currTs = frames[index]?.timestamp ?? frames[index - 1]?.timestamp;
+          if (prevTs && currTs && currTs > prevTs) {
+            const ms = currTs - prevTs;
+            tfMinutes = Math.max(1, Math.round(ms / 60000));
+          }
+        } catch (e) {
+          // fallback to default
+        }
+
+        const svcCtx = await regimeSvc.computeRegime(current.symbol, tfMinutes as any);
+        if (svcCtx) {
+          armRegime = {
+            regime: (svcCtx.type as any),
+            volatility: svcCtx.volatility === 'low' ? 0.2 : svcCtx.volatility === 'high' ? 0.8 : 0.5,
+            trendStrength: typeof svcCtx.momentum === 'number' ? svcCtx.momentum : 0,
+            regimeConfidence: svcCtx.confidence ?? (svcCtx.score ? Math.min(1, (svcCtx.score as number) / 100) : 0.5)
+          } as ArmRegimeContext;
+        }
+      } catch (err) {
+        // non-fatal
+      }
+
       const momentumLabel = safeString(
         SignalClassifier.classifyMomentumSignal(
           momentumShort,
           momentumLong,
           rsi,
           macd,
-          classifierConfig
+          classifierConfig,
+          {},
+          undefined,
+          undefined,
+          armRegime
         )
       );
       const regimeState = safeString(
@@ -882,7 +918,7 @@ class ExchangeDataFeed {
   }
 
   /**
-   * Rate-limited fetch wrapper to prevent throttler overflow
+   * Rate-limited fetch wrapper with timeout retry and exponential backoff
    */
   private async rateLimitedFetch<T>(
     exchange: ccxt.Exchange, 
@@ -893,18 +929,39 @@ class ExchangeDataFeed {
       try {
         return await fetchFunction();
       } catch (error: any) {
-        // Check if it's a throttler queue overflow error
-        if (error.message && error.message.includes('throttle queue is over maxCapacity')) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
-          console.warn(`[RATE_LIMIT] Throttler queue overflow, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        const isTimeout = error.message && (
+          error.message.includes('timed out') || 
+          error.message.includes('ETIMEDOUT') ||
+          error.message.includes('RequestTimeout')
+        );
+        
+        const isThrottleError = error.message && 
+          error.message.includes('throttle queue is over maxCapacity');
+        
+        const isRateLimit = error.message && (
+          error.message.includes('429') ||
+          error.message.includes('rate limit') ||
+          error.message.includes('too many requests')
+        );
+        
+        if ((isTimeout || isThrottleError || isRateLimit) && attempt < maxRetries) {
+          // Exponential backoff: 1s, 2s, 4s with jitter
+          const baseDelay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          const jitter = Math.random() * 1000; // 0-1s random jitter
+          const delay = baseDelay + jitter;
           
-          if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
+          const errorType = isTimeout ? 'timeout' : isThrottleError ? 'throttle' : 'rate-limit';
+          console.warn(
+            `[RETRY] ${errorType} error on attempt ${attempt}/${maxRetries}, ` +
+            `retrying in ${Math.round(delay)}ms. Error: ${error.message}`
+          );
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
         
-        // If it's not a rate limit error or we've exhausted retries, throw
+        // If it's not a recoverable error or we've exhausted retries, throw
+        console.error(`[FETCH_ERROR] Failed after ${attempt} attempts: ${error.message}`);
         throw error;
       }
     }
@@ -931,17 +988,23 @@ class ExchangeDataFeed {
           apiKey: process.env.BINANCE_API_KEY,
           secret: process.env.BINANCE_SECRET,
           sandbox: config.binance.sandbox,
-          enableRateLimit: true
+          enableRateLimit: true,
+          timeout: 30000, // 30s timeout for API calls
+          rateLimit: 100  // Min 100ms between requests
         })},
         { name: 'coinbase', instance: new ccxt.coinbase({
           apiKey: process.env.COINBASE_API_KEY,
           secret: process.env.COINBASE_SECRET,
-          enableRateLimit: true
+          enableRateLimit: true,
+          timeout: 30000,
+          rateLimit: 100
         })},
         { name: 'kraken', instance: new ccxt.kraken({
           apiKey: process.env.KRAKEN_API_KEY,
           secret: process.env.KRAKEN_SECRET,
-          enableRateLimit: true
+          enableRateLimit: true,
+          timeout: 30000,
+          rateLimit: 100
         })}
       ];
       
@@ -965,7 +1028,7 @@ class ExchangeDataFeed {
         secret: process.env.KUCOIN_SECRET,
         password: process.env.KUCOIN_PASSPHRASE,
         enableRateLimit: true, // Required for this.throttle to be initialized
-        timeout: 20000,
+        timeout: 30000,  // Increased from 20s to 30s
         rateLimit: 200 // 200ms between requests to prevent throttler overflow
       });
       
@@ -989,12 +1052,16 @@ class ExchangeDataFeed {
           secret: process.env.OKX_SECRET,
           password: process.env.OKX_PASSPHRASE,
           enableRateLimit: true,
+          timeout: 30000,
+          rateLimit: 100,
           sandbox: config.okx.sandbox
         })},
         { name: 'bybit', instance: new ccxt.bybit({
           apiKey: process.env.BYBIT_API_KEY,
           secret: process.env.BYBIT_SECRET,
           enableRateLimit: true,
+          timeout: 30000,
+          rateLimit: 100,
           sandbox: config.bybit.sandbox
         })}
       ];
@@ -1070,18 +1137,27 @@ class ExchangeDataFeed {
         mainExchange = 'yfinance-forex';
       }
       const exchange = this.exchanges.get(mainExchange);
-      if (!exchange) throw new Error('Exchange not available');
+      if (!exchange) throw new Error(`Exchange "${mainExchange}" not available`);
+      
       // For yfinance, don't normalize symbol, just pass as is
       const normalizedSymbol = mainExchange === 'yfinance-forex' ? symbol : normalizeSymbol(symbol, exchange);
       
+      console.log(`[FETCH] Fetching ${symbol} (normalized: ${normalizedSymbol}) from ${mainExchange} [${timeframe}/${limit}]`);
+      
       // Use rate-limited fetch to prevent throttler overflow
-      const ohlcv = await this.rateLimitedFetch(exchange, () => 
-        exchange.fetchOHLCV(normalizedSymbol, timeframe, undefined, limit)
-      );
-      const ticker = await this.rateLimitedFetch(exchange, () => 
-        exchange.fetchTicker(normalizedSymbol)
-      );
-      return ohlcv.map((candle, index) => {
+      const ohlcv = await this.rateLimitedFetch(exchange, () => {
+        console.log(`[FETCH] Calling fetchOHLCV for ${normalizedSymbol}`);
+        return exchange.fetchOHLCV(normalizedSymbol, timeframe, undefined, limit);
+      });
+      
+      const ticker = await this.rateLimitedFetch(exchange, () => {
+        console.log(`[FETCH] Calling fetchTicker for ${normalizedSymbol}`);
+        return exchange.fetchTicker(normalizedSymbol);
+      });
+      
+      console.log(`[FETCH] Successfully fetched ${ohlcv.length} candles for ${symbol}`);
+      
+      const frames = ohlcv.map((candle, index) => {
         const [timestamp, open, high, low, close, volume] = candle;
         const prices = ohlcv.slice(0, index + 1).map(c => Number(c[4]) || 0);
         const highs = ohlcv.slice(0, index + 1).map(c => Number(c[2]) || 0);
@@ -1137,6 +1213,84 @@ class ExchangeDataFeed {
           }
         } as MarketFrame & { id: string; timestamp: Date };
       });
+
+      // Store market frames in storage for ML/RL agents to access
+      // NEW: Process through integrity gate before storage
+      // 
+      // CRITICAL ORDERING:
+      // 1. Integrity gate validates all candles
+      // 2. Integrity gate stores validated candles to storage
+      // 3. Integrity gate emits 'world.tick' events for each valid candle
+      // 4. Agents subscribe to 'world.tick', NOT to storage polling
+      try {
+        const { getIntegrityGate } = await import('./services/market-data/integrity-gate');
+        const gate = getIntegrityGate();
+        
+        // Convert frames to candle format for integrity checking
+        const candles = frames.map(f => {
+          const ff: any = f;
+          const ts = ff.timestamp ? (ff.timestamp instanceof Date ? ff.timestamp.getTime() : Number(ff.timestamp)) : Date.now();
+          return {
+            ts,
+            open: (ff.price as any)?.open ?? ff.open ?? 0,
+            high: (ff.price as any)?.high ?? ff.high ?? 0,
+            low: (ff.price as any)?.low ?? ff.low ?? 0,
+            close: (ff.price as any)?.close ?? ff.close ?? 0,
+            volume: ff.volume ?? 0,
+            isFinal: true,
+            source: 'ccxt',
+            venue: exchange
+          };
+        });
+
+        // Validate through integrity layer
+        const timeframeSeconds = 60; // Trading engine typically fetches 1m
+        const result = await gate.storeValidatedCandles(
+          symbol,
+          timeframeSeconds,
+          candles
+        );
+
+        console.log(
+          `[Trading] Integrity check for ${symbol}: ` +
+          `${result.stored.length} valid, ${result.rejected.length} rejected, ${result.gaps.length} gaps`
+        );
+
+        // ✅ Integrity gate already stored validated candles
+        // ✅ Integrity gate already emitted 'world.tick' events
+        // ✅ No need to call storage.createMarketFrame() again!
+        
+        // Log rejected candles as warnings
+        if (result.rejected.length > 0) {
+          console.warn(`[Trading] Rejected ${result.rejected.length} invalid candles for ${symbol}`);
+        }
+
+        // Return the world ticks (for monitoring if needed)
+        console.log(`[Trading] Emitted ${result.ticks.length} world ticks for ${symbol}`);
+
+      } catch (integrityError) {
+        console.warn('[Trading] Integrity gate check failed, falling back to direct storage:', integrityError);
+        
+        // Fallback: store directly if integrity gate fails
+        for (const frame of frames) {
+          try {
+            const ff: any = frame;
+            // Insert using storage.createMarketFrame expected shape (avoid passing timestamp if not allowed)
+            await storage.createMarketFrame({
+              symbol: ff.symbol,
+              price: ff.price,
+              volume: ff.volume,
+              indicators: ff.indicators,
+              orderFlow: ff.orderFlow,
+              marketMicrostructure: ff.marketMicrostructure
+            } as any);
+          } catch (storageError) {
+            console.warn(`[Storage] Failed to store market frame for ${symbol}:`, storageError);
+          }
+        }
+      }
+
+      return frames;
     } catch (error: any) {
       // Only log if not a geo-restriction error (403/451)
       const statusCode = error?.status || error?.statusCode || 0;

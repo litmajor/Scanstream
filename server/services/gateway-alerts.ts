@@ -141,6 +141,13 @@ class GatewayAlertSystem extends EventEmitter {
   }
 
   /**
+   * Public API to add a custom alert programmatically
+   */
+  public addAlert(params: Omit<Alert, 'id' | 'timestamp' | 'acknowledged'>): void {
+    this.createAlert(params);
+  }
+
+  /**
    * Get all alerts
    */
   getAlerts(filter?: { acknowledged?: boolean; severity?: string }): Alert[] {

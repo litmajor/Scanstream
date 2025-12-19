@@ -49,6 +49,9 @@ interface TrendingCoin {
   score: number;
   price_btc: number;
   market_cap_rank: number;
+  // Optional fields from CoinGecko trending API
+  price_usd?: number;
+  change_24h_percent?: number;
 }
 
 interface Signal {
@@ -64,7 +67,7 @@ interface Signal {
   momentum?: number;
 }
 
-export default function MarketIntelligence() {
+function MarketIntelligence() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('BTC/USDT');
   const [selectedTab, setSelectedTab] = useState('overview');
@@ -73,70 +76,123 @@ export default function MarketIntelligence() {
   const { data: marketOverview } = useQuery({
     queryKey: ['market-overview-complete'],
     queryFn: async () => {
-      const response = await fetch('/api/analytics/market-overview');
-      if (!response.ok) throw new Error('Failed to fetch market overview');
-      return response.json();
+      try {
+        const response = await fetch('/api/analytics/market-overview');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Market overview fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 300000, // 5 minutes
+    staleTime: 300000, // 5 minutes
+    refetchInterval: 0, // No auto-refetch
   });
 
   // Fetch trending coins
   const { data: trendingData } = useQuery({
     queryKey: ['trending-coins'],
     queryFn: async () => {
-      const response = await fetch('/api/coingecko/trending');
-      if (!response.ok) throw new Error('Failed to fetch trending');
-      return response.json();
+      try {
+        const response = await fetch('/api/coingecko/trending');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Trending coins fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 600000, // 10 minutes
+    staleTime: 600000, // 10 minutes
+    refetchInterval: 0, // No auto-refetch
   });
 
   // Fetch global metrics
   const { data: globalData } = useQuery({
     queryKey: ['global-metrics'],
     queryFn: async () => {
-      const response = await fetch('/api/coingecko/global');
-      if (!response.ok) throw new Error('Failed to fetch global metrics');
-      return response.json();
+      try {
+        const response = await fetch('/api/coingecko/global');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Global metrics fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 300000,
+    staleTime: 300000,
+    refetchInterval: 0, // No auto-refetch
   });
 
   // Fetch market regime analysis
   const { data: regimeData } = useQuery({
     queryKey: ['market-regime'],
     queryFn: async () => {
-      const response = await fetch('/api/coingecko/regime');
-      if (!response.ok) throw new Error('Failed to fetch regime');
-      return response.json();
+      try {
+        const response = await fetch('/api/coingecko/regime');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Market regime fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 300000,
+    staleTime: 300000,
+    refetchInterval: 0, // No auto-refetch
   });
 
-  // Fetch fear & greed index
-  const { data: fearGreedData } = useQuery({
-    queryKey: ['fear-greed'],
+  // Fetch official Fear & Greed (Alternative.me)
+  const { data: officialFearGreed } = useQuery({
+    queryKey: ['fear-greed-official'],
     queryFn: async () => {
-      const response = await fetch('/api/coingecko/fear-greed');
-      if (!response.ok) throw new Error('Failed to fetch fear & greed');
-      return response.json();
+      try {
+        const response = await fetch('/api/coingecko/alternative-fear-greed');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Official Fear & Greed fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 60000, // 1 minute
+    staleTime: 60000, // 1 minute
+    refetchInterval: 0, // No auto-refetch
+  });
+
+  // Fetch custom CoinGecko-derived Fear & Greed (kept for comparison)
+  const { data: customFearGreed } = useQuery({
+    queryKey: ['fear-greed-custom'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/coingecko/fear-greed');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Custom Fear & Greed fetch failed:', error);
+        return null;
+      }
+    },
+    staleTime: 60000, // 1 minute
+    refetchInterval: 0, // No auto-refetch
   });
 
   // Fetch scanner signals
   const { data: signals } = useQuery<{ signals: Signal[] }>({
     queryKey: ['scanner-signals'],
     queryFn: async () => {
-      const response = await fetch('/api/scanner/signals');
-      if (!response.ok) throw new Error('Failed to fetch signals');
-      return response.json();
+      try {
+        const response = await fetch('/api/scanner/signals');
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        console.debug('[Market Intelligence] Scanner signals fetch failed:', error);
+        return null;
+      }
     },
-    refetchInterval: 60000,
+    staleTime: 60000, // Signals: fresh for 60 seconds
+    refetchInterval: 0, // No auto-refetch
   });
 
   const filteredSignals = signals?.signals?.filter(s =>
-    s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.symbol || '').toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   const global: GlobalMetrics | undefined = globalData?.data;
@@ -162,13 +218,17 @@ export default function MarketIntelligence() {
               Complete market analysis powered by CoinGecko & custom analytics
             </p>
           </div>
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             <MarketRegimeBadge />
-            {fearGreedData?.success && (
+            {officialFearGreed?.success ? (
               <Badge variant="outline" className="text-sm">
-                Fear & Greed: {fearGreedData.index}
+                Fear & Greed: {officialFearGreed.index} ({officialFearGreed.classification})
               </Badge>
-            )}
+            ) : customFearGreed?.success ? (
+              <Badge variant="outline" className="text-sm">
+                Fear & Greed (custom): {customFearGreed.index}
+              </Badge>
+            ) : null}
           </div>
         </div>
 
@@ -193,55 +253,65 @@ export default function MarketIntelligence() {
 
               {/* Sentiment & Regime */}
               <div className="lg:col-span-2 space-y-4">
-                {/* Fear & Greed Detailed */}
-                {fearGreedData?.success && (
+                {/* Official Fear & Greed (Alternative.me) */}
+                {officialFearGreed?.success && (
                   <Card className="bg-slate-800/40 border-slate-700/50 backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2 text-white">
                         <Activity className="w-5 h-5 text-blue-400" />
-                        Fear & Greed Index
+                        Fear & Greed (Official)
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-3xl font-bold">{fearGreedData.index}</span>
+                          <span className="text-3xl font-bold">{officialFearGreed.index}</span>
                           <Badge className={
-                            fearGreedData.index >= 75 ? "bg-green-500" :
-                            fearGreedData.index >= 60 ? "bg-green-400" :
-                            fearGreedData.index >= 45 ? "bg-yellow-400" :
-                            fearGreedData.index >= 30 ? "bg-orange-400" : "bg-red-400"
+                            officialFearGreed.index >= 75 ? "bg-green-500" :
+                            officialFearGreed.index >= 60 ? "bg-green-400" :
+                            officialFearGreed.index >= 45 ? "bg-yellow-400" :
+                            officialFearGreed.index >= 30 ? "bg-orange-400" : "bg-red-400"
                           }>
-                            {fearGreedData.sentiment}
+                            {officialFearGreed.classification}
                           </Badge>
                         </div>
-                        <Progress value={fearGreedData.index} className="h-2" />
-                        
-                        {fearGreedData.components && (
-                          <div className="grid grid-cols-2 gap-2 text-xs mt-4">
+                        <Progress value={officialFearGreed.index} className="h-2" />
+                        <div className="text-xs text-slate-400">Source: Alternative.me — updated at {officialFearGreed.timestamp ? new Date(officialFearGreed.timestamp).toLocaleString() : 'N/A'}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Custom CoinGecko-derived Fear & Greed (for internal comparison) */}
+                {customFearGreed?.success && (
+                  <Card className="bg-slate-800/30 border-slate-700/40 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-sm text-slate-300">Custom Fear & Greed (CoinGecko-derived)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold">{customFearGreed.index}</span>
+                          <Badge className={
+                            customFearGreed.index >= 75 ? "bg-green-500" :
+                            customFearGreed.index >= 60 ? "bg-green-400" :
+                            customFearGreed.index >= 45 ? "bg-yellow-400" :
+                            customFearGreed.index >= 30 ? "bg-orange-400" : "bg-red-400"
+                          }>
+                            {customFearGreed.sentiment}
+                          </Badge>
+                        </div>
+                        <Progress value={customFearGreed.index} className="h-2" />
+                        {customFearGreed.components && (
+                          <div className="grid grid-cols-2 gap-2 text-xs mt-3">
                             <div className="space-y-1">
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Market Cap</span>
-                                <span className="text-white">{fearGreedData.components.marketCapChange}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Volume</span>
-                                <span className="text-white">{fearGreedData.components.volume}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">BTC Dominance</span>
-                                <span className="text-white">{fearGreedData.components.bitcoinDominance}</span>
-                              </div>
+                              <div className="flex justify-between"><span className="text-slate-400">Market Cap</span><span className="text-white">{customFearGreed.components.marketCapChange}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-400">Volume</span><span className="text-white">{customFearGreed.components.volume}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-400">BTC Dominance</span><span className="text-white">{customFearGreed.components.bitcoinDominance}</span></div>
                             </div>
                             <div className="space-y-1">
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Momentum</span>
-                                <span className="text-white">{fearGreedData.components.momentum}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Volatility</span>
-                                <span className="text-white">{fearGreedData.components.volatility}</span>
-                              </div>
+                              <div className="flex justify-between"><span className="text-slate-400">Momentum</span><span className="text-white">{customFearGreed.components.momentum}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-400">Volatility</span><span className="text-white">{customFearGreed.components.volatility}</span></div>
                             </div>
                           </div>
                         )}
@@ -295,8 +365,8 @@ export default function MarketIntelligence() {
                     <CardTitle className="text-sm text-slate-400">Trend Strength</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{regime.trend_strength.toFixed(1)}</div>
-                    <Progress value={regime.trend_strength * 10} className="h-1 mt-2" />
+                    <div className="text-2xl font-bold">{regime.trend_strength != null ? regime.trend_strength.toFixed(1) : 'N/A'}</div>
+                    <Progress value={regime.trend_strength != null ? regime.trend_strength * 10 : 0} className="h-1 mt-2" />
                   </CardContent>
                 </Card>
 
@@ -307,7 +377,7 @@ export default function MarketIntelligence() {
                   <CardContent>
                     <div className="text-2xl font-bold capitalize">{regime.volatility}</div>
                     <div className="text-xs text-slate-400 mt-1">
-                      ATR: {regime.atr_pct.toFixed(2)}%
+                      ATR: {regime.atr_pct != null ? regime.atr_pct.toFixed(2) + '%' : 'N/A'}
                     </div>
                   </CardContent>
                 </Card>
@@ -355,14 +425,14 @@ export default function MarketIntelligence() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-sm text-slate-400">20-Day Return</div>
-                      <div className={`text-2xl font-bold ${regime.returns['20d'] >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {regime.returns['20d'] > 0 ? '+' : ''}{regime.returns['20d'].toFixed(2)}%
+                      <div className={`text-2xl font-bold ${regime.returns['20d'] != null ? (regime.returns['20d'] >= 0 ? 'text-green-400' : 'text-red-400') : 'text-slate-400'}`}>
+                        {regime.returns['20d'] != null ? (regime.returns['20d'] > 0 ? '+' : '') + regime.returns['20d'].toFixed(2) + '%' : 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-sm text-slate-400">50-Day Return</div>
-                      <div className={`text-2xl font-bold ${regime.returns['50d'] >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {regime.returns['50d'] > 0 ? '+' : ''}{regime.returns['50d'].toFixed(2)}%
+                      <div className={`text-2xl font-bold ${regime.returns['50d'] != null ? (regime.returns['50d'] >= 0 ? 'text-green-400' : 'text-red-400') : 'text-slate-400'}`}>
+                        {regime.returns['50d'] != null ? (regime.returns['50d'] > 0 ? '+' : '') + regime.returns['50d'].toFixed(2) + '%' : 'N/A'}
                       </div>
                     </div>
                   </div>
@@ -417,7 +487,7 @@ export default function MarketIntelligence() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <div className="font-bold text-lg text-white">{coin.symbol.toUpperCase()}</div>
+                        <div className="font-bold text-lg text-white">{(coin.symbol || '').toUpperCase()}</div>
                         <div className="text-sm text-slate-400">{coin.name}</div>
                       </div>
                       <Badge variant="outline" className="text-yellow-400 border-yellow-400">
@@ -434,9 +504,23 @@ export default function MarketIntelligence() {
                         <span className="text-white">{coin.score}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Price (BTC)</span>
-                        <span className="text-white">{coin.price_btc.toFixed(8)}</span>
+                        <span className="text-slate-400">Price (USD)</span>
+                        <span className="text-white font-semibold">
+                          {coin.price_usd != null && coin.price_usd > 0 ? `$${coin.price_usd.toLocaleString(undefined, { maximumFractionDigits: coin.price_usd < 0.01 ? 8 : 2 })}` : 'N/A'}
+                        </span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Price (BTC)</span>
+                        <span className="text-white text-xs">{coin.price_btc != null ? coin.price_btc.toFixed(8) : 'N/A'}</span>
+                      </div>
+                      {coin.change_24h_percent != null && (
+                        <div className="flex justify-between pt-1 border-t border-slate-700">
+                          <span className="text-slate-400">24h Change</span>
+                          <span className={coin.change_24h_percent >= 0 ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+                            {coin.change_24h_percent >= 0 ? '+' : ''}{coin.change_24h_percent.toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -514,8 +598,8 @@ export default function MarketIntelligence() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{global.btcDominance.toFixed(1)}%</div>
-                      <Progress value={global.btcDominance} className="h-1 mt-2" />
+                      <div className="text-2xl font-bold">{global && global.btcDominance != null ? global.btcDominance.toFixed(1) : 'N/A'}%</div>
+                      <Progress value={global?.btcDominance || 0} className="h-1 mt-2" />
                     </CardContent>
                   </Card>
 
@@ -527,8 +611,8 @@ export default function MarketIntelligence() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{global.ethDominance?.toFixed(1) || 'N/A'}%</div>
-                      {global.ethDominance && <Progress value={global.ethDominance} className="h-1 mt-2" />}
+                      <div className="text-2xl font-bold">{global && global.ethDominance != null ? global.ethDominance.toFixed(1) : 'N/A'}%</div>
+                      {global?.ethDominance && <Progress value={global.ethDominance} className="h-1 mt-2" />}
                     </CardContent>
                   </Card>
                 </div>
@@ -542,11 +626,11 @@ export default function MarketIntelligence() {
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400">Active Cryptocurrencies</span>
-                          <span className="text-white font-semibold">{global.activeCryptocurrencies.toLocaleString()}</span>
+                          <span className="text-white font-semibold">{global && global.activeCryptocurrencies != null ? global.activeCryptocurrencies.toLocaleString() : 'N/A'}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400">Total Markets</span>
-                          <span className="text-white font-semibold">{global.markets.toLocaleString()}</span>
+                          <span className="text-white font-semibold">{global && global.markets != null ? global.markets.toLocaleString() : 'N/A'}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400">Alt Season Index</span>
@@ -608,5 +692,16 @@ export default function MarketIntelligence() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrap the page with an ErrorBoundary so render failures don't crash the whole app
+import ErrorBoundary from '@/components/ErrorBoundary';
+
+export default function MarketIntelligencePage() {
+  return (
+    <ErrorBoundary fallback={<div className="p-6 bg-red-900 text-white rounded">Market intelligence failed to load.</div>}>
+      <MarketIntelligence />
+    </ErrorBoundary>
   );
 }

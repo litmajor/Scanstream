@@ -27,8 +27,19 @@ interface GatewayHealth {
 export default function GatewayHealthPanel() {
   const { data: health, isLoading } = useQuery<GatewayHealth>({
     queryKey: ['/api/gateway/health'],
-    queryFn: () => fetch('/api/gateway/health').then(res => res.json()),
-    refetchInterval: 5000,
+    queryFn: async () => {
+      try {
+        const res = await fetch('/api/gateway/health');
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (err) {
+        return null;
+      }
+    },
+    staleTime: 10000, // Data stays fresh for 10 seconds
+    refetchInterval: 0, // Disable auto-refetch
+    refetchOnWindowFocus: true, // Only refetch when user returns to tab
+    refetchOnMount: true, // Refetch when component mounts
   });
 
   if (isLoading || !health?.success) {

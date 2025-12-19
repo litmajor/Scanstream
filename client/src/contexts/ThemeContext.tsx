@@ -208,11 +208,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Set data attribute for theme-based styling
     root.setAttribute('data-theme', preset);
     
-    // Also update body class for Tailwind dark mode
+    // Also update root class for Tailwind dark mode (use html element)
     if (preset === 'dark' || preset === 'oled') {
-      document.body.classList.add('dark');
+      root.classList.add('dark');
     } else {
-      document.body.classList.remove('dark');
+      root.classList.remove('dark');
     }
 
     console.log(`[Theme] Theme applied successfully. Colors:`, colors);
@@ -240,6 +240,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.body.style.backgroundColor = colors.background;
     document.body.style.color = colors.text;
     root.setAttribute('data-theme', preset);
+    // Ensure dark class matches initial preset
+    if (preset === 'dark' || preset === 'oled') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
 

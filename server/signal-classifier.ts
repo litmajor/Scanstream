@@ -1,6 +1,7 @@
 
 import { useMemo, useRef } from 'react';
 import axios from 'axios';
+import { ARMEvaluator, MomentumSignalContext, RegimeContext } from './arm-evaluator';
 
 // User-supplied mappings for i18n
 export type LegacyLabelMap = { [k in LegacyLabel]?: LegacyLabel };
@@ -89,6 +90,12 @@ export interface SignalClassifierConfig {
   volatility?: VolatilityProxies;
   hysteresis?: number; // Controls micro-state smoothing
   legacyLabelMap?: LegacyLabelMap; // For i18n
+  enableARMIntegration?: boolean; // Enable Adaptive Regime Matcher
+  armConfig?: {
+    regimeWeighting?: Record<string, number>;
+    volatilityAdjustment?: number;
+    trendInfluence?: number;
+  };
 }
 
 // Helper to freeze thresholds for type safety
@@ -123,6 +130,7 @@ export class SignalClassifier {
     additionalIndicators: AdditionalIndicators = {},
     previousLabel?: SignalStrengthLabel,
     timestamp?: bigint | number,
+    externalRegime?: RegimeContext,
   ): SignalStrengthLabel {
     return new SignalClassifier().classifyMomentumSignal(
       momentumShort,
@@ -133,6 +141,7 @@ export class SignalClassifier {
       additionalIndicators,
       previousLabel,
       timestamp,
+      externalRegime,
     );
   }
 
@@ -239,7 +248,7 @@ export class SignalClassifier {
   }
 
   /**
-   * Classifies the main trading signal with hysteresis and memoization
+   * Classifies the main trading signal with ARM integration, hysteresis and memoization
    * @param momentumShort - Short-term momentum
    * @param momentumLong - Long-term momentum
    * @param rsi - Relative Strength Index
@@ -259,6 +268,7 @@ export class SignalClassifier {
     additionalIndicators: AdditionalIndicators = {},
     previousLabel?: SignalStrengthLabel,
     timestamp?: bigint | number,
+    externalRegime?: RegimeContext,
   ): SignalStrengthLabel {
     const key = `${timestamp ?? ''}|${momentumShort}|${momentumLong}|${rsi}|${macd}|${JSON.stringify(additionalIndicators)}`;
     if (this.signalMemoCache.has(key)) {
@@ -307,6 +317,57 @@ export class SignalClassifier {
       label = 'Weak Sell';
     }
 
+    // ARM Integration: Apply regime-aware adjustments
+    if (config.enableARMIntegration) {
+      // Use externally provided regimeContext when available (from RegimeService)
+      let regimeContext: RegimeContext;
+      if (externalRegime) {
+        regimeContext = externalRegime;
+      } else {
+        const regimeConfidence = ARMEvaluator.calculateRegimeConfidence(momentumShort, momentumLong, rsi);
+        const trendStrength = ARMEvaluator.evaluateTrendStrength(momentumLong, macd, rsi);
+        const volatility = ARMEvaluator.evaluateVolatility(momentumShort, rsi, additionalIndicators);
+        // Determine regime state based on momentum and RSI
+        const regimeState = this.inferRegimeFromMomentum(momentumLong, rsi, macd);
+
+        regimeContext = {
+          regime: regimeState,
+          volatility,
+          trendStrength,
+          regimeConfidence,
+        };
+      }
+
+      const signalContext: MomentumSignalContext = {
+        momentumShort,
+        momentumLong,
+        rsi,
+        macd,
+        regimeContext,
+        additionalIndicators,
+      };
+
+      // Apply ARM evaluation
+      const armConfig = {
+        enableAdaptiveThresholds: true,
+        regimeWeighting: config.armConfig?.regimeWeighting || {
+          'BULL_EARLY': 1.1,
+          'BULL_STRONG': 1.3,
+          'BULL_PARABOLIC': 1.2,
+          'BEAR_EARLY': 0.9,
+          'BEAR_STRONG': 0.7,
+          'BEAR_CAPITULATION': 0.8,
+          'NEUTRAL_ACCUM': 1.0,
+          'NEUTRAL_DIST': 1.0,
+          'NEUTRAL': 1.0,
+        },
+        volatilityAdjustment: config.armConfig?.volatilityAdjustment ?? 0.5,
+        trendInfluence: config.armConfig?.trendInfluence ?? 0.3,
+      };
+
+      label = ARMEvaluator.evaluateMomentumWithRegime(signalContext, label, armConfig);
+    }
+
     // Hysteresis smoothing
     if (previousLabel && config.hysteresis !== undefined && previousLabel !== label) {
       const labelOrder: SignalStrengthLabel[] = [
@@ -327,6 +388,35 @@ export class SignalClassifier {
 
     this.signalMemoCache.set(key, label);
     return label;
+  }
+
+  /**
+   * Infers regime state from momentum and price action indicators
+   * Maps momentum signals to regime states for ARM
+   */
+  private inferRegimeFromMomentum(momentumLong: number, rsi: number, macd: number): RegimeState {
+    const isBullish = momentumLong > 0 && rsi > 50 && macd > 0;
+    const isBearish = momentumLong < 0 && rsi < 50 && macd < 0;
+    const isMildBullish = momentumLong > 0 && rsi > 45;
+    const isMildBearish = momentumLong < 0 && rsi < 55;
+    const isAccumulation = rsi < 35 && momentumLong >= 0;
+    const isDistribution = rsi > 65 && momentumLong <= 0;
+    
+    // Strong regimes
+    if (Math.abs(momentumLong) > 0.05) {
+      if (isBullish) return 'BULL_STRONG';
+      if (isBearish) return 'BEAR_STRONG';
+    }
+    
+    // Mild regimes
+    if (isMildBullish && momentumLong > 0.01) return 'BULL_EARLY';
+    if (isMildBearish && momentumLong < -0.01) return 'BEAR_EARLY';
+    
+    // Neutral phases
+    if (isAccumulation) return 'NEUTRAL_ACCUM';
+    if (isDistribution) return 'NEUTRAL_DIST';
+    
+    return 'NEUTRAL';
   }
 
   /**

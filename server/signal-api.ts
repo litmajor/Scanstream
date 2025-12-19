@@ -25,10 +25,10 @@ app.post('/api/signal-config/reload', (req, res) => {
 // Endpoint to classify momentum signal
 console.log('Registering POST /api/classify/momentum');
 app.post('/api/classify/momentum', (req, res) => {
-  const { momentumShort, momentumLong, rsi, macd, additionalIndicators } = req.body;
+  const { momentumShort, momentumLong, rsi, macd, additionalIndicators, externalRegime } = req.body;
   try {
     const label = SignalClassifier.classifyMomentumSignal(
-      momentumShort, momentumLong, rsi, macd, config, additionalIndicators || {}
+      momentumShort, momentumLong, rsi, macd, config, additionalIndicators || {}, undefined, undefined, externalRegime
     );
     res.json({ label });
   } catch (err: unknown) {

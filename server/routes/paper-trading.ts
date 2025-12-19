@@ -18,17 +18,19 @@ router.post('/execute', async (req, res) => {
       });
     }
 
-    // Create trade record
+    // Create trade record. store stopLoss/takeProfit in `raw` metadata to avoid schema mismatch
+    const rawMeta: any = {};
+    if (stopLoss !== undefined) rawMeta.stopLoss = stopLoss;
+    if (takeProfit !== undefined) rawMeta.takeProfit = takeProfit;
     const trade = await storage.createTrade({
       symbol,
       side,
       entryPrice: price,
       quantity,
-      stopLoss: stopLoss || (side === 'BUY' ? price * 0.98 : price * 1.02),
-      takeProfit: takeProfit || (side === 'BUY' ? price * 1.05 : price * 0.95),
       status: 'OPEN',
       entryTime: new Date(),
-    });
+      raw: rawMeta,
+    } as any);
 
     console.log(`[Paper Trading] Executed ${side} ${quantity} ${symbol} @ $${price}`);
 
@@ -46,9 +48,18 @@ router.post('/execute', async (req, res) => {
 // GET /api/paper-trading/positions - Get all open positions
 router.get('/positions', async (req: Request, res: Response) => {
   try {
-    const positions = await db.query.paperTradingPositions.findMany({
-      orderBy: (positions, { desc }) => [desc(positions.openedAt)]
-    });
+    // Use storage layer to retrieve open trades as positions
+    const openTrades = await storage.getTrades('OPEN');
+    const positions = openTrades.map((t) => ({
+      id: t.id,
+      symbol: t.symbol,
+      side: t.side,
+      quantity: t.quantity,
+      entryPrice: t.entryPrice,
+      openedAt: (t as any).entryTime ?? null,
+      status: t.status,
+      raw: (t as any).raw ?? {},
+    }));
 
     res.json({ positions });
   } catch (error) {

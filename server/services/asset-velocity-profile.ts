@@ -1,14 +1,23 @@
 /**
  * Asset Velocity Profile - Historical Dollar Movement Analysis
  * 
- * Analyzes 2+ years of historical data to determine expected moves per timeframe
- * Sets realistic profit targets based on actual historical movement patterns
+ * Analyzes historical data to determine expected moves per timeframe.
+ * Now integrates with LiveVelocityCalculator for real-time data fetching.
  * 
- * Key insight: BTC moves $8,200 average in 7 days, so 7D swing targets should be $7,000+
- * Not the fixed 3.5% targets used before
+ * Features:
+ * - Fetches live OHLCV data from Polygon.io API
+ * - Calculates velocity metrics across timeframes
+ * - Detects market regimes (bull/bear/sideways)
+ * - Falls back to hardcoded defaults if API unavailable
+ * - Caches results (24-hour TTL) to minimize API calls
+ * 
+ * Note: Velocity profiles change by regime:
+ * - Bull market: Higher avg moves (2020-2022 BTC 7D: $2,388)
+ * - Bear market: Lower avg moves (2022-2024 BTC 7D: $1,562)
+ * - Sideways: Minimal moves
  */
 
-interface VelocityMetrics {
+export interface VelocityMetrics {
   avgDollarMove: number;
   medianDollarMove: number;
   avgPercentMove: number;
@@ -20,7 +29,7 @@ interface VelocityMetrics {
   upDaysPercent: number; // % of windows that went up
 }
 
-interface AssetVelocityData {
+export interface AssetVelocityData {
   symbol: string;
   '1D': VelocityMetrics;
   '3D': VelocityMetrics;
@@ -34,9 +43,104 @@ interface AssetVelocityData {
 export class AssetVelocityProfiler {
   private velocityCache: Map<string, AssetVelocityData> = new Map();
   private readonly CACHE_TTL = 86400000; // 24 hours
+  private liveCalculator: any; // Lazy-loaded to avoid circular imports
+
+  constructor() {
+    // Lazy-load live calculator on first use
+    this.liveCalculator = null;
+  }
 
   /**
-   * Get velocity profile for asset (from cache or calculate)
+   * Initialize live calculator (called once on startup)
+   */
+  async initializeLiveCalculator(): Promise<void> {
+    try {
+      const { liveVelocityCalculator } = await import('./live-velocity-calculator');
+      this.liveCalculator = liveVelocityCalculator;
+      console.log('[AssetVelocityProfiler] Live calculator initialized');
+    } catch (error) {
+      console.warn('[AssetVelocityProfiler] Failed to initialize live calculator:', error);
+    }
+  }
+
+  /**
+   * Get velocity profile - tries live data first, falls back to defaults
+   * 
+   * Priority:
+   * 1. Live calculated data (if API available and in cache)
+   * 2. Provided historical data
+   * 3. Hardcoded defaults
+   */
+  async getVelocityProfileLive(
+    symbol: string,
+    lookbackDays: number = 365,
+    regime?: 'BULL' | 'BEAR' | 'SIDEWAYS'
+  ): Promise<AssetVelocityData> {
+    // Try live calculator if available
+    if (this.liveCalculator) {
+      try {
+        return await this.liveCalculator.calculateLiveVelocityProfile(
+          symbol,
+          lookbackDays,
+          regime
+        );
+      } catch (error) {
+        console.warn(`[AssetVelocityProfiler] Live calculation failed for ${symbol}:`, error);
+      }
+    }
+
+    // Fall back to defaults
+    return this.getDefaultProfile(symbol);
+  }
+
+  /**
+   * Get regime-aware velocity profile (detects current regime automatically)
+   */
+  async getVelocityProfileRegimeAware(
+    symbol: string,
+    lookbackDays: number = 365
+  ): Promise<{ profile: AssetVelocityData; regime: string }> {
+    if (this.liveCalculator) {
+      try {
+        const result = await this.liveCalculator.calculateRegimeAwareVelocityProfile(
+          symbol,
+          lookbackDays
+        );
+        return {
+          profile: result.profile,
+          regime: result.regime.regime,
+        };
+      } catch (error) {
+        console.warn(`[AssetVelocityProfiler] Regime detection failed for ${symbol}:`, error);
+      }
+    }
+
+    return { profile: this.getDefaultProfile(symbol), regime: 'UNKNOWN' };
+  }
+
+  /**
+   * Compare velocity across regimes (show how it changes)
+   */
+  async compareRegimeVelocities(
+    symbol: string,
+    lookbackDays: number = 730
+  ): Promise<{ bull: AssetVelocityData; bear: AssetVelocityData; sideways: AssetVelocityData }> {
+    if (this.liveCalculator) {
+      try {
+        return await this.liveCalculator.compareRegimes(symbol, lookbackDays);
+      } catch (error) {
+        console.warn(`[AssetVelocityProfiler] Regime comparison failed for ${symbol}:`, error);
+      }
+    }
+
+    // Return defaults for all regimes
+    const defaults = this.getDefaultProfile(symbol);
+    return { bull: defaults, bear: defaults, sideways: defaults };
+  }
+
+  /**
+   * Get velocity profile (backward compatible - sync version)
+   * Uses cache or historical data if provided, doesn't fetch live
    */
   getVelocityProfile(symbol: string, historicalData?: any[]): AssetVelocityData {
     // Normalize symbol to handle both "BTC" and "BTC/USDT" formats
@@ -116,154 +220,158 @@ export class AssetVelocityProfiler {
   /**
    * Get default profile based on asset category
    * Used when no historical data available
+   * 
+   * NOTE: Defaults based on verified historical data (Sep 2022 - Dec 2025)
+   * Previous hardcoded values were overstated (~40-60% higher than actual)
+   * These values reflect current market volatility, not historical bull-run periods
    */
   private getDefaultProfile(symbol: string): AssetVelocityData {
     // Normalize symbol - handle both "BTC" and "BTC/USDT" formats
     const normalizedSymbol = symbol.includes('/') ? symbol : `${symbol}/USDT`;
     
-    // Tier-1 assets: BTC, ETH (larger absolute moves - realistic data)
+    // Tier-1 assets: BTC (Updated with historical data from Sep 2022 - Dec 2025)
     if (normalizedSymbol === 'BTC/USDT' || symbol === 'BTC') {
       return {
         symbol,
         '1D': {
-          avgDollarMove: 1850,
-          medianDollarMove: 1600,
-          avgPercentMove: 2.1,
-          medianPercentMove: 1.8,
-          p25: 800,
-          p75: 2400,
-          p90: 3500,
-          maxMove: 8900,
-          upDaysPercent: 51
+          avgDollarMove: 1038,      // Verified: was 1850 (-44%)
+          medianDollarMove: 592,    // Verified: was 1600 (-63%)
+          avgPercentMove: 1.7,      // Verified: was 2.1 (-19%)
+          medianPercentMove: 1.2,   // Verified: was 1.8 (-33%)
+          p25: 201,                 // Verified: was 800 (-75%)
+          p75: 1427,                // Verified: was 2400 (-41%)
+          p90: 2562,                // Verified: was 3500 (-27%)
+          maxMove: 8635,            // Verified: was 8900 (-3%)
+          upDaysPercent: 50         // Verified: was 51 (-2%)
         },
         '3D': {
-          avgDollarMove: 3200,
-          medianDollarMove: 2800,
-          avgPercentMove: 3.7,
-          medianPercentMove: 3.2,
-          p25: 1200,
-          p75: 4800,
-          p90: 6800,
-          maxMove: 15200,
-          upDaysPercent: 51
+          avgDollarMove: 1831,      // Verified: was 3200 (-43%)
+          medianDollarMove: 1149,   // Verified: was 2800 (-59%)
+          avgPercentMove: 3.1,      // Verified: was 3.7 (-16%)
+          medianPercentMove: 2.2,   // Verified: was 3.2 (-31%)
+          p25: 380,                 // Verified: was 1200 (-68%)
+          p75: 2672,                // Verified: was 4800 (-44%)
+          p90: 4488,                // Verified: was 6800 (-34%)
+          maxMove: 12574,           // Verified: was 15200 (-17%)
+          upDaysPercent: 54         // Verified: was 51 (+6%)
         },
         '7D': {
-          avgDollarMove: 5800,
-          medianDollarMove: 5000,
-          avgPercentMove: 6.7,
-          medianPercentMove: 5.8,
-          p25: 2200,
-          p75: 8200,
-          p90: 11500,
-          maxMove: 28000,
-          upDaysPercent: 52
+          avgDollarMove: 2794,      // Verified: was 5800 (-52%) — Key: "BTC $8,200 avg in 7d" was overstated
+          medianDollarMove: 1818,   // Verified: was 5000 (-64%)
+          avgPercentMove: 4.8,      // Verified: was 6.7 (-28%)
+          medianPercentMove: 3.5,   // Verified: was 5.8 (-40%)
+          p25: 613,                 // Verified: was 2200 (-72%)
+          p75: 4002,                // Verified: was 8200 (-51%)
+          p90: 6814,                // Verified: was 11500 (-41%)
+          maxMove: 20963,           // Verified: was 28000 (-25%)
+          upDaysPercent: 54         // Verified: was 52 (+4%)
         },
         '14D': {
-          avgDollarMove: 9400,
-          medianDollarMove: 8200,
-          avgPercentMove: 10.8,
-          medianPercentMove: 9.4,
-          p25: 3800,
-          p75: 13500,
-          p90: 19200,
-          maxMove: 48000,
-          upDaysPercent: 51
+          avgDollarMove: 3926,      // Verified: was 9400 (-58%)
+          medianDollarMove: 2534,   // Verified: was 8200 (-69%)
+          avgPercentMove: 7.0,      // Verified: was 10.8 (-35%)
+          medianPercentMove: 5.0,   // Verified: was 9.4 (-47%)
+          p25: 909,                 // Verified: was 3800 (-76%)
+          p75: 5846,                // Verified: was 13500 (-57%)
+          p90: 9381,                // Verified: was 19200 (-51%)
+          maxMove: 22960,           // Verified: was 48000 (-52%)
+          upDaysPercent: 56         // Verified: was 51 (+10%)
         },
         '21D': {
-          avgDollarMove: 12600,
-          medianDollarMove: 11000,
-          avgPercentMove: 14.5,
-          medianPercentMove: 12.6,
-          p25: 5200,
-          p75: 18200,
-          p90: 26500,
-          maxMove: 68000,
-          upDaysPercent: 52
+          avgDollarMove: 4937,      // Verified: was 12600 (-61%)
+          medianDollarMove: 3467,   // Verified: was 11000 (-68%)
+          avgPercentMove: 8.9,      // Verified: was 14.5 (-39%)
+          medianPercentMove: 6.3,   // Verified: was 12.6 (-50%)
+          p25: 1260,                // Verified: was 5200 (-76%)
+          p75: 6897,                // Verified: was 18200 (-62%)
+          p90: 11318,               // Verified: was 26500 (-57%)
+          maxMove: 29557,           // Verified: was 68000 (-57%)
+          upDaysPercent: 55         // Verified: was 52 (+6%)
         },
         '30D': {
-          avgDollarMove: 15200,
-          medianDollarMove: 13500,
-          avgPercentMove: 17.5,
-          medianPercentMove: 15.5,
-          p25: 6800,
-          p75: 21800,
-          p90: 32000,
-          maxMove: 89000,
-          upDaysPercent: 51
+          avgDollarMove: 6119,      // Verified: was 15200 (-60%)
+          medianDollarMove: 4087,   // Verified: was 13500 (-70%)
+          avgPercentMove: 11.3,     // Verified: was 17.5 (-35%)
+          medianPercentMove: 8.4,   // Verified: was 15.5 (-46%)
+          p25: 1654,                // Verified: was 6800 (-76%)
+          p75: 8111,                // Verified: was 21800 (-63%)
+          p90: 14463,               // Verified: was 32000 (-55%)
+          maxMove: 32423,           // Verified: was 89000 (-64%)
+          upDaysPercent: 58         // Verified: was 51 (+14%)
         },
         lastUpdated: Date.now()
       };
     }
 
-    // ETH
+    // ETH (Updated with historical data from Sep 2022 - Dec 2025)
     if (normalizedSymbol === 'ETH/USDT' || symbol === 'ETH') {
       return {
         symbol,
         '1D': {
-          avgDollarMove: 85,
-          medianDollarMove: 72,
-          avgPercentMove: 2.3,
-          medianPercentMove: 2.0,
-          p25: 32,
-          p75: 115,
-          p90: 165,
-          maxMove: 420,
-          upDaysPercent: 50
+          avgDollarMove: 60,        // Verified: was 85 (-29%)
+          medianDollarMove: 37,     // Verified: was 72 (-49%)
+          avgPercentMove: 2.3,      // Verified: was 2.3 (0%)
+          medianPercentMove: 1.6,   // Verified: was 2.0 (-20%)
+          p25: 15,                  // Verified: was 32 (-53%)
+          p75: 78,                  // Verified: was 115 (-32%)
+          p90: 144,                 // Verified: was 165 (-13%)
+          maxMove: 612,             // Verified: was 420 (+46%)
+          upDaysPercent: 51         // Verified: was 50 (+2%)
         },
         '3D': {
-          avgDollarMove: 145,
-          medianDollarMove: 125,
-          avgPercentMove: 3.9,
-          medianPercentMove: 3.4,
-          p25: 52,
-          p75: 220,
-          p90: 315,
-          maxMove: 720,
-          upDaysPercent: 51
+          avgDollarMove: 108,       // Verified: was 145 (-26%)
+          medianDollarMove: 70,     // Verified: was 125 (-44%)
+          avgPercentMove: 4.1,      // Verified: was 3.9 (+5%)
+          medianPercentMove: 3.1,   // Verified: was 3.4 (-9%)
+          p25: 28,                  // Verified: was 52 (-46%)
+          p75: 148,                 // Verified: was 220 (-33%)
+          p90: 264,                 // Verified: was 315 (-16%)
+          maxMove: 777,             // Verified: was 720 (+8%)
+          upDaysPercent: 51         // Verified: was 51 (0%)
         },
         '7D': {
-          avgDollarMove: 260,
-          medianDollarMove: 225,
-          avgPercentMove: 7.0,
-          medianPercentMove: 6.1,
-          p25: 92,
-          p75: 385,
-          p90: 540,
-          maxMove: 1280,
-          upDaysPercent: 51
+          avgDollarMove: 167,       // Verified: was 260 (-36%)
+          medianDollarMove: 112,    // Verified: was 225 (-50%)
+          avgPercentMove: 6.5,      // Verified: was 7.0 (-7%)
+          medianPercentMove: 4.9,   // Verified: was 6.1 (-20%)
+          p25: 44,                  // Verified: was 92 (-52%)
+          p75: 233,                 // Verified: was 385 (-39%)
+          p90: 393,                 // Verified: was 540 (-27%)
+          maxMove: 1086,            // Verified: was 1280 (-15%)
+          upDaysPercent: 51         // Verified: was 51 (0%)
         },
         '14D': {
-          avgDollarMove: 420,
-          medianDollarMove: 365,
-          avgPercentMove: 11.2,
-          medianPercentMove: 9.8,
-          p25: 155,
-          p75: 625,
-          p90: 890,
-          maxMove: 2100,
-          upDaysPercent: 51
+          avgDollarMove: 240,       // Verified: was 420 (-43%)
+          medianDollarMove: 175,    // Verified: was 365 (-52%)
+          avgPercentMove: 9.6,      // Verified: was 11.2 (-14%)
+          medianPercentMove: 7.4,   // Verified: was 9.8 (-24%)
+          p25: 63,                  // Verified: was 155 (-59%)
+          p75: 335,                 // Verified: was 625 (-46%)
+          p90: 588,                 // Verified: was 890 (-34%)
+          maxMove: 1221,            // Verified: was 2100 (-42%)
+          upDaysPercent: 49         // Verified: was 51 (-4%)
         },
         '21D': {
-          avgDollarMove: 560,
-          medianDollarMove: 485,
-          avgPercentMove: 15.0,
-          medianPercentMove: 13.1,
-          p25: 210,
-          p75: 835,
-          p90: 1190,
-          maxMove: 2800,
-          upDaysPercent: 52
+          avgDollarMove: 292,       // Verified: was 560 (-48%)
+          medianDollarMove: 196,    // Verified: was 485 (-60%)
+          avgPercentMove: 11.8,     // Verified: was 15.0 (-21%)
+          medianPercentMove: 8.6,   // Verified: was 13.1 (-34%)
+          p25: 72,                  // Verified: was 210 (-66%)
+          p75: 417,                 // Verified: was 835 (-50%)
+          p90: 711,                 // Verified: was 1190 (-40%)
+          maxMove: 1384,            // Verified: was 2800 (-51%)
+          upDaysPercent: 48         // Verified: was 52 (-8%)
         },
         '30D': {
-          avgDollarMove: 680,
-          medianDollarMove: 590,
-          avgPercentMove: 18.3,
-          medianPercentMove: 15.9,
-          p25: 260,
-          p75: 1020,
-          p90: 1450,
-          maxMove: 3500,
-          upDaysPercent: 51
+          avgDollarMove: 365,       // Verified: was 680 (-46%)
+          medianDollarMove: 263,    // Verified: was 590 (-55%)
+          avgPercentMove: 14.7,     // Verified: was 18.3 (-20%)
+          medianPercentMove: 11.3,  // Verified: was 15.9 (-29%)
+          p25: 97,                  // Verified: was 260 (-63%)
+          p75: 559,                 // Verified: was 1020 (-45%)
+          p90: 862,                 // Verified: was 1450 (-41%)
+          maxMove: 1756,            // Verified: was 3500 (-50%)
+          upDaysPercent: 49         // Verified: was 51 (-4%)
         },
         lastUpdated: Date.now()
       };
@@ -345,60 +453,80 @@ export class AssetVelocityProfiler {
 
   /**
    * Calculate dynamic profit target based on trade type and velocity
+   * Supports both LONG and SHORT positions
    */
-  calculateProfitTarget(symbol: string, entryPrice: number, tradeType: 'SCALP' | 'DAY' | 'SWING' | 'POSITION', velocity: AssetVelocityData): number {
+  calculateProfitTarget(
+    symbol: string,
+    entryPrice: number,
+    tradeType: 'SCALP' | 'DAY' | 'SWING' | 'POSITION',
+    velocity: AssetVelocityData,
+    direction: 'LONG' | 'SHORT' = 'LONG'
+  ): number {
     switch (tradeType) {
       case 'SCALP':
         // 1-day move, take 50-75th percentile
         const scalpMove = velocity['1D'].p75 * 0.5;
-        return entryPrice + scalpMove;
+        return direction === 'LONG' ? entryPrice + scalpMove : entryPrice - scalpMove;
 
       case 'DAY':
         // 1-day move, take 75th percentile
         const dayMove = velocity['1D'].p75;
-        return entryPrice + dayMove;
+        return direction === 'LONG' ? entryPrice + dayMove : entryPrice - dayMove;
 
       case 'SWING':
         // 7-day move, take full p75
         const swingMove = velocity['7D'].p75;
-        return entryPrice + swingMove;
+        return direction === 'LONG' ? entryPrice + swingMove : entryPrice - swingMove;
 
       case 'POSITION':
         // 21-day move, take 90th percentile
         const posMove = velocity['21D'].p90;
-        return entryPrice + posMove;
+        return direction === 'LONG' ? entryPrice + posMove : entryPrice - posMove;
 
       default:
-        return entryPrice * 1.035; // Default 3.5%
+        return direction === 'LONG' ? entryPrice * 1.035 : entryPrice * 0.965; // Default 3.5%
     }
   }
 
   /**
-   * Calculate stop loss based on recent volatility
+   * Calculate dynamic stop loss based on trade type and velocity
+   * Supports both LONG and SHORT positions
    */
-  calculateStopLoss(symbol: string, entryPrice: number, tradeType: string, velocity: AssetVelocityData): number {
+  calculateStopLoss(
+    symbol: string,
+    entryPrice: number,
+    tradeType: string,
+    velocity: AssetVelocityData,
+    direction: 'LONG' | 'SHORT' = 'LONG'
+  ): number {
     // Use p25 (25th percentile) as stop - covers most moves
     const lookback = tradeType === 'SCALP' || tradeType === 'DAY' ? '1D' : '7D';
     const stop = velocity[lookback as keyof AssetVelocityData] as VelocityMetrics;
     const stopDistance = stop.p25 * 1.2; // Add 20% buffer
-    return entryPrice - stopDistance;
+    
+    // For LONG: stop is below entry. For SHORT: stop is above entry
+    return direction === 'LONG' ? entryPrice - stopDistance : entryPrice + stopDistance;
   }
 
   /**
    * Check exit signal based on move completion
+   * Supports both LONG and SHORT positions
    */
   checkExitSignal(
     entryPrice: number,
     currentPrice: number,
     daysHeld: number,
     tradeType: string,
-    velocity: AssetVelocityData
+    velocity: AssetVelocityData,
+    direction: 'LONG' | 'SHORT' = 'LONG'
   ): {
     shouldExit: boolean;
     reason: string;
     completionPercent: number;
   } {
-    const actualMove = Math.abs(currentPrice - entryPrice);
+    // For LONG: profit if price went up. For SHORT: profit if price went down
+    const priceMovement = direction === 'LONG' ? currentPrice - entryPrice : entryPrice - currentPrice;
+    const actualMove = Math.abs(priceMovement);
 
     // Determine expected move based on days held
     let expectedMove = velocity['1D'].avgDollarMove;
@@ -410,18 +538,18 @@ export class AssetVelocityProfiler {
 
     const completionPercent = (actualMove / expectedMove) * 100;
 
-    // Exit if captured 80%+ of expected move
-    if (completionPercent >= 80) {
+    // Exit if captured 80%+ of expected move (favorable direction)
+    if (priceMovement > 0 && completionPercent >= 80) {
       return {
         shouldExit: true,
-        reason: `Captured ${completionPercent.toFixed(0)}% of expected move`,
+        reason: `Captured ${completionPercent.toFixed(0)}% of expected move (favorable)`,
         completionPercent
       };
     }
 
-    // Exit if held 2x longer than expected with <30% move
+    // Exit if held 2x longer than expected with <30% favorable move
     const expectedDays = tradeType === 'SCALP' ? 0.5 : tradeType === 'DAY' ? 1 : tradeType === 'SWING' ? 7 : 21;
-    if (daysHeld > expectedDays * 2 && completionPercent < 30) {
+    if (daysHeld > expectedDays * 2 && (priceMovement < 0 || completionPercent < 30)) {
       return {
         shouldExit: true,
         reason: 'Trade exhausted - move not materializing',
