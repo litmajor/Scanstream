@@ -109,10 +109,10 @@ export class ConvexityBacktesterWithFoR {
     stopsAdjustedLate: 0,       // Bars 21+: 1.5% stops
   };
   
-  // Optimization Parameters
+  // Optimization Parameters - Asset-specific defaults
   public optimizationParams = {
-    scoutTargetMultiplier: 2.5,      // ATR multiplier for scout target [OPTIMIZED]
-    scoutStopMultiplier: 0.7,        // ATR multiplier for scout stop [OPTIMIZED]
+    scoutTargetMultiplier: 2.5,      // ATR multiplier for scout target [ETH OPTIMIZED]
+    scoutStopMultiplier: 0.7,        // ATR multiplier for scout stop [ETH OPTIMIZED]
     convexStopLossPercent: 0.02,    // 2% stop loss for convex
     convexMaxHoldingBars: 50,       // Max bars to hold convex position
     forConfidenceThreshold: 0.4,    // Min confidence for VFMD signal
@@ -121,6 +121,12 @@ export class ConvexityBacktesterWithFoR {
       agreementMinCoherence: 0.45,
       agreementMaxTI: 1.2,
       agreementMinPEG: 0.8,
+  };
+  
+  // Asset-specific parameter presets
+  private assetParams = {
+    'ETH/USDT': { scoutTargetMultiplier: 2.5, scoutStopMultiplier: 0.7 },
+    'BTC/USDT': { scoutTargetMultiplier: 2.0, scoutStopMultiplier: 0.7 },
   };
   
   private diagnostics = {
@@ -144,6 +150,18 @@ export class ConvexityBacktesterWithFoR {
     this.forCalculator = new FailureOfReversionCalculator();
     this.streakManager = new AntiLosingStreakManager();
     this.positionSizer = new AdaptivePositionSizer();
+  }
+
+  /**
+   * Apply asset-specific optimization parameters
+   */
+  applyAssetSpecificParams(symbol: string): void {
+    const params = this.assetParams[symbol as keyof typeof this.assetParams];
+    if (params) {
+      this.optimizationParams.scoutTargetMultiplier = params.scoutTargetMultiplier;
+      this.optimizationParams.scoutStopMultiplier = params.scoutStopMultiplier;
+      console.log(`[AssetParams] Applied ${symbol} defaults: target=${params.scoutTargetMultiplier}, stop=${params.scoutStopMultiplier}`);
+    }
   }
 
   /**
@@ -257,6 +275,9 @@ export class ConvexityBacktesterWithFoR {
    * Run backtest with real VFMD scouts + FoR triggers
    */
   run(config: BacktestConfig): BacktestResult {
+    // Apply asset-specific parameters
+    this.applyAssetSpecificParams(config.symbol);
+    
     // Load data
     const allCandles = this.loadMarketData(config.dataPath);
     const startBar = config.startBar ?? 0;
