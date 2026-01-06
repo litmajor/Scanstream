@@ -53,6 +53,9 @@ import sourceAnalyticsRouter from './routes/source-analytics';
 import auditLogsRoutes from "./routes/audit-logs";
 import modelDriftRoutes from "./routes/model-drift";
 
+// Import diagnostics routes
+import diagnosticsModeRouter from "./routes/diagnostics-mode";
+
 // Import Position Sizing API routes (Phase 2)
 import positionSizingRouter from './routes/position-sizing';
 
@@ -1607,6 +1610,10 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use("/api/correlation-boost", correlationBoostRouter);
   app.use("/api/audit-logs", auditLogsRoutes);
   app.use("/api/model-drift", modelDriftRoutes);
+  
+  // 🔄 Register mode diagnostics routes
+  app.use("/api/diagnostics", diagnosticsModeRouter);
+  
   // Mount RPG agents routes
   app.use('/api/rpg-agents', rpgAgents);
   // Mount feature engineering routes

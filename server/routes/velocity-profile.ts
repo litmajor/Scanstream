@@ -5,11 +5,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import VelocityProfile, { 
-  VelocityProfile as VelocityProfileType,
-  VelocityComparisonReport 
-} from '../services/velocity-profile';
-import { Trade, BacktestMetrics } from '../services/capability-measurement';
+import VelocityProfile from '../services/velocity-profile';
+import { BacktestMetrics } from '../services/capability-measurement';
+import { Trade } from '@shared/schema';
 
 const router = Router();
 const velocityService = new VelocityProfile();
@@ -29,32 +27,38 @@ function calculateMetricsFromTrades(trades: any[]): BacktestMetrics {
   if (trades.length === 0) {
     return {
       totalReturn: 0,
-      annualizedReturn: 0,
+      totalReturnPercent: 0,
       sharpeRatio: 0,
       maxDrawdown: 0,
       winRate: 0,
       profitFactor: 1,
-      totalTrades: 0
+      totalTrades: 0,
+      winningTrades: 0,
+      losingTrades: 0,
+      avgWin: 0,
+      avgLoss: 0,
+      avgWinPercent: 0,
+      avgLossPercent: 0
     };
   }
 
   // Calculate returns
-  const profits = trades.filter(t => t.profit > 0);
-  const losses = trades.filter(t => t.profit < 0);
+  const profits = trades.filter(t => (t.pnl || t.profit || 0) > 0);
+  const losses = trades.filter(t => (t.pnl || t.profit || 0) < 0);
   
-  const totalProfit = trades.reduce((sum, t) => sum + t.profit, 0);
+  const totalProfit = trades.reduce((sum, t) => sum + (t.pnl || t.profit || 0), 0);
   const totalReturn = (totalProfit / trades[0].entryPrice) * 100;
   
   // Win rate
   const winRate = profits.length / trades.length;
 
   // Profit factor
-  const totalWins = profits.reduce((sum, t) => sum + t.profit, 0);
-  const totalLosses = Math.abs(losses.reduce((sum, t) => sum + t.profit, 0));
+  const totalWins = profits.reduce((sum, t) => sum + (t.pnl || t.profit || 0), 0);
+  const totalLosses = Math.abs(losses.reduce((sum, t) => sum + (t.pnl || t.profit || 0), 0));
   const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 100 : 1;
 
   // Sharpe ratio approximation
-  const returns = trades.map(t => (t.profit / t.entryPrice) * 100);
+  const returns = trades.map(t => ((t.pnl || t.profit || 0) / t.entryPrice) * 100);
   const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
   const stdDev = Math.sqrt(variance);
@@ -66,7 +70,7 @@ function calculateMetricsFromTrades(trades: any[]): BacktestMetrics {
   let peak = 1;
   
   trades.forEach(trade => {
-    cumulativeReturn *= (1 + (trade.profit / trade.entryPrice));
+    cumulativeReturn *= (1 + ((trade.pnl || trade.profit || 0) / trade.entryPrice));
     if (cumulativeReturn > peak) peak = cumulativeReturn;
     const drawdown = (peak - cumulativeReturn) / peak;
     maxDrawdown = Math.max(maxDrawdown, drawdown);
@@ -74,12 +78,18 @@ function calculateMetricsFromTrades(trades: any[]): BacktestMetrics {
 
   return {
     totalReturn,
-    annualizedReturn: totalReturn * 1.2, // Simplified
+    totalReturnPercent: totalReturn,
     sharpeRatio: Math.max(0, sharpeRatio),
     maxDrawdown,
     winRate,
     profitFactor,
-    totalTrades: trades.length
+    totalTrades: trades.length,
+    winningTrades: profits.length,
+    losingTrades: losses.length,
+    avgWin: profits.length > 0 ? totalWins / profits.length : 0,
+    avgLoss: losses.length > 0 ? totalLosses / losses.length : 0,
+    avgWinPercent: profits.length > 0 ? (totalWins / profits.length / trades[0].entryPrice) * 100 : 0,
+    avgLossPercent: losses.length > 0 ? (totalLosses / losses.length / trades[0].entryPrice) * 100 : 0
   };
 }
 
@@ -102,17 +112,18 @@ router.post('/run', async (req: Request, res: Response) => {
 
     // Mock baseline trades
     const mockTrades: Trade[] = Array.from({ length: 150 }, (_, i) => ({
+      symbol,
       id: `trade-${i}`,
+      signalId: null,
+      side: Math.random() > 0.5 ? 'long' : 'short',
+      entryTime: new Date(Date.now() - i * 3600000),
+      exitTime: new Date(Date.now() - (i - 1) * 3600000),
       entryPrice: 45000 + (Math.random() - 0.5) * 5000,
       exitPrice: 45000 + (Math.random() - 0.5) * 5000,
       quantity: 0.1 + (Math.random() - 0.5) * 0.05,
-      profit: (Math.random() - 0.45) * 1000,
-      profitPercent: (Math.random() - 0.45) * 5,
-      entryTime: new Date(Date.now() - i * 3600000),
-      exitTime: new Date(Date.now() - (i - 1) * 3600000),
-      duration: 3600000,
-      side: Math.random() > 0.5 ? 'long' : 'short',
-      status: 'closed'
+      pnl: (Math.random() - 0.45) * 1000,
+      commission: 10,
+      status: 'CLOSED' as const
     }));
 
     // Calculate baseline metrics
@@ -176,17 +187,18 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
 
     // Mock baseline
     const mockTrades: Trade[] = Array.from({ length: 150 }, (_, i) => ({
+      symbol,
       id: `trade-${i}`,
+      signalId: null,
+      side: 'long',
+      entryTime: new Date(),
+      exitTime: new Date(),
       entryPrice: 45000 + (Math.random() - 0.5) * 5000,
       exitPrice: 45000 + (Math.random() - 0.5) * 5000,
       quantity: 0.1,
-      profit: (Math.random() - 0.45) * 1000,
-      profitPercent: (Math.random() - 0.45) * 5,
-      entryTime: new Date(),
-      exitTime: new Date(),
-      duration: 3600000,
-      side: 'long',
-      status: 'closed'
+      pnl: (Math.random() - 0.45) * 1000,
+      commission: 10,
+      status: 'CLOSED' as const
     }));
 
     const baselineMetrics = calculateMetricsFromTrades(mockTrades);
@@ -254,18 +266,18 @@ router.post('/analyze-velocity', async (req: Request, res: Response) => {
         averageVelocity: velocityProfile.avgVelocity,
         volatilityProfile: velocityProfile.volatilityProfile,
         velocityDistribution: {
-          low: velocityProfile.velocityScores.filter(v => v.convictionScore < 0.3).length,
-          medium: velocityProfile.velocityScores.filter(v => v.convictionScore >= 0.3 && v.convictionScore < 0.7).length,
-          high: velocityProfile.velocityScores.filter(v => v.convictionScore >= 0.7).length
+          low: velocityProfile.velocityScores.filter((v: any) => v.convictionScore < 0.3).length,
+          medium: velocityProfile.velocityScores.filter((v: any) => v.convictionScore >= 0.3 && v.convictionScore < 0.7).length,
+          high: velocityProfile.velocityScores.filter((v: any) => v.convictionScore >= 0.7).length
         },
         metrics: {
-          maxVelocity: Math.max(...velocityProfile.velocityScores.map(v => v.priceVelocity)),
-          minVelocity: Math.min(...velocityProfile.velocityScores.map(v => v.priceVelocity)),
+          maxVelocity: Math.max(...velocityProfile.velocityScores.map((v: any) => v.priceVelocity)),
+          minVelocity: Math.min(...velocityProfile.velocityScores.map((v: any) => v.priceVelocity)),
           avgPriceVelocity: 
-            velocityProfile.velocityScores.reduce((sum, v) => sum + v.priceVelocity, 0) / 
+            velocityProfile.velocityScores.reduce((sum: number, v: any) => sum + v.priceVelocity, 0) / 
             velocityProfile.velocityScores.length,
           avgVolumeVelocity:
-            velocityProfile.velocityScores.reduce((sum, v) => sum + v.volumeVelocity, 0) / 
+            velocityProfile.velocityScores.reduce((sum: number, v: any) => sum + v.volumeVelocity, 0) / 
             velocityProfile.velocityScores.length
         }
       }

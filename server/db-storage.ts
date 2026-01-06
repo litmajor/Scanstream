@@ -283,26 +283,25 @@ export class DbStorage implements IStorage {
       return this.getFallback().createMarketFrame(frame);
     }
     try {
-      // Ensure all JSON fields are valid objects for Prisma
+      // Ensure all required fields are present for Prisma
+      // frame may not have all fields from Drizzle schema, so we provide defaults
       const safeFrame = {
-        id: uuidv4(), // generate new unique id
-        ...frame,
-        price: frame.price ?? {},
-        indicators: frame.indicators ?? {},
-        orderFlow: frame.orderFlow ?? {},
-        marketMicrostructure: frame.marketMicrostructure ?? {},
+        symbol: frame.symbol,
+        timeframe: (frame as any).timeframe ?? 3600, // Default to 1h if not specified
+        open: (frame as any).open ?? null,
+        high: (frame as any).high ?? null,
+        low: (frame as any).low ?? null,
+        close: (frame as any).close ?? null,
+        volume: frame.volume ?? 0,
+        isFinal: (frame as any).isFinal ?? false,
+        price: (frame as any).price ?? {},
+        indicators: (frame as any).indicators ?? {},
+        orderFlow: (frame as any).orderFlow ?? {},
+        marketMicrostructure: (frame as any).marketMicrostructure ?? {},
       };
-      // Only update mutable fields (not id)
-      return await this.prisma.marketFrame.upsert({
-        where: { id: safeFrame.id },
-        update: {
-          price: safeFrame.price,
-          indicators: safeFrame.indicators,
-          orderFlow: safeFrame.orderFlow,
-          marketMicrostructure: safeFrame.marketMicrostructure,
-          // add other mutable fields here if needed
-        },
-        create: safeFrame,
+
+      return await this.prisma.marketFrame.create({
+        data: safeFrame,
       });
     } catch (error) {
       console.warn('[DbStorage] Write failed, using fallback:', (error as any).message);
@@ -358,14 +357,25 @@ export class DbStorage implements IStorage {
     try {
       // Ensure reasoning is a valid object for Prisma JSON field
       const safeSignal = {
-        ...signalData,
+        symbol: signalData.symbol,
+        type: signalData.type as "BUY" | "SELL" | "HOLD",
+        strength: signalData.strength,
+        confidence: signalData.confidence,
+        price: signalData.price,
         reasoning: signalData.reasoning ?? {},
+        riskReward: signalData.riskReward,
+        stopLoss: signalData.stopLoss,
+        takeProfit: signalData.takeProfit,
+        momentumLabel: (signalData as any).momentumLabel,
+        regimeState: (signalData as any).regimeState,
+        legacyLabel: (signalData as any).legacyLabel,
+        signalStrengthScore: (signalData as any).signalStrengthScore,
         classifications: signalData.classifications ?? [],
         patternDetails: signalData.patternDetails ?? [],
         timeframeAlignment: signalData.timeframeAlignment ?? 0,
         agreementScore: signalData.agreementScore ?? 50,
         positionSize: signalData.positionSize ?? null,
-        type: signalData.type as "BUY" | "SELL" | "HOLD",
+        entryPrice: (signalData as any).entryPrice ?? signalData.price ?? 0, // Use provided entryPrice, fallback to price, or default to 0
       };
       
       const result = await this.prisma.signal.create({ data: safeSignal });
@@ -741,6 +751,23 @@ export class DbStorage implements IStorage {
     } catch (error) {
       console.warn('[DbStorage] Query failed for audit logs, using fallback:', (error as any).message);
       return this.getFallback().getAuditLogs(entityType, entityId, limit);
+    }
+  }
+
+  /**
+   * Generic raw query method for custom SQL queries
+   */
+  async query(sql: string, values?: any[]): Promise<{ rows: any[] }> {
+    if (!this.isConnected) {
+      console.warn('[DbStorage] Database not connected, cannot execute query');
+      return { rows: [] };
+    }
+    try {
+      const result = await (this.prisma as any).$queryRawUnsafe(sql, ...(values || []));
+      return { rows: Array.isArray(result) ? result : [result] };
+    } catch (error) {
+      console.warn('[DbStorage] Raw query failed:', (error as any).message);
+      return { rows: [] };
     }
   }
 }

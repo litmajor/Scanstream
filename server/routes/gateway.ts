@@ -38,6 +38,17 @@ let isGatewayReady = false;
 aggregator.initialize().then(async () => {
   console.log('[Gateway] Aggregator ready');
 
+  // Initialize TickerCache with exchange list
+  try {
+    const { initTickerCache } = await import('../services/ticker-snapshot-cache');
+    const exchanges = (aggregator as any).exchangeDataFeed?.exchanges || new Map();
+    initTickerCache(exchanges, 5000); // 5 second TTL
+    console.log('[Gateway] TickerCache initialized');
+  } catch (err) {
+    console.warn('[Gateway] TickerCache initialization failed:', err);
+    // Continue anyway - ticker cache is optional
+  }
+
   // Don't block on cache warming - do it in background
   (async () => {
     try {

@@ -1,11 +1,11 @@
 
-import { TradingAgent, type AgentSignal, type TradeResult } from './TradingAgent';
+import { TradingAgent, type AgentSignal, type TradeResult } from './TradingAgent.ts';
 import { 
   getClusterMetrics, 
   createClusterValidator, 
   createPositionSizer,
   createTradeDurationPredictor
-} from '../clustering';
+} from '../clustering/index.ts';
 
 /**
  * Multi-timeframe gradient analysis for comprehensive trend visualization

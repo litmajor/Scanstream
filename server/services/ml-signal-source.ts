@@ -5,7 +5,7 @@
  * Feeds ML source into 3-source voting (Scanner + ML + RL)
  */
 
-import { LSTMInferenceEngine, LSTMPredictionOutput } from './lstm-inference-engine';
+import { LSTMInferenceEngine, LSTMPredictionOutput, lstmInferenceEngine } from './lstm-inference-engine';
 import { MLPredictions } from './ml-predictions';
 
 export interface MLConsensusSignal {
@@ -216,4 +216,4 @@ export class MLSignalSource {
   }
 }
 
-export const mlSignalSource = new MLSignalSource(require('./lstm-inference-engine').lstmInferenceEngine);
+export const mlSignalSource = new MLSignalSource(lstmInferenceEngine);

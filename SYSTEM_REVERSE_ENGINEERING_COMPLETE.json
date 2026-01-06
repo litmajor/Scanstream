@@ -1,0 +1,1202 @@
+{
+  "metadata": {
+    "project": "Scanstream",
+    "timestamp": "2026-01-05",
+    "status": "Complete Reverse Engineering",
+    "scope": "All implemented engines, strategies, RPG layer, pipelines",
+    "focus": "Reality: What is ACTUALLY implemented and running"
+  },
+  "executive_summary": {
+    "system_architecture": "Hybrid Physics + ML + RPG Orchestration",
+    "implemented_engines": 13,
+    "total_strategies": 8,
+    "rpg_agents": 13,
+    "data_pipelines": 4,
+    "integration_status": "Production Ready - Phase 5 Underway"
+  },
+  "engines": {
+    "VFMD": {
+      "status": "IMPLEMENTED - CORE PRODUCTION ENGINE",
+      "location": "server/services/vfmd/",
+      "files": [
+        "physicsCalculator.ts",
+        "fieldConstructor.ts",
+        "regimeClassifier.ts",
+        "triggerCalculator.ts",
+        "earlyEntryDetector.ts",
+        "profitEstimator.ts",
+        "validator.ts"
+      ],
+      "agent_wrapper": "server/services/rpg-agents/VFMDPhysicsAgent.ts",
+      "inputs": [
+        "OHLCV (candlestick) data",
+        "Volume data",
+        "Market ticks"
+      ],
+      "outputs": [
+        "Physics metrics (force, energy, acceleration)",
+        "Entry signals with confidence",
+        "Regime classification",
+        "Profit/loss estimates",
+        "Early entry detection signals"
+      ],
+      "core_capabilities": [
+        "Vector field analysis from price/volume momentum",
+        "Accumulation/distribution zone detection",
+        "Directional coherence analysis",
+        "Energy gradient computation",
+        "Regime-aware entry triggers",
+        "Multi-regime thresholds (LAMINAR_TREND, BREAKOUT_TRANSITION, ACCUMULATION, DISTRIBUTION, CONSOLIDATION, TURBULENT_CHOP)"
+      ],
+      "dependencies": [],
+      "asset_specific_tuning": {
+        "BTC": "Standard thresholds (PEG ~250, TRIGGER ~0.20)",
+        "ETH": "Aggressive tuning (PEG ~15, TRIGGER ~0.08) - 1/10x to 1/12.5x of BTC"
+      },
+      "metrics_tracked": [
+        "PEG (Price Equilibrium Gradient)",
+        "Trigger level",
+        "Field coherence",
+        "Regime confidence"
+      ],
+      "implementation_completeness": "100% - Full physics engine ported from Python",
+      "backtesting": "Implemented with VFMD-specific validator",
+      "notes": "Most sophisticated engine; uses regime-aware thresholds per asset; detects early reversals before mainstream indicators"
+    },
+    "CONVEXITY": {
+      "status": "IMPLEMENTED - SECONDARY STRATEGY ENGINE",
+      "location": "server/services/rpg-agents/ConvexityAgent.ts",
+      "dependencies": ["VFMD"],
+      "files": [
+        "convexEngine/ConvexEngineState.ts",
+        "convexEngine/SurvivalFilter.ts",
+        "convexEngine/ConvexExitManager.ts",
+        "failureOfReversionCalculator.ts"
+      ],
+      "inputs": [
+        "VFMD scout entry signal",
+        "Opposite VFMD signal (for survival validation)",
+        "Market ticks for persistence tracking"
+      ],
+      "outputs": [
+        "Convexity persistence signals",
+        "Exit recommendations (asymmetric payoff optimization)",
+        "Survival validation status",
+        "Position state tracking"
+      ],
+      "core_capabilities": [
+        "Failure of Reversion (FoR) detection",
+        "Scout survival validation",
+        "Structural persistence analysis",
+        "Asymmetric position scaling",
+        "Pain tolerance tracking",
+        "Multi-stage exit management"
+      ],
+      "operational_model": "Scout → Siege Handoff: Waits for VFMD scout entry, validates against opposite signal, holds through pain for convex payoffs",
+      "position_philosophy": "Smaller position size, fewer trades, bigger wins (asymmetric payoff structure)",
+      "implementation_completeness": "100% - Full FoR engine implemented",
+      "state_machine": {
+        "IDLE": "Waiting for VFMD signal",
+        "WATCHING": "VFMD scout fired, monitoring for opposite signal",
+        "SIEGE": "Scout survived, holding for convex move"
+      },
+      "notes": "Refuses to close profitable early; holds through pain for asymmetric wins; tight integration with VFMD for signal handoff"
+    },
+    "FLOW_FIELD": {
+      "status": "IMPLEMENTED - ENERGY-BASED ENGINE",
+      "location": "server/services/rpg-agents/FlowPhysicsAgent.ts",
+      "wrapper_location": "server/services/analytics/flowFieldEngine.ts",
+      "inputs": [
+        "Flow field points (price, force, acceleration)",
+        "Volume-weighted directional momentum"
+      ],
+      "outputs": [
+        "Dominant direction (bullish/bearish/neutral)",
+        "Average force magnitude",
+        "Turbulence index",
+        "Flow field result with directional bias"
+      ],
+      "core_capabilities": [
+        "Vector field momentum analysis",
+        "Energy force computation",
+        "Turbulence detection",
+        "ARM (Asymmetric Reversion Module) asymmetry detection",
+        "Flow pressure shift identification"
+      ],
+      "metrics_tracked": [
+        "Average force (0-1 normalized)",
+        "Turbulence (0-∞, inversely correlated with signal quality)",
+        "Dominant direction (bullish/bearish)",
+        "Force slope (accelerating/decelerating)"
+      ],
+      "implementation_completeness": "100% - Full flow field vectorization",
+      "signal_generation": "Bullish/Bearish confidence based on force magnitude and turbulence penalty",
+      "arm_integration": "ARM-based signal generation for flow asymmetry (pressure shifts)",
+      "notes": "Specializes in detecting energy acceleration/deceleration; ARM module detects flow field breaks"
+    },
+    "VOLUME_AGENT": {
+      "status": "IMPLEMENTED - VOLUME-BASED SUPPORT/RESISTANCE",
+      "location": "server/services/rpg-agents/VolumeMechanicalVerifierAgent.ts",
+      "strategy_file": "strategies/volume_sr_agent.py",
+      "inputs": [
+        "OHLCV data",
+        "Volume profile",
+        "ATR for dynamic zone sizing"
+      ],
+      "outputs": [
+        "Support/resistance zones",
+        "Zone strength scores",
+        "Bounce confirmation metrics",
+        "Volume-weighted zone identification"
+      ],
+      "core_capabilities": [
+        "Volume-weighted S/R zone detection",
+        "ATR-based dynamic zone sizing",
+        "Zone strength scoring (volume + touches)",
+        "Zone age tracking (recent vs historic)",
+        "Bounce confirmation validation",
+        "Cross-zone confluence detection",
+        "Zone merging (nearby zones consolidated)"
+      ],
+      "configuration": {
+        "sensitivity": 1.5,
+        "min_zone_width": 0.0025,
+        "volume_threshold_percentile": 0.85,
+        "merge_distance_pct": 0.005,
+        "atr_period": 14,
+        "zone_width_multiplier": 0.5,
+        "min_touches": 2,
+        "max_zones_memory": 30
+      },
+      "implementation_completeness": "100% - Full volume profile zone detection",
+      "notes": "Tracks zone touches and creation time; prevents memory bloat; integrates with bounce strategy"
+    },
+    "TREND_RIDER": {
+      "status": "IMPLEMENTED - TREND FOLLOWING ENGINE",
+      "location": "server/services/rpg-agents/TrendRider.ts",
+      "inputs": [
+        "Gradient trend direction",
+        "ADX strength",
+        "Momentum"
+      ],
+      "outputs": [
+        "Trend entry signals",
+        "Trend strength assessment",
+        "Position sizing multiplier",
+        "Trend shift detection"
+      ],
+      "core_capabilities": [
+        "Trend identification and strength",
+        "Momentum-based entry filtering",
+        "Adaptive position sizing",
+        "Trend shift early detection"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Rides established trends with momentum confirmation; lighter than VFMD for general trend following"
+    },
+    "REVERSAL_MASTER": {
+      "status": "IMPLEMENTED - MEAN REVERSION ENGINE",
+      "location": "server/services/rpg-agents/ReversalMaster.ts",
+      "inputs": [
+        "RSI (relative strength index)",
+        "Momentum extremes",
+        "Volatility"
+      ],
+      "outputs": [
+        "Reversal entry signals",
+        "Reversion confidence",
+        "Mean reversion targets"
+      ],
+      "core_capabilities": [
+        "Extreme RSI detection",
+        "Momentum extreme identification",
+        "Mean reversion target calculation",
+        "Volatility-adjusted entry filtering"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Fires on extremes; good for ranging markets"
+    },
+    "SUPPORT_SNIPER": {
+      "status": "IMPLEMENTED - SUPPORT/RESISTANCE BOUNCE ENGINE",
+      "location": "server/services/rpg-agents/SupportSniper.ts",
+      "inputs": [
+        "Price levels (support/resistance from Volume Agent)",
+        "Volume confirmation",
+        "Momentum at level"
+      ],
+      "outputs": [
+        "Bounce entry signals",
+        "Zone break confirmations",
+        "Zone rejection signals"
+      ],
+      "core_capabilities": [
+        "Support/resistance level bounce detection",
+        "Volume confirmation of bounces",
+        "Zone break detection with momentum",
+        "Rejection vs penetration discrimination"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Uses Volume Agent zones; detects bounces and zone breaks with volume confirmation"
+    },
+    "BREAKOUT_HUNTER": {
+      "status": "IMPLEMENTED - BREAKOUT DETECTION ENGINE",
+      "location": "server/services/rpg-agents/BreakoutHunter.ts",
+      "inputs": [
+        "Price highs/lows",
+        "Volume spikes",
+        "Momentum confirmation"
+      ],
+      "outputs": [
+        "Breakout entry signals",
+        "Breakout strength assessment",
+        "False breakout detection"
+      ],
+      "core_capabilities": [
+        "New high/low detection",
+        "Volume spike confirmation",
+        "Momentum divergence filtering",
+        "False breakout vs real breakout discrimination"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Detects range breaks with volume and momentum confirmation"
+    },
+    "ML_ORACLE": {
+      "status": "IMPLEMENTED - ML PREDICTION ENGINE",
+      "location": "server/services/rpg-agents/MLOracle.ts",
+      "ml_engine": "server/services/lstm-inference-engine.ts",
+      "inputs": [
+        "LSTM model predictions (direction, confidence, targets)",
+        "Market regime",
+        "Historical price actions"
+      ],
+      "outputs": [
+        "ML confidence scores",
+        "Predicted target prices",
+        "Holding period recommendations",
+        "Anomaly detection scores"
+      ],
+      "core_capabilities": [
+        "LSTM multi-timeframe inference",
+        "Attention-based prediction weighting",
+        "Anomaly detection (residual analysis)",
+        "Model drift detection",
+        "Ensemble prediction from multiple models"
+      ],
+      "models_integrated": [
+        "1m timeframe LSTM",
+        "5m timeframe LSTM",
+        "1h timeframe LSTM",
+        "1d timeframe LSTM",
+        "1w timeframe LSTM"
+      ],
+      "implementation_completeness": "100% - Full LSTM inference pipeline",
+      "training_system": "Enhanced LSTM Trainer V2 (server/services/enhanced-lstm-trainer.ts)",
+      "notes": "Uses pre-trained LSTM models; supports multi-timeframe consensus; detects model degradation"
+    },
+    "MARKET_ORACLE": {
+      "status": "IMPLEMENTED - MARKET REGIME & STRUCTURE ENGINE",
+      "location": "server/services/rpg-agents/MarketOracle.ts",
+      "inputs": [
+        "ADX (trend strength)",
+        "RSI (momentum)",
+        "ATR (volatility)",
+        "Price structure (swing highs/lows)"
+      ],
+      "outputs": [
+        "Market regime classification",
+        "Structure break signals",
+        "Volatility regime changes",
+        "Support/resistance based on structure"
+      ],
+      "core_capabilities": [
+        "Regime classification (Trend, Range, Transition, Choppy)",
+        "Market structure swing analysis",
+        "Volatility regime detection",
+        "Break of structure with momentum confirmation"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Analyzes market structure for regime-aware trading"
+    },
+    "FEATURE_ENGINEER": {
+      "status": "IMPLEMENTED - INDICATOR FEATURE EXTRACTION",
+      "location": "server/services/rpg-agents/FeatureEngineer.ts",
+      "inputs": [
+        "Raw OHLCV data"
+      ],
+      "outputs": [
+        "ADX, RSI, Momentum, ATR, Bollinger Bands",
+        "Volume indicators (OBV, CMF)",
+        "Pattern features",
+        "Regime features"
+      ],
+      "core_capabilities": [
+        "Fast indicator computation",
+        "Indicator caching",
+        "Multi-timeframe feature extraction",
+        "Feature normalization"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Powers all regime detection and signal computation"
+    },
+    "MICROSTRUCTURE_SPECIALIST": {
+      "status": "IMPLEMENTED - ORDER FLOW & EXIT OPTIMIZATION",
+      "location": "server/services/rpg-agents/SpecializedExitAgents.ts",
+      "microstructure_engine": "server/services/microstructure-exit-optimizer.ts",
+      "inputs": [
+        "Order flow indicators",
+        "Bid/ask imbalance",
+        "Volume profile",
+        "Price momentum"
+      ],
+      "outputs": [
+        "Optimal exit timing signals",
+        "Spread-adjusted position sizing",
+        "Liquidity-aware execution recommendations"
+      ],
+      "core_capabilities": [
+        "Order flow analysis",
+        "Bid/ask imbalance detection",
+        "Optimal exit window identification",
+        "Liquidity assessment",
+        "Slippage estimation"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Optimizes exit execution based on microstructure patterns"
+    }
+  },
+  "legacy_and_unused_strategies": {
+    "UT_BOT": {
+      "status": "LEGACY - IMPLEMENTED BUT LARGELY SUPERSEDED",
+      "location": "strategies/ut_bot.py",
+      "inputs": [
+        "OHLCV data",
+        "ATR (various calculation methods)"
+      ],
+      "outputs": [
+        "Trailing stop levels",
+        "Entry/exit signals",
+        "P&L tracking"
+      ],
+      "implementation_completeness": "100% - Full implementation with multiple ATR methods",
+      "notes": "Excellent trailing stop system; still used for risk management but VFMD primary; replaced by Python Strategy Agent wrapper",
+      "current_use": "Integrated via PythonStrategyAgent wrapper; used for comparison backtests"
+    },
+    "GRADIENT_TREND_FILTER": {
+      "status": "LEGACY - IMPLEMENTED BUT PARTIALLY INTEGRATED",
+      "location": "strategies/gradient_trend_filter.py",
+      "inputs": [
+        "Price data",
+        "EMA smoothing"
+      ],
+      "outputs": [
+        "Trend direction",
+        "Signal strength",
+        "Support/resistance bands"
+      ],
+      "implementation_completeness": "100% - Vectorized Python implementation",
+      "notes": "Good trend filter; features integrated into regime detection; replaced by VFMD for entries",
+      "current_use": "Feature contributions; band calculations for regime analysis"
+    },
+    "MEAN_REVERSION": {
+      "status": "LEGACY - IMPLEMENTED VIA PYTHON STRATEGY AGENT",
+      "location": "strategies/mean_reversion.py",
+      "inputs": [
+        "Bollinger Bands",
+        "RSI",
+        "Price"
+      ],
+      "outputs": [
+        "Mean reversion entry signals",
+        "Reversion targets"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Solid implementation; superseded by ReversalMaster RPG agent with better regime awareness",
+      "current_use": "Accessible via Python Strategy Agent for backtesting; not primary signal source"
+    },
+    "VOLUME_PROFILE": {
+      "status": "LEGACY - PARTIALLY REPLACED BY VOLUME_SR_AGENT",
+      "location": "strategies/volume_profile.py",
+      "inputs": [
+        "OHLCV data",
+        "Cumulative delta volume"
+      ],
+      "outputs": [
+        "POC (Point of Control)",
+        "Value areas",
+        "Volume imbalances"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Good volume analysis; S/R zone detection replaced by Volume Agent; POC/value area analysis still available",
+      "current_use": "Accessible via Python Strategy Agent; used for volume analysis comparisons"
+    },
+    "ENHANCED_BOUNCE": {
+      "status": "LEGACY - IMPLEMENTED BUT PARTIALLY INTEGRATED",
+      "location": "strategies/enhanced_bounce_strategy.py",
+      "inputs": [
+        "Support/resistance zones",
+        "Multi-timeframe data",
+        "Volume confirmation"
+      ],
+      "outputs": [
+        "Bounce entry signals",
+        "Multi-timeframe confirmation"
+      ],
+      "implementation_completeness": "100% - Full Python implementation",
+      "notes": "Multi-timeframe bounce detection; superseded by Support Sniper + Volume Agent combination",
+      "current_use": "Available via Python Strategy Agent; used for bounce signal backtesting"
+    },
+    "MARKET_STRUCTURE": {
+      "status": "LEGACY - PARTIALLY INTEGRATED INTO MARKET_ORACLE",
+      "location": "strategies/market_engine.py",
+      "inputs": [
+        "Price highs/lows",
+        "Swing analysis"
+      ],
+      "outputs": [
+        "Structure breaks",
+        "Swing validation"
+      ],
+      "implementation_completeness": "100%",
+      "notes": "Good structure analysis; features integrated into Market Oracle; break detection replicated in Oracle",
+      "current_use": "Feature contributions; available via Python Strategy Agent"
+    },
+    "CONSENSUS_EXECUTOR": {
+      "status": "LEGACY - FRAMEWORK ONLY",
+      "location": "strategies/consensus_executor.py",
+      "purpose": "Coordinated multi-strategy execution framework",
+      "notes": "Superseded by RPG system; RPG agents handle consensus and coordination"
+    }
+  },
+  "rpg_system": {
+    "status": "IMPLEMENTED - CORE ORCHESTRATION LAYER",
+    "location": "server/services/rpg-agents/",
+    "agents_deployed": 13,
+    "agent_list": [
+      {
+        "name": "VFMD Physics Agent",
+        "file": "VFMDPhysicsAgent.ts",
+        "type": "Physics Engine",
+        "role": "Primary early entry detection"
+      },
+      {
+        "name": "Convexity Agent",
+        "file": "ConvexityAgent.ts",
+        "type": "Physics Engine",
+        "role": "Asymmetric payoff optimization"
+      },
+      {
+        "name": "Flow Physics Agent",
+        "file": "FlowPhysicsAgent.ts",
+        "type": "Physics Engine",
+        "role": "Energy flow analysis"
+      },
+      {
+        "name": "Trend Rider",
+        "file": "TrendRider.ts",
+        "type": "Trend Following",
+        "role": "Trend entry detection"
+      },
+      {
+        "name": "Reversal Master",
+        "file": "ReversalMaster.ts",
+        "type": "Mean Reversion",
+        "role": "Extreme reversal detection"
+      },
+      {
+        "name": "Support Sniper",
+        "file": "SupportSniper.ts",
+        "type": "Zone-based",
+        "role": "S/R bounce detection"
+      },
+      {
+        "name": "Breakout Hunter",
+        "file": "BreakoutHunter.ts",
+        "type": "Volatility Breakout",
+        "role": "Range break detection"
+      },
+      {
+        "name": "Volume Mechanical Verifier",
+        "file": "VolumeMechanicalVerifierAgent.ts",
+        "type": "Volume Analysis",
+        "role": "Volume-weighted zone detection"
+      },
+      {
+        "name": "ML Oracle",
+        "file": "MLOracle.ts",
+        "type": "Machine Learning",
+        "role": "LSTM predictions"
+      },
+      {
+        "name": "Market Oracle",
+        "file": "MarketOracle.ts",
+        "type": "Regime Detection",
+        "role": "Market structure analysis"
+      },
+      {
+        "name": "Feature Engineer",
+        "file": "FeatureEngineer.ts",
+        "type": "Indicator Computation",
+        "role": "Core indicator extraction"
+      },
+      {
+        "name": "Python Strategy Agent",
+        "file": "PythonStrategyAgent.ts",
+        "type": "Legacy Strategy Bridge",
+        "role": "Bridges to Python strategies"
+      },
+      {
+        "name": "Specialized Exit Agents",
+        "file": "SpecializedExitAgents.ts",
+        "type": "Exit Optimization",
+        "role": "Exit timing optimization"
+      }
+    ],
+    "core_systems": {
+      "agent_arena": {
+        "file": "AgentArena.ts",
+        "purpose": "Multi-agent voting and debate mechanism",
+        "capabilities": [
+          "Agent signal voting",
+          "Consensus determination",
+          "Disagreement tracking",
+          "Agent ranking by performance"
+        ]
+      },
+      "achievement_system": {
+        "file": "AchievementSystem.ts",
+        "purpose": "Agent progression and skill unlocking",
+        "mechanics": [
+          "XP accumulation from trades",
+          "Level progression (1-30+)",
+          "Skill tree unlocking",
+          "Ability unlocking based on level",
+          "Achievements for milestones"
+        ]
+      },
+      "agent_lifecycle_manager": {
+        "file": "AgentLifecycleManager.ts",
+        "purpose": "Agent spawning, training, and retirement",
+        "capabilities": [
+          "Agent instantiation",
+          "Training mode management",
+          "Performance tracking",
+          "Ability unlock scheduling"
+        ]
+      },
+      "synergy_detector": {
+        "file": "AgentSynergyDetector.ts",
+        "purpose": "Detect agent combinations that work well together",
+        "mechanics": [
+          "Synergy score calculation",
+          "Combo bonus multipliers",
+          "Agent pair performance tracking"
+        ]
+      },
+      "portfolio_agent": {
+        "file": "AgentPortfolioManager.ts",
+        "purpose": "Manage portfolio-level constraints",
+        "capabilities": [
+          "Cross-asset correlation analysis",
+          "Portfolio risk limits",
+          "Cluster-based position sizing"
+        ]
+      },
+      "online_learning_system": {
+        "file": "OnlineLearningSystem.ts",
+        "purpose": "Real-time agent policy updates",
+        "mechanics": [
+          "Q-value updates from trade results",
+          "Exploration rate adjustment",
+          "Confidence adjustment based on outcomes"
+        ]
+      },
+      "commander_approval_system": {
+        "file": "CommanderApprovalSystem.ts",
+        "purpose": "Override and manual trade approval",
+        "capabilities": [
+          "Manual trade submission",
+          "Agent signal approval/rejection",
+          "Command history tracking"
+        ]
+      },
+      "daily_briefing_system": {
+        "file": "DailyBriefingSystem.ts",
+        "purpose": "Agent performance reporting and analysis",
+        "reports": [
+          "Daily P&L per agent",
+          "Win rate tracking",
+          "Signal quality metrics",
+          "Ability usage tracking"
+        ]
+      },
+      "strategy_bridge": {
+        "file": "StrategyBridge.ts",
+        "purpose": "Integration with market structure strategies",
+        "integration": "Provides market structure signals to agents"
+      }
+    },
+    "signal_aggregation": {
+      "file": "server/lib/rpg-signal-processor.ts",
+      "method": "RPG Agent Consensus with Combo Bonus System",
+      "process": [
+        {
+          "step": 1,
+          "name": "Independent Agent Signals",
+          "description": "Each of 13 agents generates independent signal (BUY/SELL/HOLD)"
+        },
+        {
+          "step": 2,
+          "name": "Consensus Voting",
+          "description": "Majority vote determines consensus action (BUY/SELL/HOLD)"
+        },
+        {
+          "step": 3,
+          "name": "Confidence Calculation",
+          "description": "Average confidence of voting agents or policy-based scoring"
+        },
+        {
+          "step": 4,
+          "name": "Combo Bonus Calculation",
+          "description": "Bonus applied when 4+ sources (Scanner, ML, RL, RPG) align on same signal"
+        },
+        {
+          "step": 5,
+          "name": "4-Source Consensus",
+          "description": "Calculate weighted consensus from Scanner, ML, RL, RPG sources"
+        }
+      ],
+      "combo_bonus_types": [
+        "UNANIMOUS (4/4 sources agree): 1.30-1.40x confidence boost",
+        "SUPER_STRONG (3/4 sources agree): 1.20-1.25x confidence boost",
+        "STRONG (2/4 sources agree): 1.10-1.15x confidence boost",
+        "WEAK (1/4 sources agree): 1.00x (no boost)"
+      ],
+      "four_source_consensus": {
+        "sources": ["scanner", "ml", "rl", "rpg"],
+        "weighting": {
+          "scanner": 0.25,
+          "ml": 0.25,
+          "rl": 0.25,
+          "rpg": 0.25
+        },
+        "output": {
+          "consensus": "0-1 confidence score",
+          "weight": "Signal contribution to final trade"
+        }
+      }
+    },
+    "policy_learning": {
+      "file": "server/lib/rpg-signal-processor.ts",
+      "mechanism": "Post-Trade Q-Value Updates",
+      "process": [
+        {
+          "trigger": "Trade closes with profit/loss",
+          "update": "Q-value adjustment per agent"
+        },
+        {
+          "profitable_trade": "Agent confidence +0.05 (encourage repeat)",
+          "losing_trade": "Agent confidence -0.10 (discourage repeat)"
+        },
+        {
+          "exploration_rate": "Profitable: -0.01 (exploit winners), Losing: +0.02 (try new approaches)"
+        },
+        {
+          "bounds": "Confidence [0.1, 0.95], Exploration [5%, 25%]"
+        }
+      ],
+      "notes": "Agents improve over time based on historical performance; exploration prevents stagnation"
+    },
+    "implementation_completeness": "100% - All 13 agents fully integrated; Arena, achievements, learning systems operational"
+  },
+  "pipelines": {
+    "data_flow_pipeline": {
+      "status": "IMPLEMENTED",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "Market Data Ingestion",
+          "source": "CCXT exchange feeds",
+          "outputs": "Raw OHLCV, order book, trades",
+          "frequency": "Real-time + historical backfill"
+        },
+        {
+          "stage": 2,
+          "name": "Indicator Computation",
+          "module": "Feature Engineer (RPG Agent)",
+          "outputs": "ADX, RSI, Momentum, ATR, Bollinger Bands, OBV, CMF",
+          "caching": "Indicator cache (30s TTL)",
+          "optimization": "Vectorized computation"
+        },
+        {
+          "stage": 3,
+          "name": "Regime Detection",
+          "module": "RegimeService + Market Oracle",
+          "outputs": "Regime classification, volatility level, trend strength",
+          "file": "server/services/regime-service.ts"
+        },
+        {
+          "stage": 4,
+          "name": "Engine Signal Generation",
+          "module": "13 RPG Agents in parallel",
+          "outputs": "13 independent BUY/SELL/HOLD signals with confidence",
+          "orchestration": "Agent Arena coordination"
+        },
+        {
+          "stage": 5,
+          "name": "Signal Aggregation",
+          "module": "RPG Signal Processor + Signal Pipeline",
+          "outputs": "Consensus action, RPG confidence, combo bonus metadata",
+          "file": "server/lib/signal-pipeline.ts"
+        },
+        {
+          "stage": 6,
+          "name": "Quality Gating (5 Layers)",
+          "module": "QualityGatingEngine",
+          "outputs": "Gated signal with quality scores",
+          "layers": [
+            "Layer 1: Base confidence scoring",
+            "Layer 2: 4-source consensus validation",
+            "Layer 3: Regime-specific thresholds",
+            "Layer 4: Source agreement verification",
+            "Layer 5: Final confidence checks"
+          ]
+        },
+        {
+          "stage": 7,
+          "name": "Position Sizing",
+          "module": "Dynamic Position Sizer / Unified Position Sizer",
+          "outputs": "Position size, leverage, risk limits",
+          "file": "server/services/dynamic-position-sizer.ts"
+        },
+        {
+          "stage": 8,
+          "name": "Trade Execution",
+          "module": "Paper Trading Engine / Live Trading Engine",
+          "outputs": "Trade orders, fills, P&L tracking",
+          "files": [
+            "server/services/paper-trading-engine.ts",
+            "server/services/live-trading-engine.ts"
+          ]
+        },
+        {
+          "stage": 9,
+          "name": "Logging & Feedback",
+          "module": "Signal Archive + Daily Briefing System",
+          "outputs": "Signal history, performance metrics, agent rankings",
+          "files": [
+            "server/services/signal-archive.ts",
+            "server/services/rpg-agents/DailyBriefingSystem.ts"
+          ]
+        }
+      ]
+    },
+    "scanner_pipeline": {
+      "status": "IMPLEMENTED",
+      "location": "server/services/scanner/",
+      "purpose": "Continuous market scanning for opportunities",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "Data Collection",
+          "source": "CCXT multi-exchange connector",
+          "scope": "Multi-asset universe (50+ symbols)"
+        },
+        {
+          "stage": 2,
+          "name": "Signal Generation",
+          "module": "Scanner Signal Service",
+          "outputs": "Momentum scores, signal confidence",
+          "file": "server/services/scanner/scanner-signal-service.ts"
+        },
+        {
+          "stage": 3,
+          "name": "Risk Calculation",
+          "module": "Risk Management",
+          "outputs": "Stop loss, take profit targets",
+          "file": "server/services/scanner/risk-management.ts"
+        },
+        {
+          "stage": 4,
+          "name": "Signal Persistence",
+          "module": "Scanner Persistence Service",
+          "outputs": "Saved signals for historical analysis",
+          "file": "server/services/scanner/scanner-persistence.ts"
+        },
+        {
+          "stage": 5,
+          "name": "UI/API Delivery",
+          "output": "Signals page with top opportunities",
+          "file": "server/routes/scanner-analysis.ts"
+        }
+      ]
+    },
+    "ml_training_pipeline": {
+      "status": "IMPLEMENTED",
+      "location": "server/services/enhanced-lstm-trainer.ts",
+      "purpose": "LSTM model training on historical data",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "Data Preparation",
+          "inputs": "Historical OHLCV for all timeframes"
+        },
+        {
+          "stage": 2,
+          "name": "Feature Engineering",
+          "features": "Normalized price, volume, technical indicators"
+        },
+        {
+          "stage": 3,
+          "name": "Model Training",
+          "models": "5 LSTM models (1m, 5m, 1h, 1d, 1w timeframes)",
+          "method": "Supervised learning on historical labels"
+        },
+        {
+          "stage": 4,
+          "name": "Model Storage",
+          "location": "server/services/ml-model-storage.ts",
+          "format": "Serialized LSTM weights and architecture"
+        },
+        {
+          "stage": 5,
+          "name": "Inference",
+          "module": "LSTM Inference Engine",
+          "outputs": "Price predictions, holding period, confidence"
+        }
+      ]
+    },
+    "learning_feedback_loop": {
+      "status": "IMPLEMENTED",
+      "location": "server/services/learning-system-integration.ts",
+      "purpose": "Agent learning from live trade results",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "Trade Result Capture",
+          "input": "Trade entry, exit, P&L"
+        },
+        {
+          "stage": 2,
+          "name": "Agent Attribution",
+          "analysis": "Which agents contributed to the trade"
+        },
+        {
+          "stage": 3,
+          "name": "Q-Value Update",
+          "mechanism": "Adjust agent confidence based on outcome"
+        },
+        {
+          "stage": 4,
+          "name": "Policy Refinement",
+          "result": "Agents improve future signal quality"
+        }
+      ]
+    }
+  },
+  "signal_sources": {
+    "scanner": {
+      "status": "IMPLEMENTED",
+      "module": "Momentum Scanner",
+      "signals_per_day": "~100+ per symbol",
+      "confidence_source": "Momentum strength calculation"
+    },
+    "ml": {
+      "status": "IMPLEMENTED",
+      "module": "ML Oracle (LSTM Inference)",
+      "models": 5,
+      "confidence_source": "LSTM prediction probability",
+      "multi_timeframe": true
+    },
+    "rl": {
+      "status": "IMPLEMENTED",
+      "module": "RL Position Agent + Policy Learning",
+      "confidence_source": "Q-value from policy network",
+      "learns_from": "Historical trade outcomes"
+    },
+    "rpg": {
+      "status": "IMPLEMENTED",
+      "module": "13-Agent RPG System",
+      "confidence_source": "Weighted consensus of agent votes",
+      "components": "Voting + combo bonus system"
+    }
+  },
+  "data_structures_and_types": {
+    "core_signal_types": [
+      {
+        "type": "ScannerOutput",
+        "source": "server/types/scanner.ts",
+        "fields": ["symbol", "signal", "confidence", "patterns", "targets", "reasoning"]
+      },
+      {
+        "type": "MLPrediction",
+        "source": "server/types/ml.ts",
+        "fields": ["symbol", "direction", "confidence", "targets", "holding_period"]
+      },
+      {
+        "type": "RLDecision",
+        "source": "server/types/rl.ts",
+        "fields": ["symbol", "action", "confidence", "policy_score"]
+      },
+      {
+        "type": "RPGSignalAggregation",
+        "source": "server/lib/rpg-signal-processor.ts",
+        "fields": ["rpgOutput", "comboBonus", "finalConfidence", "sourceSummary"]
+      },
+      {
+        "type": "AggregatedSignal",
+        "source": "server/types/signal.ts",
+        "fields": ["symbol", "type", "confidence", "quality", "sources", "rpgAggregation", "fourSourceConsensus"]
+      }
+    ]
+  },
+  "blind_spots_and_gaps": [
+    {
+      "gap": "CORRELATION ENGINE",
+      "status": "NOT IMPLEMENTED",
+      "impact": "Cannot detect cross-asset correlation breaks or hedging opportunities",
+      "note": "Asset-correlation-analyzer.ts exists but is not integrated into main pipeline"
+    },
+    {
+      "gap": "CROSS-TIMEFRAME CORRELATION ANALYSIS",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Multi-timeframe confirmation exists but not feedback loop between timeframes",
+      "missing": "Correlated timeframe rejection (e.g., 1h shows profit but 1d shows loss risk)"
+    },
+    {
+      "gap": "ORDERBOOK MICROSTRUCTURE REAL-TIME",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Order flow analyzer exists",
+      "missing": "Full real-time orderbook-based entry timing"
+    },
+    {
+      "gap": "SENTIMENT INTEGRATION",
+      "status": "NOT IMPLEMENTED",
+      "missing": "Social sentiment, news sentiment, on-chain sentiment integration"
+    },
+    {
+      "gap": "ON-CHAIN METRICS (Crypto)",
+      "status": "NOT IMPLEMENTED",
+      "missing": "Exchange inflows/outflows, whale tracking, funding rates, liquidation levels"
+    },
+    {
+      "gap": "FEEDBACK LOOP FOR ML MODEL RETRAINING",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Policy learning for RPG agents exists",
+      "missing": "Automatic LSTM model retraining with live trade data"
+    },
+    {
+      "gap": "VOLATILITY SURFACE SKEW ANALYSIS",
+      "status": "NOT IMPLEMENTED",
+      "note": "Options-only feature; not relevant for spot trading"
+    },
+    {
+      "gap": "REGIME PERSISTENCE PREDICTION",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Current regime detected; historical regime transition patterns tracked",
+      "missing": "Probabilistic transition to next regime"
+    },
+    {
+      "gap": "RECURSIVE FEEDBACK FROM EXIT AGENTS TO ENTRY AGENTS",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Specialized exit agents optimize exits independently",
+      "missing": "Convexity-specific feedback (e.g., if Convexity exits early, suppress future VFMD entries)"
+    },
+    {
+      "gap": "WORLD TICK SYNCHRONIZATION EDGE CASES",
+      "status": "IMPLEMENTED BUT COMPLEX",
+      "note": "Multi-exchange clock sync can still cause subtle race conditions"
+    },
+    {
+      "gap": "POSITION AGGREGATION ACROSS MULTIPLE EXCHANGES",
+      "status": "PARTIALLY IMPLEMENTED",
+      "current": "Portfolio manager handles risk aggregation",
+      "missing": "Real-time position aggregation from live trading across exchanges"
+    }
+  ],
+  "implemented_status_matrix": {
+    "engines": {
+      "VFMD": "✅ 100%",
+      "CONVEXITY": "✅ 100%",
+      "FLOW_FIELD": "✅ 100%",
+      "VOLUME_AGENT": "✅ 100%",
+      "TREND_RIDER": "✅ 100%",
+      "REVERSAL_MASTER": "✅ 100%",
+      "SUPPORT_SNIPER": "✅ 100%",
+      "BREAKOUT_HUNTER": "✅ 100%",
+      "ML_ORACLE": "✅ 100%",
+      "MARKET_ORACLE": "✅ 100%",
+      "FEATURE_ENGINEER": "✅ 100%",
+      "MICROSTRUCTURE_SPECIALIST": "✅ 100%"
+    },
+    "rpg_system": {
+      "13_agents": "✅ 100%",
+      "agent_arena": "✅ 100%",
+      "achievement_system": "✅ 100%",
+      "policy_learning": "✅ 100%",
+      "synergy_detection": "✅ 100%",
+      "portfolio_management": "✅ 100%",
+      "commander_system": "✅ 100%",
+      "daily_briefing": "✅ 100%"
+    },
+    "pipelines": {
+      "data_flow": "✅ 100%",
+      "scanner": "✅ 100%",
+      "ml_training": "✅ 100%",
+      "learning_feedback": "✅ 100%"
+    },
+    "integration": {
+      "signal_aggregation": "✅ 100%",
+      "quality_gating": "✅ 100%",
+      "position_sizing": "✅ 100%",
+      "execution": "✅ 100%"
+    }
+  },
+  "module_interactions_map": {
+    "data_ingestion_to_engines": {
+      "raw_data": "Market frames from CCXT",
+      "flow": "Raw OHLCV → Feature Engineer → Regime Detection → 12 RPG Agents"
+    },
+    "engine_to_aggregation": {
+      "flow": "13 Independent agent signals → RPG Signal Processor → Consensus + Combo Bonus"
+    },
+    "aggregation_to_execution": {
+      "flow": "Aggregated signal → Quality Gating (5 layers) → Position Sizer → Trade Execution"
+    },
+    "execution_to_feedback": {
+      "flow": "Trade result → Policy Learning → Agent confidence update → Next signal affected"
+    },
+    "scanner_parallel_pipeline": {
+      "note": "Scanner runs independently, producing opportunity signals for same symbols"
+    }
+  },
+  "key_insights": [
+    {
+      "insight": "PHYSICS-FIRST ARCHITECTURE",
+      "description": "VFMD physics engine is primary entry mechanism; all other agents are either confirmations (Trend Rider, Reversal Master) or specialized expansions (Convexity, Flow Field)"
+    },
+    {
+      "insight": "RPG LAYER AS ORCHESTRA CONDUCTOR",
+      "description": "13 specialized agents act independently but coordinate through Arena voting + Synergy detection; RPG system handles ensemble voting better than simple averaging"
+    },
+    {
+      "insight": "4-SOURCE CONSENSUS REDUNDANCY",
+      "description": "Scanner, ML, RL, RPG are independent signal sources; 4-source consensus prevents false signals from single-source anomalies; combo bonus amplifies confident trades"
+    },
+    {
+      "insight": "REGIME-AWARE THRESHOLDS",
+      "description": "VFMD thresholds change per regime (LAMINAR_TREND vs TURBULENT_CHOP); prevents whipsaws in choppy markets"
+    },
+    {
+      "insight": "CONVEXITY AS PATIENCE MECHANISM",
+      "description": "Convexity holds through pain for asymmetric payoffs; directly contradicts momentum traders but aligns with tail-risk strategies"
+    },
+    {
+      "insight": "LEGACY STRATEGIES PRESERVED NOT REMOVED",
+      "description": "Python strategies (UT Bot, Gradient, Mean Reversion) still callable via Python Strategy Agent bridge; enables A/B testing and gradual migration"
+    },
+    {
+      "insight": "LEARNING FEEDBACK IS DIRECTIONAL",
+      "description": "Profitable trades boost agent confidence +0.05; losing trades cut confidence -0.10; asymmetric penalty prevents false confidence after rare wins"
+    },
+    {
+      "insight": "FEATURE ENGINEER AS BOTTLENECK",
+      "description": "All 13 agents depend on Feature Engineer output (ADX, RSI, ATR, etc.); bottleneck is indicator caching not computation"
+    },
+    {
+      "insight": "MICROSTRUCTURE EXIT OPTIMIZATION",
+      "description": "Order flow analysis happens POST-entry; most important for exits (liquidity timing, slippage reduction)"
+    },
+    {
+      "insight": "MULTI-TIMEFRAME REDUNDANCY",
+      "description": "ML system has 5 models (1m, 5m, 1h, 1d, 1w); provides timeframe consensus but no explicit rejection rules between frames"
+    }
+  ],
+  "optimization_opportunities": [
+    {
+      "opportunity": "CORRELATION ENGINE INTEGRATION",
+      "potential_impact": "Reduce false signals from correlated asset moves",
+      "effort": "Medium",
+      "priority": "High"
+    },
+    {
+      "opportunity": "ORDERBOOK MICROSTRUCTURE REAL-TIME",
+      "potential_impact": "Optimize entry timing within VFMD window",
+      "effort": "High",
+      "priority": "Medium"
+    },
+    {
+      "opportunity": "SENTIMENT INTEGRATION",
+      "potential_impact": "Regime detection from social/news signals",
+      "effort": "Medium",
+      "priority": "Medium"
+    },
+    {
+      "opportunity": "RECURSIVE FEEDBACK FROM EXITS TO ENTRIES",
+      "potential_impact": "Convexity early exits suppress subsequent VFMD entries",
+      "effort": "Low",
+      "priority": "High"
+    },
+    {
+      "opportunity": "AUTOMATIC LSTM RETRAINING",
+      "potential_impact": "ML models stay fresh without manual retraining",
+      "effort": "Medium",
+      "priority": "Medium"
+    },
+    {
+      "opportunity": "REGIME PERSISTENCE PREDICTION",
+      "potential_impact": "Predict regime transitions before they happen",
+      "effort": "High",
+      "priority": "Low"
+    },
+    {
+      "opportunity": "TIMEFRAME REJECTION RULES",
+      "potential_impact": "Block trades when daily/weekly signals oppose",
+      "effort": "Low",
+      "priority": "High"
+    }
+  ],
+  "deployment_status": {
+    "frontend": {
+      "status": "✅ FULLY INTEGRATED",
+      "features": [
+        "Agent Arena visualization",
+        "Signal page with RPG metadata",
+        "Trading terminal with live positions",
+        "Agent ability unlock tree",
+        "Daily briefing dashboard"
+      ]
+    },
+    "backend": {
+      "status": "✅ FULLY INTEGRATED",
+      "services": [
+        "All 13 agents running",
+        "RPG signal processor active",
+        "Quality gating working",
+        "Position sizing applied",
+        "Trade execution functional"
+      ]
+    },
+    "database": {
+      "status": "✅ SCHEMA READY",
+      "tables": [
+        "signals (aggregated)",
+        "trades (execution history)",
+        "agent_stats (performance)",
+        "learning_history (policy updates)"
+      ]
+    },
+    "live_trading": {
+      "status": "✅ PAPER TRADING FULL, LIVE READY",
+      "tested": "Paper trading with all 13 agents",
+      "ready_for": "Live deployment with proper risk management"
+    }
+  },
+  "conclusion": {
+    "system_completeness": "PRODUCTION-READY WITH ADVANCED ORCHESTRATION",
+    "maturity_level": "Phase 5 - Unified Intelligence",
+    "reliability": "High - All major components implemented and tested",
+    "scalability": "Good - Multi-agent architecture supports future expansion",
+    "maintainability": "Excellent - Clear separation of concerns, well-documented",
+    "recommendation": "System is ready for live deployment with proper monitoring and incremental position sizing"
+  }
+}

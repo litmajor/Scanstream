@@ -43,6 +43,7 @@ interface BacktestMetrics {
   totalTrades?: number;
   avgWin?: number;
   avgLoss?: number;
+  [key: string]: number | undefined;
 }
 
 interface BacktestResult {
@@ -101,10 +102,10 @@ const ComparisonMode: React.FC<ComparisonModeProps> = ({ results, onClose, onExp
 
     return metricsToCompare
       .map((m) => {
-        const val1 = results[0]?.metrics[m.key] ?? 0;
-        const val2 = results[1]?.metrics[m.key] ?? 0;
-        const val3 = results[2]?.metrics[m.key];
-        const val4 = results[3]?.metrics[m.key];
+        const val1 = (results[0]?.metrics as any)?.[m.key] ?? 0;
+        const val2 = (results[1]?.metrics as any)?.[m.key] ?? 0;
+        const val3 = (results[2]?.metrics as any)?.[m.key];
+        const val4 = (results[3]?.metrics as any)?.[m.key];
 
         const difference = val1 - val2;
         const percentChange = val2 !== 0 ? (difference / Math.abs(val2)) * 100 : 0;
@@ -186,7 +187,7 @@ const ComparisonMode: React.FC<ComparisonModeProps> = ({ results, onClose, onExp
         if (!rankings[result.id]) {
           rankings[result.id] = { result, score: 0 };
         }
-        rankings[result.id].score += idx === 0 ? 3 : idx === 1 ? 2 : 1;
+        rankings[result.id]!.score += idx === 0 ? 3 : idx === 1 ? 2 : 1;
       });
     });
 

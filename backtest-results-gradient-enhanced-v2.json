@@ -1,0 +1,64 @@
+{
+  "timestamp": "2025-12-22T23:45:14.026Z",
+  "btc": {
+    "asset": "BTC",
+    "trades": [],
+    "total_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0,
+    "total_pnl": 0,
+    "total_pnl_percent": 0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0,
+    "final_capital": 1000,
+    "avg_momentum": 0,
+    "gradient_switches_found": 0,
+    "switches_with_band_touch": 0,
+    "avg_move_after_switch": 0,
+    "exit_reasons": {},
+    "equity_curve": [
+      1000
+    ]
+  },
+  "eth": {
+    "asset": "ETH",
+    "trades": [],
+    "total_trades": 0,
+    "winning_trades": 0,
+    "losing_trades": 0,
+    "win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0,
+    "total_pnl": 0,
+    "total_pnl_percent": 0,
+    "sharpe_ratio": 0,
+    "max_drawdown": 0,
+    "final_capital": 1000,
+    "avg_momentum": 0,
+    "gradient_switches_found": 0,
+    "switches_with_band_touch": 0,
+    "avg_move_after_switch": 0,
+    "exit_reasons": {},
+    "equity_curve": [
+      1000
+    ]
+  },
+  "combined": {
+    "total_trades": 0,
+    "combined_wr": 0,
+    "combined_pnl": 0,
+    "combined_capital": 2000
+  },
+  "key_findings": {
+    "gradient_as_trend_direction": "Green (bullish) or Red (bearish) - direction only",
+    "gradient_strength_meaning": "Momentum/acceleration of the gradient itself (0-100 scale)",
+    "band_reversal_concept": "When gradient switches, price moves average 0.00% before reversal",
+    "band_touches_on_reversal": "Price touches band 0/0 times (NaN%) after gradient switch",
+    "intelligent_following": "Exit on: gradient reversal, band touch, momentum decay, or hard stop-loss"
+  }
+}

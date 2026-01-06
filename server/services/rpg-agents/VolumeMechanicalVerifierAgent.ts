@@ -18,7 +18,7 @@
  * - Climax: Extreme volume at extremes = reversal potential
  */
 
-import { TradingAgent } from './TradingAgent';
+import { TradingAgent } from './TradingAgent.ts';
 
 // ============================================================================
 // TYPES & INTERFACES

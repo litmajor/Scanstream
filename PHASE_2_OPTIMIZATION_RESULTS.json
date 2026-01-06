@@ -1,0 +1,214 @@
+{
+  "timestamp": "2025-12-23T13:24:20.658Z",
+  "phase": "Phase 2 - Optimization",
+  "btcResults": [
+    {
+      "config": {
+        "forThreshold": 50,
+        "holdingPeriod": 50,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 91,
+      "winRate": 87.91208791208791,
+      "profitFactor": 8.391165260681953,
+      "sharpe": 0.008914667709065169,
+      "avgReturn": 1.5309353488684365
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 50,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 91,
+      "winRate": 87.91208791208791,
+      "profitFactor": 8.391165260681953,
+      "sharpe": 0.008914667709065169,
+      "avgReturn": 1.5309353488684365
+    },
+    {
+      "config": {
+        "forThreshold": 65,
+        "holdingPeriod": 50,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 70,
+        "holdingPeriod": 50,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 75,
+        "holdingPeriod": 50,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 30,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 91,
+      "winRate": 90.10989010989012,
+      "profitFactor": 10.613435369442577,
+      "sharpe": 0.008914667709065169,
+      "avgReturn": 1.5494027020704595
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 80,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 91,
+      "winRate": 89.01098901098901,
+      "profitFactor": 6.166421121797367,
+      "sharpe": 0.008914667709065169,
+      "avgReturn": 1.4935043146697256
+    }
+  ],
+  "ethResults": [
+    {
+      "config": {
+        "forThreshold": 50,
+        "holdingPeriod": 10,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 166,
+      "winRate": 75.90361445783132,
+      "profitFactor": 4.86432339209761,
+      "sharpe": 0.035260610350268166,
+      "avgReturn": 0.8657400489423704
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 10,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 166,
+      "winRate": 75.90361445783132,
+      "profitFactor": 4.86432339209761,
+      "sharpe": 0.035260610350268166,
+      "avgReturn": 0.8657400489423704
+    },
+    {
+      "config": {
+        "forThreshold": 65,
+        "holdingPeriod": 10,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 70,
+        "holdingPeriod": 10,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 75,
+        "holdingPeriod": 10,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 0,
+      "winRate": 0,
+      "profitFactor": 0,
+      "sharpe": 0,
+      "avgReturn": 0
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 8,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 169,
+      "winRate": 75.7396449704142,
+      "profitFactor": 4.971845986561447,
+      "sharpe": 0.035260610350268166,
+      "avgReturn": 0.7695775277281339
+    },
+    {
+      "config": {
+        "forThreshold": 60,
+        "holdingPeriod": 15,
+        "atrPeriod": 14,
+        "riskPerTrade": 3
+      },
+      "trades": 159,
+      "winRate": 79.87421383647799,
+      "profitFactor": 4.641191481080576,
+      "sharpe": 0.035260610350268166,
+      "avgReturn": 1.0182213586342856
+    }
+  ],
+  "bestBTC": {
+    "config": {
+      "forThreshold": 60,
+      "holdingPeriod": 30,
+      "atrPeriod": 14,
+      "riskPerTrade": 3
+    },
+    "winRate": 90.10989010989012,
+    "profitFactor": 10.613435369442577,
+    "sharpe": 0.008914667709065169,
+    "trades": 91
+  },
+  "bestETH": {
+    "config": {
+      "forThreshold": 60,
+      "holdingPeriod": 8,
+      "atrPeriod": 14,
+      "riskPerTrade": 3
+    },
+    "winRate": 75.7396449704142,
+    "profitFactor": 4.971845986561447,
+    "sharpe": 0.035260610350268166,
+    "trades": 169
+  }
+}

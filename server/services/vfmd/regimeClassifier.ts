@@ -13,25 +13,27 @@ import type { PhysicsMetrics } from './types';
 /**
  * Six market flow regimes
  */
-export enum FlowRegime {
+export const FlowRegime = {
   // Healthy trending conditions - aggressive entry
-  LAMINAR_TREND = 'laminar_trend',
+  LAMINAR_TREND: 'laminar_trend' as const,
 
   // Chaotic choppy markets - DON'T TRADE
-  TURBULENT_CHOP = 'turbulent_chop',
+  TURBULENT_CHOP: 'turbulent_chop' as const,
 
   // Buyers quietly accumulating - early long opportunity
-  ACCUMULATION = 'accumulation',
+  ACCUMULATION: 'accumulation' as const,
 
   // Sellers quietly distributing - early short opportunity
-  DISTRIBUTION = 'distribution',
+  DISTRIBUTION: 'distribution' as const,
 
   // Volatility compressing before big move - very aggressive
-  BREAKOUT_TRANSITION = 'breakout_transition',
+  BREAKOUT_TRANSITION: 'breakout_transition' as const,
 
   // Low energy, unclear direction - wait
-  CONSOLIDATION = 'consolidation'
-}
+  CONSOLIDATION: 'consolidation' as const
+} as const;
+
+export type FlowRegime = typeof FlowRegime[keyof typeof FlowRegime];
 
 /**
  * Regime-specific configuration

@@ -1,0 +1,2266 @@
+{
+  "timestamp": "2025-12-22T19:14:38.554Z",
+  "summary": {
+    "totalPeriods": 8740,
+    "totalRegimes": 4,
+    "totalSignals": 605,
+    "averageSignalDensity": 5.273481222152744
+  },
+  "regimes": [
+    {
+      "regime": "consolidation",
+      "periodCount": 4873,
+      "percentageOfTime": 55.75514874141877,
+      "signalsGenerated": 387,
+      "signalDensity": 7.941719679868664,
+      "trades": [
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 4.227626322085532,
+          "pnlPct": 0.010768029217652648,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.3602381511011747,
+          "pnlPct": -0.0031859209252268514,
+          "confidence": 0.65,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -2.2698153270071053,
+          "pnlPct": -0.005458899734795886,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.0069720631756045,
+          "pnlPct": -0.009812469031883621,
+          "confidence": 0.66,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.3616268767339026,
+          "pnlPct": -0.0082336815678897,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.074334452815407,
+          "pnlPct": 0.005421691216148936,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 1.6582933275754663,
+          "pnlPct": 0.0043656930885040855,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.9071131305546043,
+          "pnlPct": -0.007089183768558928,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -6.0804544217037035,
+          "pnlPct": -0.015065855311918251,
+          "confidence": 0.69,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 3.1885615979324253,
+          "pnlPct": 0.00825449059677669,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.605542296184247,
+          "pnlPct": 0.014314468902776049,
+          "confidence": 0.68,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 9.460852891647765,
+          "pnlPct": 0.023907248693184554,
+          "confidence": 0.7,
+          "duration": 13
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -0.21961249225387783,
+          "pnlPct": -0.0003452691867057824,
+          "confidence": 0.65,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.4572319298785819,
+          "pnlPct": -0.003418793374292751,
+          "confidence": 0.65,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 6.748051177468702,
+          "pnlPct": 0.01697852472049826,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.512630924883462,
+          "pnlPct": -0.008477407446027119,
+          "confidence": 0.67,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.4496041610052868,
+          "pnlPct": -0.005872446504073271,
+          "confidence": 0.65,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -6.768959520300932,
+          "pnlPct": -0.016620730609440134,
+          "confidence": 0.65,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.472456171910467,
+          "pnlPct": 0.01389101722683694,
+          "confidence": 0.71,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -3.3962711055339723,
+          "pnlPct": -0.008250565764181539,
+          "confidence": 0.67,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 0.1026805967366938,
+          "pnlPct": 0.0004563346176695637,
+          "confidence": 0.69,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 0.8848064319507827,
+          "pnlPct": 0.0024087805519567387,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.922482612261558,
+          "pnlPct": 0.014971613539799271,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -5.103256563453881,
+          "pnlPct": -0.012453612500596956,
+          "confidence": 0.72,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 24.35442054364955,
+          "pnlPct": 0.06088216146080701,
+          "confidence": 0.75,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.045764975081353,
+          "pnlPct": -0.009643619004806614,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.806995122643926,
+          "pnlPct": 0.009499248683465036,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 11.250278982257225,
+          "pnlPct": 0.0275789734091556,
+          "confidence": 0.68,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -4.069716777047842,
+          "pnlPct": -0.009596915581762556,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.4408765176860272,
+          "pnlPct": -0.0032691082541288817,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.9306172818979426,
+          "pnlPct": 0.009639908409417136,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.0628567898736514,
+          "pnlPct": 0.002743474248797883,
+          "confidence": 0.68,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 0.03152052574577387,
+          "pnlPct": 0.0002753592048441828,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.3055115655991165,
+          "pnlPct": -0.007702074468897241,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.7861753539280683,
+          "pnlPct": -0.008932935377328864,
+          "confidence": 0.69,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -8.987411666942803,
+          "pnlPct": -0.02155431345858313,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.7144325687066857,
+          "pnlPct": 0.009269860703876127,
+          "confidence": 0.68,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.3048191188150855,
+          "pnlPct": -0.005407503856982806,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -5.626030831836239,
+          "pnlPct": -0.013513192491530004,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.013564179808041,
+          "pnlPct": 0.014938682508019137,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.25549902665900387,
+          "pnlPct": -0.00042267736114884135,
+          "confidence": 0.71,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.1180624700417816,
+          "pnlPct": -0.007400707190668183,
+          "confidence": 0.68,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 0.8374836995590765,
+          "pnlPct": 0.002247681574006242,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 8.207152104830495,
+          "pnlPct": 0.02025057395625268,
+          "confidence": 0.7,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -1.5518914984385612,
+          "pnlPct": -0.0035612267584926934,
+          "confidence": 0.69,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 4.8581996894853825,
+          "pnlPct": 0.01198986708279717,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 1.1804660128607574,
+          "pnlPct": 0.0030518495841632236,
+          "confidence": 0.65,
+          "duration": 10
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -4.167340961678647,
+          "pnlPct": -0.009854312898008703,
+          "confidence": 0.66,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.1150555408332092,
+          "pnlPct": -0.0025016626143477315,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 7.200005227692162,
+          "pnlPct": 0.017660126215319413,
+          "confidence": 0.66,
+          "duration": 14
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.3325823429448416,
+          "pnlPct": -0.0030097765445853083,
+          "confidence": 0.66,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.378267924684168,
+          "pnlPct": -0.017591108469130805,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.739236312464025,
+          "pnlPct": 0.01413817140586186,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.875839415143833,
+          "pnlPct": -0.011575650456791143,
+          "confidence": 0.65,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -10.48317842211686,
+          "pnlPct": -0.02523780112268034,
+          "confidence": 0.71,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.296043239594592,
+          "pnlPct": 0.005824819279839764,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -2.115320729494886,
+          "pnlPct": -0.004969419795586306,
+          "confidence": 0.69,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 4.283058326996522,
+          "pnlPct": 0.010690744734182805,
+          "confidence": 0.65,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.46182351573192,
+          "pnlPct": -0.010680765530734056,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 0.049549531630475444,
+          "pnlPct": 0.00032136605100588627,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.704581393403737,
+          "pnlPct": 0.01417158514527739,
+          "confidence": 0.68,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 9.335176077499073,
+          "pnlPct": 0.02293649841916044,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.5452289045757074,
+          "pnlPct": -0.001116257151796616,
+          "confidence": 0.68,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.1439057574985352,
+          "pnlPct": 0.002962937544565906,
+          "confidence": 0.69,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -18.051454601271967,
+          "pnlPct": -0.04335286272428001,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.462916986041693,
+          "pnlPct": 0.013614054594379588,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.7570322504998424,
+          "pnlPct": 0.009376060965277837,
+          "confidence": 0.68,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 0.3555059797674245,
+          "pnlPct": 0.001065083867383693,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 18.76211877880714,
+          "pnlPct": 0.04584075186786902,
+          "confidence": 0.73,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 0.9518773966531283,
+          "pnlPct": 0.0025067368916159246,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -13.770160072677228,
+          "pnlPct": -0.03313282955716634,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -0.4624619377485154,
+          "pnlPct": -0.0009348383543576394,
+          "confidence": 0.71,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 6.138942442575982,
+          "pnlPct": 0.015249781135615733,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -6.587366800484919,
+          "pnlPct": -0.015852420127018953,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.8304089259755174,
+          "pnlPct": -0.0067418465966239535,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.8490459773227057,
+          "pnlPct": 0.009666486479227453,
+          "confidence": 0.7,
+          "duration": 9
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -4.514028267864243,
+          "pnlPct": -0.010860041070189244,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -3.6418472136311855,
+          "pnlPct": -0.00876455188611609,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 7.22088927096522,
+          "pnlPct": 0.018038405587008262,
+          "confidence": 0.65,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.977962551762578,
+          "pnlPct": 0.007504598303534455,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -13.242832598397984,
+          "pnlPct": -0.03217948557534211,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.7592602700347086,
+          "pnlPct": -0.006635082937188708,
+          "confidence": 0.72,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.3953316351343314,
+          "pnlPct": 0.013601586875387588,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 4.541470537687915,
+          "pnlPct": 0.011418311575084161,
+          "confidence": 0.65,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.098299391290057,
+          "pnlPct": 0.012737518855667831,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -8.592510504020703,
+          "pnlPct": -0.02082482886145027,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.6592805186528214,
+          "pnlPct": 0.009295386469899115,
+          "confidence": 0.71,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.883102211712228,
+          "pnlPct": -0.006940204575492277,
+          "confidence": 0.68,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.773448535470625,
+          "pnlPct": 0.014536411980147122,
+          "confidence": 0.66,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 0.6084782673813043,
+          "pnlPct": 0.0017023523519852232,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.149099057946466,
+          "pnlPct": 0.007971987286874996,
+          "confidence": 0.68,
+          "duration": 13
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.5237686974284586,
+          "pnlPct": 0.01625081109431027,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.881666325750821,
+          "pnlPct": 0.009605909676193508,
+          "confidence": 0.67,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.723066296697649,
+          "pnlPct": 0.009187783083810996,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.2300901808860882,
+          "pnlPct": 0.003158335481445567,
+          "confidence": 0.7,
+          "duration": 14
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.968682652570003,
+          "pnlPct": 0.009733253876602361,
+          "confidence": 0.68,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.7849684385772417,
+          "pnlPct": 0.009176527179451135,
+          "confidence": 0.69,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.923224065675585,
+          "pnlPct": -0.011431952331691583,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.7696946931992468,
+          "pnlPct": 0.009094072240184126,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -3.7769711408253905,
+          "pnlPct": -0.008681422567287418,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.780458358851588,
+          "pnlPct": -0.008721312894018101,
+          "confidence": 0.72,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -5.210047565975505,
+          "pnlPct": -0.012136440488492672,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 1.875182736591327,
+          "pnlPct": 0.004662138126508723,
+          "confidence": 0.66,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 4.445076326940585,
+          "pnlPct": 0.010760590202214147,
+          "confidence": 0.68,
+          "duration": 10
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -4.648057924505106,
+          "pnlPct": -0.010856001738714267,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.559686275629324,
+          "pnlPct": -0.01751195345775651,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 7.675396617866395,
+          "pnlPct": 0.01831131838946098,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -3.9482412363326893,
+          "pnlPct": -0.009049531378652798,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.050784572125755,
+          "pnlPct": -0.006973605444640427,
+          "confidence": 0.66,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.407802125537967,
+          "pnlPct": -0.017268774966106765,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.603115497035316,
+          "pnlPct": 0.006381723737658349,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 6.367554841390186,
+          "pnlPct": 0.015284024593679725,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.8646022545150245,
+          "pnlPct": 0.004589693579845234,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.1767077364421645,
+          "pnlPct": 0.014715824225782295,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.347047869601621,
+          "pnlPct": -0.0029480533625494,
+          "confidence": 0.68,
+          "duration": 10
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -4.469123417598249,
+          "pnlPct": -0.010257470186382166,
+          "confidence": 0.67,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.0838452063701172,
+          "pnlPct": -0.0023467974164143846,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.196996070282513,
+          "pnlPct": -0.007318313294517818,
+          "confidence": 0.67,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 0.49743116975514623,
+          "pnlPct": 0.0013733512436012567,
+          "confidence": 0.69,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.7452785116461023,
+          "pnlPct": -0.0039156416051844495,
+          "confidence": 0.65,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.3758936937286066,
+          "pnlPct": -0.0030499278816904004,
+          "confidence": 0.66,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.499415369056308,
+          "pnlPct": -0.007980857832855513,
+          "confidence": 0.65,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.2704052764226976,
+          "pnlPct": -0.0027796883124704395,
+          "confidence": 0.68,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.420119831692462,
+          "pnlPct": -0.007831301249899555,
+          "confidence": 0.69,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -8.179760650777288,
+          "pnlPct": -0.019070005607514384,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -3.6733480627285715,
+          "pnlPct": -0.008520954920434741,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -5.490506848064367,
+          "pnlPct": -0.01288071682569998,
+          "confidence": 0.75,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.11193016646254723,
+          "pnlPct": -0.00006808719861514114,
+          "confidence": 0.66,
+          "duration": 12
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.3734169833646983,
+          "pnlPct": 0.005884805538705216,
+          "confidence": 0.69,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.375485442338877,
+          "pnlPct": 0.008266626008920142,
+          "confidence": 0.71,
+          "duration": 10
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.0611551479085235,
+          "pnlPct": -0.004709873326917806,
+          "confidence": 0.68,
+          "duration": 9
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.7417910153066156,
+          "pnlPct": 0.0067440188129616035,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 9.41056216905818,
+          "pnlPct": 0.022689475683753815,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 4.592062860140053,
+          "pnlPct": 0.011076327123860872,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.274220106196865,
+          "pnlPct": -0.005163138532177144,
+          "confidence": 0.68,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -5.3590620318052125,
+          "pnlPct": -0.01246511123474201,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 0.8744980682692061,
+          "pnlPct": 0.002277255503550208,
+          "confidence": 0.67,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -6.281251019671544,
+          "pnlPct": -0.01471075841916499,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.4584484886113622,
+          "pnlPct": 0.008457455877749447,
+          "confidence": 0.67,
+          "duration": 12
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -4.161080544446769,
+          "pnlPct": -0.009704339388154178,
+          "confidence": 0.68,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.253527868851899,
+          "pnlPct": 0.005585222305314995,
+          "confidence": 0.68,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.854108748991524,
+          "pnlPct": 0.007005768043989218,
+          "confidence": 0.67,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.6641835883918488,
+          "pnlPct": -0.0013795049060538367,
+          "confidence": 0.68,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.755392605004806,
+          "pnlPct": 0.013895443624550696,
+          "confidence": 0.68,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.316809218556182,
+          "pnlPct": 0.008048092406867111,
+          "confidence": 0.68,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.3129210525189818,
+          "pnlPct": -0.0028974865847199395,
+          "confidence": 0.72,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 0.21108400459997045,
+          "pnlPct": 0.0006985311201546065,
+          "confidence": 0.65,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.44141934679804,
+          "pnlPct": 0.013048303772867073,
+          "confidence": 0.66,
+          "duration": 9
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 4.981066404745192,
+          "pnlPct": 0.011869994888235197,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.9587621686404857,
+          "pnlPct": -0.008980179921878178,
+          "confidence": 0.65,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.459905458667167,
+          "pnlPct": -0.005502235153930546,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.2287727067477725,
+          "pnlPct": 0.0077015862655942235,
+          "confidence": 0.66,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 4.521743576928155,
+          "pnlPct": 0.010674198789279082,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.39838034657077087,
+          "pnlPct": -0.000718983028301812,
+          "confidence": 0.66,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 3.8833388062841343,
+          "pnlPct": 0.009161157329052276,
+          "confidence": 0.7,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.7043145609743672,
+          "pnlPct": -0.0014191252826298833,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.2853915028729395,
+          "pnlPct": -0.005058352120235013,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.3804736649952452,
+          "pnlPct": 0.003382333847706699,
+          "confidence": 0.67,
+          "duration": 10
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.745621691247135,
+          "pnlPct": 0.0065212712342078245,
+          "confidence": 0.69,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.2076176224004804,
+          "pnlPct": 0.007566298045646802,
+          "confidence": 0.67,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.1347544323059215,
+          "pnlPct": -0.002406184645152085,
+          "confidence": 0.66,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.490719824942865,
+          "pnlPct": 0.005926328393808802,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.5778821785113037,
+          "pnlPct": 0.0038186740859973314,
+          "confidence": 0.69,
+          "duration": 13
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -0.1848093526209756,
+          "pnlPct": -0.00022332662794089428,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.6558951669645947,
+          "pnlPct": 0.006283172856570351,
+          "confidence": 0.66,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 5.669913580524114,
+          "pnlPct": 0.013157608533087978,
+          "confidence": 0.67,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.078589612716809,
+          "pnlPct": 0.007197941937549657,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -3.3053104029216716,
+          "pnlPct": -0.007330612988381486,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 3.3869275775133922,
+          "pnlPct": 0.007941429974649365,
+          "confidence": 0.74,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -5.711162541779353,
+          "pnlPct": -0.012811003081323232,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.388765952629377,
+          "pnlPct": 0.012543228793513078,
+          "confidence": 0.71,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.5655723721027265,
+          "pnlPct": -0.0010847575344185116,
+          "confidence": 0.7,
+          "duration": 12
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.592767025418239,
+          "pnlPct": 0.006092885267645018,
+          "confidence": 0.67,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.3214165994453544,
+          "pnlPct": -0.005063708846531662,
+          "confidence": 0.69,
+          "duration": 13
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.039617547855839,
+          "pnlPct": -0.015798981993889037,
+          "confidence": 0.69,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 1.827457094523706,
+          "pnlPct": 0.004379199530254037,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.8461544101023044,
+          "pnlPct": -0.008582798881477512,
+          "confidence": 0.65,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.4106046394680378,
+          "pnlPct": -0.0030325219764183436,
+          "confidence": 0.65,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -5.040069454717701,
+          "pnlPct": -0.011364653206671047,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 11.34650907462143,
+          "pnlPct": 0.026355963107436403,
+          "confidence": 0.66,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 0.8612449055980748,
+          "pnlPct": 0.002164768215888476,
+          "confidence": 0.7,
+          "duration": 13
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.9167762525196412,
+          "pnlPct": 0.009128442746040343,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.6005771171454874,
+          "pnlPct": 0.015205808385738108,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -6.116266023771605,
+          "pnlPct": -0.01362176188552245,
+          "confidence": 0.66,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 4.683071212601204,
+          "pnlPct": 0.010776948917794075,
+          "confidence": 0.67,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.7833664208735645,
+          "pnlPct": 0.013206980611238756,
+          "confidence": 0.69,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -0.8428287387928608,
+          "pnlPct": -0.0016857144869136616,
+          "confidence": 0.7,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -2.530720972626478,
+          "pnlPct": -0.005467631506036884,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.0572254917654,
+          "pnlPct": -0.0021625602253587052,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.074158335270419,
+          "pnlPct": 0.011547496972865674,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.352720419724816,
+          "pnlPct": 0.012118702810329509,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.131651980646393,
+          "pnlPct": -0.004523978710884258,
+          "confidence": 0.66,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 3.895874477388252,
+          "pnlPct": 0.008848289562503142,
+          "confidence": 0.68,
+          "duration": 11
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.643535193900025,
+          "pnlPct": -0.007861859993849151,
+          "confidence": 0.7,
+          "duration": 6
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.4427474986332214,
+          "pnlPct": -0.003002630644672488,
+          "confidence": 0.74,
+          "duration": 4
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -0.6596006064526662,
+          "pnlPct": -0.0012657460259031398,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.8880629460565199,
+          "pnlPct": -0.0017745934216436999,
+          "confidence": 0.7,
+          "duration": 12
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -7.813972013032755,
+          "pnlPct": -0.01718813016111552,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -1.3439159762974668,
+          "pnlPct": -0.002804628517620784,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.3529216676730775,
+          "pnlPct": -0.002829048762005969,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -0.47762365605197776,
+          "pnlPct": -0.000870404835121959,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.8790390580297351,
+          "pnlPct": -0.0017708797345223877,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -5.406678125461111,
+          "pnlPct": -0.01193189682696051,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 5.339419752546012,
+          "pnlPct": 0.012241815865057046,
+          "confidence": 0.71,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 0.2787777919601279,
+          "pnlPct": 0.0008256006469937398,
+          "confidence": 0.65,
+          "duration": 9
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -2.961972754231784,
+          "pnlPct": -0.006445018736962165,
+          "confidence": 0.67,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 4.785405752254843,
+          "pnlPct": 0.010964454989138813,
+          "confidence": 0.69,
+          "duration": 7
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -2.034483153972289,
+          "pnlPct": -0.004357736241371645,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 6.085957795451781,
+          "pnlPct": 0.013858842120627374,
+          "confidence": 0.68,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 7.8416649982148465,
+          "pnlPct": 0.017703595988280897,
+          "confidence": 0.71,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 2.54019642238239,
+          "pnlPct": 0.005829524112090925,
+          "confidence": 0.67,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.178907376203968,
+          "pnlPct": 0.011651563871699406,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 10.701861367330054,
+          "pnlPct": 0.023755948401203673,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.8038163684712087,
+          "pnlPct": -0.00373330558644506,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 3.2016705549369213,
+          "pnlPct": 0.007192449736777575,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.2600610212106655,
+          "pnlPct": 0.0029443094223768444,
+          "confidence": 0.68,
+          "duration": 5
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 5.701934857262383,
+          "pnlPct": 0.012607098389615174,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -3.135704846349488,
+          "pnlPct": -0.006589461645712527,
+          "confidence": 0.67,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 1.087388508466589,
+          "pnlPct": 0.0025608091303720246,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -2.9278868155296207,
+          "pnlPct": -0.00614944827126525,
+          "confidence": 0.7,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.031102495500362,
+          "pnlPct": 0.006779190029979328,
+          "confidence": 0.66,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 7.978834970436531,
+          "pnlPct": 0.017473046487187515,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.38601814773598964,
+          "pnlPct": -0.0006301248003594341,
+          "confidence": 0.66,
+          "duration": 8
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.9812125918290462,
+          "pnlPct": -0.004061892928504829,
+          "confidence": 0.69,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.3935084939393505,
+          "pnlPct": -0.015731675771747812,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.0779696562978955,
+          "pnlPct": 0.013380879704735301,
+          "confidence": 0.69,
+          "duration": 3
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": 2.457490671872713,
+          "pnlPct": 0.005500412529155051,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -7.6047063728277475,
+          "pnlPct": -0.01617065683530977,
+          "confidence": 0.67,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "turbulent_chop",
+          "pnl": 6.109609844900844,
+          "pnlPct": 0.013438807955390115,
+          "confidence": 0.68,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -0.1749068326488934,
+          "pnlPct": -0.0001769115165184895,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": -1.46968094139215,
+          "pnlPct": -0.002968354970971018,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "consolidation",
+          "pnl": 12.41037839959847,
+          "pnlPct": 0.02704139210238207,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "consolidation",
+          "exitRegime": "distribution",
+          "pnl": -10.992925290922273,
+          "pnlPct": -0.023318459361804135,
+          "confidence": 0.68,
+          "duration": 2
+        }
+      ],
+      "tradeStats": {
+        "count": 233,
+        "wins": 118,
+        "losses": 115,
+        "winRate": 0.5064377682403434,
+        "totalPnL": 104.99475133822371,
+        "avgWin": 4.451635805506999,
+        "avgLoss": -3.654767597492191,
+        "profitFactor": 1.2498100941767578
+      }
+    },
+    {
+      "regime": "turbulent_chop",
+      "periodCount": 3113,
+      "percentageOfTime": 35.617848970251714,
+      "signalsGenerated": 165,
+      "signalDensity": 5.30035335689046,
+      "trades": [],
+      "tradeStats": {
+        "count": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": 0,
+        "totalPnL": 0,
+        "avgWin": 0,
+        "avgLoss": 0,
+        "profitFactor": 0
+      }
+    },
+    {
+      "regime": "distribution",
+      "periodCount": 675,
+      "percentageOfTime": 7.723112128146453,
+      "signalsGenerated": 53,
+      "signalDensity": 7.851851851851851,
+      "trades": [
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 1.806943942652026,
+          "pnlPct": 0.0047439442115409245,
+          "confidence": 0.65,
+          "duration": 4
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": -0.9988560249949179,
+          "pnlPct": -0.002300433362467316,
+          "confidence": 0.65,
+          "duration": 5
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 3.9159714815157516,
+          "pnlPct": 0.009661999917066174,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 3.824317093537605,
+          "pnlPct": 0.009418485220074543,
+          "confidence": 0.65,
+          "duration": 5
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": -6.710321849483938,
+          "pnlPct": -0.01588911122016812,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 6.852948665043152,
+          "pnlPct": 0.016737563654787315,
+          "confidence": 0.65,
+          "duration": 14
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": -6.20475742467337,
+          "pnlPct": -0.014674900104996239,
+          "confidence": 0.69,
+          "duration": 2
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": 0.4072726307826107,
+          "pnlPct": 0.0011931242203686626,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 0.9062759529063601,
+          "pnlPct": 0.0024217407578484007,
+          "confidence": 0.67,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": -14.849090623183972,
+          "pnlPct": -0.035267250528376454,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 1.2309937291670683,
+          "pnlPct": 0.003221477589790437,
+          "confidence": 0.7,
+          "duration": 6
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 0.28849283158085665,
+          "pnlPct": 0.0009054590525728776,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": -7.109129217508739,
+          "pnlPct": -0.017342719823631315,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 0.8560314672377434,
+          "pnlPct": 0.002292314030035275,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 9.984623478984163,
+          "pnlPct": 0.024583816509026052,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.7663488399619183,
+          "pnlPct": -0.004071970868524639,
+          "confidence": 0.7,
+          "duration": 15
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 9.618528673449129,
+          "pnlPct": 0.02321705674165384,
+          "confidence": 0.66,
+          "duration": 3
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.610766700867671,
+          "pnlPct": -0.0036234879761266035,
+          "confidence": 0.68,
+          "duration": 4
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 8.021738628812326,
+          "pnlPct": 0.019270545105736402,
+          "confidence": 0.7,
+          "duration": 2
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": -5.908691357051759,
+          "pnlPct": -0.01377600654803501,
+          "confidence": 0.68,
+          "duration": 2
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 20.868706299860147,
+          "pnlPct": 0.050059524639403226,
+          "confidence": 0.7,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 4.5716649458391725,
+          "pnlPct": 0.01101246312474995,
+          "confidence": 0.65,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 7.789506263789641,
+          "pnlPct": 0.018540049817212627,
+          "confidence": 0.7,
+          "duration": 13
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": -4.281282048859137,
+          "pnlPct": -0.009989724183218772,
+          "confidence": 0.69,
+          "duration": 3
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 2.84323900902196,
+          "pnlPct": 0.006880444645155926,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 6.019835160268618,
+          "pnlPct": 0.014238155246147502,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 4.590401128508331,
+          "pnlPct": 0.010884200710588125,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": -3.076240102915011,
+          "pnlPct": -0.006843793465907619,
+          "confidence": 0.69,
+          "duration": 7
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": -5.6127557888383945,
+          "pnlPct": -0.012522681961567562,
+          "confidence": 0.66,
+          "duration": 2
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 3.4779657474745624,
+          "pnlPct": 0.008125760530897592,
+          "confidence": 0.69,
+          "duration": 11
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": -1.1752836734663485,
+          "pnlPct": -0.0024690235281412025,
+          "confidence": 0.66,
+          "duration": 5
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": -2.7822436433642133,
+          "pnlPct": -0.0061223632796993405,
+          "confidence": 0.67,
+          "duration": 5
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 9.532507987322704,
+          "pnlPct": 0.02191666096057193,
+          "confidence": 0.65,
+          "duration": 15
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 0.7646555686828299,
+          "pnlPct": 0.0019160322765677217,
+          "confidence": 0.66,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 4.1959761748399655,
+          "pnlPct": 0.00961001772896331,
+          "confidence": 0.68,
+          "duration": 1
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "turbulent_chop",
+          "pnl": 2.5495902243891004,
+          "pnlPct": 0.005913272323424894,
+          "confidence": 0.67,
+          "duration": 6
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "distribution",
+          "pnl": 1.9000799472081282,
+          "pnlPct": 0.004331060735582961,
+          "confidence": 0.7,
+          "duration": 8
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": -2.2957474215399767,
+          "pnlPct": -0.004754435877780923,
+          "confidence": 0.68,
+          "duration": 11
+        },
+        {
+          "entryRegime": "distribution",
+          "exitRegime": "consolidation",
+          "pnl": 8.78308022418954,
+          "pnlPct": 0.019169181788005214,
+          "confidence": 0.65,
+          "duration": 7
+        }
+      ],
+      "tradeStats": {
+        "count": 39,
+        "wins": 25,
+        "losses": 14,
+        "winRate": 0.6410256410256411,
+        "totalPnL": 61.219832540354126,
+        "avgWin": 5.02405389028254,
+        "avgLoss": -4.598679622622098,
+        "profitFactor": 1.9508914602232141
+      }
+    },
+    {
+      "regime": "UNKNOWN",
+      "periodCount": 79,
+      "percentageOfTime": 0.9038901601830663,
+      "signalsGenerated": 0,
+      "signalDensity": 0,
+      "trades": [],
+      "tradeStats": {
+        "count": 0,
+        "wins": 0,
+        "losses": 0,
+        "winRate": 0,
+        "totalPnL": 0,
+        "avgWin": 0,
+        "avgLoss": 0,
+        "profitFactor": 0
+      }
+    }
+  ],
+  "profitFactorDegradation": {
+    "baseline_180d": 1.86,
+    "current_1y": 1.3429368994683442,
+    "change": -27.799091426433115
+  }
+}

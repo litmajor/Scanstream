@@ -11,11 +11,21 @@ model MarketFrame {
   id                   String   @id @default(uuid())
   timestamp            DateTime @default(now())
   symbol               String
-  price                Json
+  timeframe            Int      // Timeframe in seconds (60 = 1m, 300 = 5m, 3600 = 1h, etc)
+  open                 Float?
+  high                 Float?
+  low                  Float?
+  close                Float?
   volume               Float
-  indicators           Json
-  orderFlow            Json
-  marketMicrostructure Json
+  isFinal              Boolean  @default(false)
+  price                Json     @default("{}")
+  indicators           Json     @default("{}")
+  orderFlow            Json     @default("{}")
+  marketMicrostructure Json     @default("{}")
+  
+  @@index([symbol])
+  @@index([timeframe])
+  @@index([timestamp])
 }
 
 model Signal {

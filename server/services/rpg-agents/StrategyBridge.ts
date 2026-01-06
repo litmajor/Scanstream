@@ -7,15 +7,15 @@
  * 3. Syncs with Bayesian Belief Updater for weight adjustments
  */
 
-import { getMarketOracle } from './MarketOracle';
-import { AgentArena } from './AgentArena';
-import { BreakoutHunter } from './BreakoutHunter';
-import { ReversalMaster } from './ReversalMaster';
-import { MLOracle } from './MLOracle';
-import { TrendRider } from './TrendRider';
-import { SupportSniper } from './SupportSniper';
+import { getMarketOracle } from './MarketOracle.ts';
+import { AgentArena } from './AgentArena.ts';
+import { BreakoutHunter } from './BreakoutHunter.ts';
+import { ReversalMaster } from './ReversalMaster.ts';
+import { MLOracle } from './MLOracle.ts';
+import { TrendRider } from './TrendRider.ts';
+import { SupportSniper } from './SupportSniper.ts';
 
-import { createAgentFromPythonStrategy } from './PythonStrategyAgent';
+import { createAgentFromPythonStrategy } from './PythonStrategyAgent.ts';
 
 export class StrategyBridge {
   private arena: AgentArena | null = null;

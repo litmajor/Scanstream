@@ -15,7 +15,9 @@
     "db:studio": "npx prisma studio",
     "db:migrate": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "logs": "tail -f logs/server-*.log 2>/dev/null || echo 'No logs found'",
+    "logs:win": "Get-Content -Path logs/server-*.log -Tail 50 -Wait"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.12",

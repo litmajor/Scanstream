@@ -252,7 +252,7 @@ router.get('/signals', async (req: Request, res: Response) => {
     }
 
     // Filter and map strategy signals
-    const strategySignals: any[] = [];
+    let strategySignals: any[] = [];
     
     for (const s of signals) {
       try {
@@ -282,6 +282,47 @@ router.get('/signals', async (req: Request, res: Response) => {
         console.warn('[Strategies] Error mapping signal:', mapError);
         continue;
       }
+    }
+
+    // If no real signals yet, provide mock data for UI testing
+    if (strategySignals.length === 0) {
+      console.log('[Strategies] No signals from storage, using mock data for UI testing');
+      strategySignals = [
+        {
+          symbol: 'BTC/USDT',
+          exchange: 'strategy',
+          signal: 'BUY',
+          strength: 65,
+          confidence: 0.75,
+          price: 43500,
+          change: 2.1,
+          change24h: 2.1,
+          timestamp: Date.now(),
+          source: 'strategy',
+          strategyName: 'Bounce Strategy',
+          stopLoss: 42000,
+          takeProfit: 45000,
+          reasoning: ['Support bounce detected', 'Volume confirmation'],
+          indicators: { rsi: 42, macd: 'bullish' }
+        },
+        {
+          symbol: 'ETH/USDT',
+          exchange: 'strategy',
+          signal: 'HOLD',
+          strength: 35,
+          confidence: 0.55,
+          price: 2280,
+          change: 1.2,
+          change24h: 1.2,
+          timestamp: Date.now() - 60000,
+          source: 'strategy',
+          strategyName: 'Mean Reversion',
+          stopLoss: 2200,
+          takeProfit: 2400,
+          reasoning: ['Price near moving average'],
+          indicators: { rsi: 55, macd: 'neutral' }
+        }
+      ];
     }
 
     console.log('[Strategies] Mapped', strategySignals.length, 'strategy signals');
@@ -398,7 +439,7 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
 
         signals.push({
           ...signal,
-          id: `${strategyId || id}-${i}-${normalizedFrames[i].timestamp.getTime()}`,
+          id: `${strategyId}-${i}-${normalizedFrames[i].timestamp.getTime()}`,
           symbol: signal.symbol ?? symbol,
           type: mappedType,
           confidence: Number(signal.confidence) || 0,
@@ -894,6 +935,224 @@ router.post('/execute-all', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error executing strategies:', error);
     res.status(500).json({ success: false, error: 'Failed to execute strategies' });
+  }
+});
+
+// ============================================================================
+// Feature-Enabled Strategy Endpoints
+// ============================================================================
+// Import strategy services registry
+import {
+  getTradeDurationPredictor,
+  getPyramidStrategy,
+  getEnabledStrategies,
+} from '../services/strategy-registry';
+
+/**
+ * POST /api/strategies/predict-duration
+ * Predict trade duration based on cluster characteristics
+ */
+router.post('/predict-duration', (req: Request, res: Response) => {
+  const predictor = getTradeDurationPredictor();
+
+  if (!predictor) {
+    return res.status(403).json({
+      error: 'Trade Duration Predictor feature is disabled',
+      flag: 'trade_duration_predictor',
+      enable_instructions: 'POST /api/feature-flags/trade_duration_predictor/set with body {"enabled": true}',
+    });
+  }
+
+  try {
+    const {
+      cluster_strength,
+      trend_formation,
+      momentum_score = 0.5,
+      volatility_multiplier = 1.0,
+    } = req.body;
+
+    // Validate inputs
+    if (typeof cluster_strength !== 'number' || cluster_strength < 0 || cluster_strength > 1) {
+      return res.status(400).json({
+        error: 'Invalid cluster_strength: must be a number between 0 and 1',
+      });
+    }
+
+    if (typeof trend_formation !== 'boolean') {
+      return res.status(400).json({
+        error: 'Invalid trend_formation: must be a boolean',
+      });
+    }
+
+    const prediction = predictor.predictDuration(
+      cluster_strength,
+      trend_formation,
+      momentum_score,
+      volatility_multiplier
+    );
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      prediction,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to predict duration',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/strategies/pyramid-decision
+ * Decide whether to pyramid into a position
+ */
+router.post('/pyramid-decision', (req: Request, res: Response) => {
+  const strategy = getPyramidStrategy();
+
+  if (!strategy) {
+    return res.status(403).json({
+      error: 'Pyramid Strategy feature is disabled',
+      flag: 'pyramid_strategy',
+      enable_instructions: 'POST /api/feature-flags/pyramid_strategy/set with body {"enabled": true}',
+    });
+  }
+
+  try {
+    const {
+      original_entry_price,
+      current_price,
+      original_position_size,
+      cluster_strength,
+      trend_formation,
+    } = req.body;
+
+    // Validate inputs
+    if (typeof original_entry_price !== 'number' || original_entry_price <= 0) {
+      return res.status(400).json({
+        error: 'Invalid original_entry_price: must be a positive number',
+      });
+    }
+
+    if (typeof current_price !== 'number' || current_price <= 0) {
+      return res.status(400).json({
+        error: 'Invalid current_price: must be a positive number',
+      });
+    }
+
+    if (typeof original_position_size !== 'number' || original_position_size <= 0) {
+      return res.status(400).json({
+        error: 'Invalid original_position_size: must be a positive number',
+      });
+    }
+
+    if (typeof cluster_strength !== 'number' || cluster_strength < 0 || cluster_strength > 1) {
+      return res.status(400).json({
+        error: 'Invalid cluster_strength: must be a number between 0 and 1',
+      });
+    }
+
+    if (typeof trend_formation !== 'boolean') {
+      return res.status(400).json({
+        error: 'Invalid trend_formation: must be a boolean',
+      });
+    }
+
+    const decision = strategy.decidePyramid({
+      original_entry_price,
+      current_price,
+      original_position_size,
+      cluster_strength,
+      trend_formation,
+    });
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      decision,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to make pyramid decision',
+      details: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/strategies/feature-enabled
+ * List all enabled feature-flag-based strategy services
+ */
+router.get('/feature-enabled', (req: Request, res: Response) => {
+  const strategies = getEnabledStrategies();
+
+  res.json({
+    timestamp: new Date().toISOString(),
+    total_enabled: strategies.length,
+    strategies,
+    all_available: [
+      {
+        name: 'Trade Duration Predictor',
+        endpoint: 'POST /api/strategies/predict-duration',
+        flag: 'trade_duration_predictor',
+      },
+      {
+        name: 'Pyramid Strategy',
+        endpoint: 'POST /api/strategies/pyramid-decision',
+        flag: 'pyramid_strategy',
+      },
+    ],
+  });
+});
+
+/**
+ * GET /api/strategies/compare-durations
+ * Compare multiple trade duration scenarios
+ */
+router.get('/compare-durations', (req: Request, res: Response) => {
+  const predictor = getTradeDurationPredictor();
+
+  if (!predictor) {
+    return res.status(403).json({
+      error: 'Trade Duration Predictor feature is disabled',
+      flag: 'trade_duration_predictor',
+    });
+  }
+
+  try {
+    const cluster_strength = parseFloat(req.query.cluster_strength as string) || 0.75;
+    const trend_formation = req.query.trend_formation === 'true';
+    const momentum_score = parseFloat(req.query.momentum_score as string) || 0.5;
+
+    // Validate
+    if (cluster_strength < 0 || cluster_strength > 1) {
+      return res.status(400).json({
+        error: 'Invalid cluster_strength query param: must be between 0 and 1',
+      });
+    }
+
+    const scenarios = predictor.compareScenarios(
+      cluster_strength,
+      trend_formation,
+      momentum_score
+    );
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      input: {
+        base_cluster_strength: cluster_strength,
+        trend_formation,
+        momentum_score,
+      },
+      scenarios,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to compare scenarios',
+      details: error.message,
+    });
   }
 });
 

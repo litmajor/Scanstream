@@ -72,7 +72,7 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   app.get("/", serveIndexHtml);
-  app.get("/*splat", (req, res, next) => {
+  app.get("/*", (req, res, next) => {
     if (req.path.startsWith('/api') || 
         req.path.startsWith('/ws') ||
         req.path.includes('.') ||
@@ -95,12 +95,12 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
-  const serveIndexHtml = (_req: any, res: any) => {
+  const serveIndexHtml = (req: any, res: any, next?: any) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   };
 
   app.get("/", serveIndexHtml);
-  app.get("/*splat", (req, res, next) => {
+  app.get("/*", (req, res, next) => {
     if (req.path.startsWith('/api') || 
         req.path.startsWith('/ws') ||
         req.path.includes('.') ||

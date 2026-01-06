@@ -847,8 +847,8 @@ export default function TradingTerminal() {
 
   // WebSocket connection through Vite proxy
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Connect to Socket.IO for real-time updates
-  const wsUrl = `${wsProtocol}//${window.location.host}/socket.io/?transport=websocket&v=${Date.now()}`;
+  // Connect to WebSocket for real-time updates
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
   // Gateway Agent WebSocket hook
   const { isConnected: isGatewayConnected, setExchange } = useWebSocket(

@@ -1,0 +1,50 @@
+{
+  "timestamp": "2025-12-22T23:50:23.940Z",
+  "btc": {
+    "asset": "BTC",
+    "total_trades": 4,
+    "winning_trades": 2,
+    "losing_trades": 2,
+    "win_rate": 50,
+    "avg_win": 0.6092504017175382,
+    "avg_loss": 0.47645317144655297,
+    "profit_factor": 1.2787204246490822,
+    "total_pnl": 0.2655944605419703,
+    "total_pnl_percent": 0.02655944605419703,
+    "sharpe_ratio": 1.387757692256265,
+    "max_drawdown": -0.09244300644893928,
+    "final_capital": 1000.2655944605419,
+    "exit_reasons": {
+      "take_profit": 1,
+      "stop_loss": 1,
+      "upper_band_touch": 1,
+      "lower_band_touch": 1
+    }
+  },
+  "eth": {
+    "asset": "ETH",
+    "total_trades": 12,
+    "winning_trades": 6,
+    "losing_trades": 6,
+    "win_rate": 50,
+    "avg_win": 0.77897353901789,
+    "avg_loss": 0.5286900778191587,
+    "profit_factor": 1.473402985414722,
+    "total_pnl": 1.5017007671923892,
+    "total_pnl_percent": 0.1501700767192389,
+    "sharpe_ratio": 2.601102217622536,
+    "max_drawdown": -0.1900478521275836,
+    "final_capital": 1001.5017007671923,
+    "exit_reasons": {
+      "stop_loss": 5,
+      "take_profit": 5,
+      "lower_band_touch": 2
+    }
+  },
+  "combined": {
+    "total_trades": 16,
+    "combined_wr": 50,
+    "combined_pnl": 1.7672952277343594,
+    "combined_capital": 2001.7672952277344
+  }
+}

@@ -29,10 +29,11 @@ const router = Router();
 /**
  * Get Scout Report Service from global context
  */
-function getScoutReportService(): ScoutReportService {
-  const service = (global as any).scoutReportService as ScoutReportService;
+function getScoutReportService(): ScoutReportService | null {
+  const service = (global as any).scoutReportService as ScoutReportService | null;
   if (!service) {
-    throw new Error('Scout Report Service not initialized');
+    logger.warn('Scout Report Service not initialized - returning null');
+    return null;
   }
   return service;
 }
@@ -40,6 +41,92 @@ function getScoutReportService(): ScoutReportService {
 // ============================================================================
 // CORE ENDPOINTS (2.1)
 // ============================================================================
+
+/**
+ * GET /api/scout/list
+ * List of available scout reports with metadata (no full analysis)
+ * Query params: limit, sort
+ */
+router.get('/list', async (req: Request, res: Response) => {
+  try {
+    const { limit = 20, sort = 'confidence' } = req.query;
+
+    logger.info('Fetching scout reports list');
+
+    // Default symbols to scan
+    const symbolsToScan = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'XRP/USDT', 'ADA/USDT'];
+
+    const service = getScoutReportService();
+    if (!service) {
+      // Return fallback list if service not initialized
+      const fallbackList = symbolsToScan.map((symbol) => ({
+        symbol,
+        confidence: 0.65,
+        direction: 'NEUTRAL' as const,
+        opportunities: 0,
+        riskScore: 5,
+        lastUpdated: Date.now(),
+      }));
+      return res.json(fallbackList);
+    }
+
+    // Generate reports for all symbols
+    const reports = await Promise.all(
+      symbolsToScan.map(async (symbol) => {
+        try {
+          const report = await service.generateScoutReport(symbol);
+          return {
+            symbol: report.symbol,
+            confidence: report.executiveSummary.strength,
+            direction: report.executiveSummary.direction,
+            opportunities: report.opportunities.length,
+            riskScore: report.riskAssessment?.overallRiskScore || 5,
+            lastUpdated: report.timestamp || Date.now(),
+          };
+        } catch (error) {
+          logger.warn(`Failed to generate report for ${symbol}`, error);
+          return {
+            symbol,
+            confidence: 0,
+            direction: 'NEUTRAL' as const,
+            opportunities: 0,
+            riskScore: 5,
+            lastUpdated: Date.now(),
+          };
+        }
+      })
+    );
+
+    // Sort results
+    let sorted = reports;
+    switch (sort) {
+      case 'confidence':
+        sorted = reports.sort((a, b) => b.confidence - a.confidence);
+        break;
+      case 'opportunities':
+        sorted = reports.sort((a, b) => b.opportunities - a.opportunities);
+        break;
+      case 'updated':
+        sorted = reports.sort((a, b) => b.lastUpdated - a.lastUpdated);
+        break;
+      case 'risk':
+        sorted = reports.sort((a, b) => a.riskScore - b.riskScore);
+        break;
+    }
+
+    // Limit results
+    const limitNum = Math.min(parseInt(String(limit)), symbolsToScan.length);
+    const result = sorted.slice(0, limitNum);
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error fetching scout reports list', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Return fallback empty array instead of error
+    res.json([]);
+  }
+});
 
 /**
  * GET /api/scout/:symbol
@@ -52,12 +139,20 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     logger.info(`Fetching full scout report for ${symbol}`);
 
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not initialized',
+        data: null,
+      });
+    }
+
     const request: ScoutReportRequest = {
       symbol,
       includeHistorical: includeHistorical === 'true',
     };
 
-    const service = getScoutReportService();
     const report = await service.generateScoutReport(symbol, request);
 
     res.json({
@@ -84,9 +179,16 @@ router.get('/:symbol/executive', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
 
-    logger.info(`Fetching executive summary for ${symbol}`);
+    logger.info(`Fetching technical summary for ${symbol}`);
 
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
 
     res.json({
       success: true,
@@ -120,12 +222,19 @@ router.get('/:symbol/sources', async (req: Request, res: Response) => {
 
     logger.info(`Fetching sources for ${symbol}`, { source });
 
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
 
     let sources = report.sourcesAnalysis;
 
     // Filter by specific source if requested
-    if (source && source !== 'ALL') {
+    if (source) {
       const sourceKey = source.toLowerCase();
       sources = {
         ml: sourceKey === 'ml' ? sources.ml : undefined,
@@ -175,7 +284,14 @@ router.get('/:symbol/opportunities', async (req: Request, res: Response) => {
       limit,
     });
 
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
 
     let opportunities = report.opportunities;
 
@@ -233,7 +349,14 @@ router.get('/:symbol/opportunities', async (req: Request, res: Response) => {
 router.get('/:symbol/scalp', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
     const scalps = report.opportunities.filter((opp) => opp.type === 'SCALP');
 
     res.json({
@@ -260,7 +383,14 @@ router.get('/:symbol/scalp', async (req: Request, res: Response) => {
 router.get('/:symbol/day', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
     const dayTrades = report.opportunities.filter((opp) => opp.type === 'DAY');
 
     res.json({
@@ -287,7 +417,14 @@ router.get('/:symbol/day', async (req: Request, res: Response) => {
 router.get('/:symbol/swing', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
     const swings = report.opportunities.filter((opp) => opp.type === 'SWING');
 
     res.json({
@@ -314,7 +451,14 @@ router.get('/:symbol/swing', async (req: Request, res: Response) => {
 router.get('/:symbol/consensus', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
 
     res.json({
       success: true,
@@ -343,7 +487,14 @@ router.get('/:symbol/consensus', async (req: Request, res: Response) => {
 router.get('/:symbol/risk-assessment', async (req: Request, res: Response) => {
   try {
     const { symbol } = req.params;
-    const service = getScoutReportService(); const report = await service.generateScoutReport(symbol);
+    const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
+    const report = await service.generateScoutReport(symbol);
 
     const riskData = {
       riskAssessment: report.riskAssessment,
@@ -402,6 +553,12 @@ router.get('/multi', async (req: Request, res: Response) => {
 
     // Fetch reports in parallel
     const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
     const reports = await Promise.all(
       symbolList.map((symbol) => service.generateScoutReport(symbol))
     );
@@ -466,6 +623,12 @@ router.get('/compare', async (req: Request, res: Response) => {
     logger.info(`Comparing scout reports`, { symbol1, symbol2 });
 
     const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
     const [report1, report2] = await Promise.all([
       service.generateScoutReport(symbol1),
       service.generateScoutReport(symbol2),
@@ -533,6 +696,12 @@ router.get('/best', async (req: Request, res: Response) => {
     const symbolsToScan = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']; // Example symbols
 
     const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
     const allReports = await Promise.all(
       symbolsToScan.map((symbol) => service.generateScoutReport(symbol))
     );
@@ -596,6 +765,12 @@ router.get('/watch-list', async (req: Request, res: Response) => {
     const userWatchlist = ['BTC/USDT', 'ETH/USDT']; // Example
 
     const service = getScoutReportService();
+    if (!service) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scout Report Service not available',
+      });
+    }
     const watchlistReports = await Promise.all(
       userWatchlist.map((symbol) => service.generateScoutReport(symbol))
     );

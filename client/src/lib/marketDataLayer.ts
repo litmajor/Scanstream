@@ -91,9 +91,8 @@ export class MarketDataLayer {
   private connect() {
     if (this.ws && (this.ws as any).connected) return;
     try {
-      // Import Socket.IO dynamically to maintain compatibility
-      // For now, we'll use raw WebSocket connecting to Socket.IO's WebSocket transport
-      const socketUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/socket.io/?transport=websocket&v=${Date.now()}`;
+      // Connect to raw WebSocket endpoint (NOT Socket.IO protocol)
+      const socketUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
       this.ws = new WebSocket(socketUrl);
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;

@@ -1,0 +1,763 @@
+{
+  "timestamp": "2025-12-22T18:17:56.917Z",
+  "totalTradesAnalyzed": 240,
+  "regimeDistributions": [
+    {
+      "regime": "UNKNOWN",
+      "totalTrades": 240,
+      "peakCandleDistribution": {
+        "0": 1,
+        "1": 40,
+        "2": 19,
+        "3": 11,
+        "4": 8,
+        "5": 10,
+        "6": 8,
+        "7": 9,
+        "8": 6,
+        "9": 9,
+        "10": 7,
+        "11": 10,
+        "12": 7,
+        "13": 7,
+        "14": 8,
+        "15": 6,
+        "16": 8,
+        "17": 9,
+        "18": 11,
+        "19": 18,
+        "20": 28
+      },
+      "medianPeakCandle": 9,
+      "avgPeakCandle": 9.879166666666666,
+      "winningTradesOnly": {
+        "distribution": {
+          "1": 3,
+          "2": 11,
+          "3": 1,
+          "4": 7,
+          "5": 9,
+          "6": 8,
+          "7": 4,
+          "8": 6,
+          "9": 8,
+          "10": 4,
+          "11": 7,
+          "12": 4,
+          "13": 5,
+          "14": 4,
+          "15": 3,
+          "16": 3,
+          "17": 5,
+          "18": 10,
+          "19": 13,
+          "20": 14
+        },
+        "medianPeakCandle": 11,
+        "avgPeakCandle": 11.37984496124031
+      }
+    }
+  ],
+  "peakDataSample": [
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 122765.00000000087,
+      "mfePercent": 1.0987879902602522,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 15,
+      "mfeAchieved": 85989.35659999988,
+      "mfePercent": 0.7721752764520766,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 12,
+      "mfeAchieved": 66747.2058000014,
+      "mfePercent": 0.6004202898953842,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 3,
+      "mfeAchieved": 124500.18960000016,
+      "mfePercent": 1.0689719182206754,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 76295.83240000065,
+      "mfePercent": 0.6578067430898047,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 76457.80000000086,
+      "mfePercent": 0.659193988612401,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 24151.64860000077,
+      "mfePercent": 0.20830375160900555,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 25898.548600000504,
+      "mfePercent": 0.22202073157272254,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 35832.365999999456,
+      "mfePercent": 0.30663084047186867,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 569934.5252000014,
+      "mfePercent": 4.673534933888087,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 62382.43540000112,
+      "mfePercent": 0.5202776301228303,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 327935.8361999999,
+      "mfePercent": 2.826268232851236,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 209930.23980000144,
+      "mfePercent": 1.791038709058819,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 17,
+      "mfeAchieved": 191428.5401999994,
+      "mfePercent": 1.6306158865644464,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 5,
+      "mfeAchieved": 51311.92160000064,
+      "mfePercent": 0.436584216308636,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 6,
+      "mfeAchieved": 105770.21880000102,
+      "mfePercent": 0.8831626787967417,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 350005.2624000018,
+      "mfePercent": 2.9091270893469474,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 289506.4146000004,
+      "mfePercent": 2.466976270243746,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 17,
+      "mfeAchieved": 237697.0548000012,
+      "mfePercent": 2.016589311410568,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 119194.8000000004,
+      "mfePercent": 1.001332468744718,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 240874.32620000036,
+      "mfePercent": 2.012153059862607,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 237833.93440000073,
+      "mfePercent": 1.987259753468252,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 246722.4583999996,
+      "mfePercent": 2.1315073686750288,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 200889.29359999893,
+      "mfePercent": 1.7286962223389657,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 13,
+      "mfeAchieved": 237600.53719999996,
+      "mfePercent": 2.038676837876846,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 18089.28420000011,
+      "mfePercent": 0.1548618805985454,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 145635.95899999927,
+      "mfePercent": 1.2733207461735296,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 8,
+      "mfeAchieved": 287409.6040000004,
+      "mfePercent": 2.486313740548628,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 32221.25759999908,
+      "mfePercent": 0.2851072562767629,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 380151.48000000045,
+      "mfePercent": 3.1197899956111246,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 13,
+      "mfeAchieved": 360468.4174000009,
+      "mfePercent": 2.963043255693083,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 156966.12599999935,
+      "mfePercent": 1.3122088794069422,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 3,
+      "mfeAchieved": 76004.80000000098,
+      "mfePercent": 0.6331939178367224,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 7,
+      "mfeAchieved": 216943.1282000005,
+      "mfePercent": 1.8045579436301054,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 143388.6406000005,
+      "mfePercent": 1.1777918615610778,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 352919.58760000125,
+      "mfePercent": 2.9180219039270723,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 376548.5646000001,
+      "mfePercent": 3.101782237055807,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 416687.5352000003,
+      "mfePercent": 3.4211115167998805,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 17,
+      "mfeAchieved": 508766.11580000026,
+      "mfePercent": 4.1457588050619725,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 6,
+      "mfeAchieved": 166259.67260000034,
+      "mfePercent": 1.3989905739212662,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 5,
+      "mfeAchieved": 122516.42300000094,
+      "mfePercent": 1.0347219548804043,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 4,
+      "mfeAchieved": 159525.01979999943,
+      "mfePercent": 1.3430830036903227,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 15,
+      "mfeAchieved": 93591.85500000167,
+      "mfePercent": 0.7912676844077408,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 14,
+      "mfeAchieved": 132682.67160000105,
+      "mfePercent": 1.1254786594173867,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 71654.59740000078,
+      "mfePercent": 0.6077752050157851,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 12,
+      "mfeAchieved": 110345.20500000071,
+      "mfePercent": 0.9342312975675393,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 7,
+      "mfeAchieved": 52224.46679999994,
+      "mfePercent": 0.456908908566289,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 13,
+      "mfeAchieved": 32686.835400000564,
+      "mfePercent": 0.2823061372651626,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 112404.58500000095,
+      "mfePercent": 0.9661110752838129,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 125935.07059999974,
+      "mfePercent": 1.0840612600819919,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 226502.5199999989,
+      "mfePercent": 1.93590912604177,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 216190.89460000105,
+      "mfePercent": 1.8512361764866148,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 207245.88419999927,
+      "mfePercent": 1.7769143020533569,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 246923.94700000004,
+      "mfePercent": 2.109933791916148,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 546.4345999993384,
+      "mfePercent": 0.004668319329443662,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 4,
+      "mfeAchieved": 107044.99999999971,
+      "mfePercent": 0.9504759794044717,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 3,
+      "mfeAchieved": 99965.09799999913,
+      "mfePercent": 0.8872566048430289,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 411557.75279999943,
+      "mfePercent": 3.6295874701501902,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 20,
+      "mfeAchieved": 225797.99540000095,
+      "mfePercent": 2.0692242796466584,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 11,
+      "mfeAchieved": 29508.780800001114,
+      "mfePercent": 0.2690221992109855,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 43217.87719999993,
+      "mfePercent": 0.39602936510199466,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 61169.02660000051,
+      "mfePercent": 0.5652268668455196,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 10,
+      "mfeAchieved": 101445.27539999981,
+      "mfePercent": 0.9361481482814058,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 10,
+      "mfeAchieved": 183057.07980000007,
+      "mfePercent": 1.6607739231533913,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 5,
+      "mfeAchieved": 92776.000200001,
+      "mfePercent": 0.8348589065264275,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 4,
+      "mfeAchieved": 113773.79979999969,
+      "mfePercent": 1.0218799289962532,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 11,
+      "mfeAchieved": 224088.56979999982,
+      "mfePercent": 2.016205152789863,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 7,
+      "mfeAchieved": 110789.6001999994,
+      "mfePercent": 1.0017858074388655,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 58627.69199999893,
+      "mfePercent": 0.5291630936131235,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 4,
+      "mfeAchieved": 21045.836399999098,
+      "mfePercent": 0.19031184139618745,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 6313.709200000449,
+      "mfePercent": 0.05655577410128033,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 4737.394000000495,
+      "mfePercent": 0.04242975886169224,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 6,
+      "mfeAchieved": 68056.89980000025,
+      "mfePercent": 0.6151917633909341,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 111800.32739999879,
+      "mfePercent": 1.0270536028765893,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 19,
+      "mfeAchieved": 128371.11020000011,
+      "mfePercent": 1.1775406363365502,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 11,
+      "mfeAchieved": 83016.55739999987,
+      "mfePercent": 0.758486785931784,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 12,
+      "mfeAchieved": 284614.5437999992,
+      "mfePercent": 2.274227750384595,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 11,
+      "mfeAchieved": 280133.44020000077,
+      "mfePercent": 2.2392230395103434,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 238705.72740000061,
+      "mfePercent": 1.9144136699061658,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 15,
+      "mfeAchieved": 131335.59000000096,
+      "mfePercent": 1.0673776170180913,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 10,
+      "mfeAchieved": 179092.36299999902,
+      "mfePercent": 1.4630972786378134,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 56073.70000000083,
+      "mfePercent": 0.4621232947492094,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 7,
+      "mfeAchieved": 205626.60460000043,
+      "mfePercent": 1.7157893685032104,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 82301.66360000003,
+      "mfePercent": 0.7201146103364764,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 133285.96280000056,
+      "mfePercent": 1.1745890365994265,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 358697.0000000016,
+      "mfePercent": 3.1553980101209476,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 4,
+      "mfeAchieved": 52533.50999999966,
+      "mfePercent": 0.4657347662718068,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 3,
+      "mfeAchieved": 78530.7084,
+      "mfePercent": 0.6978207215360019,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 2,
+      "mfeAchieved": 220480.09260000108,
+      "mfePercent": 1.9842051509340246,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 271595.9998000006,
+      "mfePercent": 2.418969774499341,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 5,
+      "mfeAchieved": 183186.26740000036,
+      "mfePercent": 1.6060597149574296,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 18,
+      "mfeAchieved": 590368.1431999998,
+      "mfePercent": 5.099505638242308,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 11,
+      "mfeAchieved": 68933.9914000011,
+      "mfePercent": 0.6104512388352232,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 9,
+      "mfeAchieved": 81482.50060000137,
+      "mfePercent": 0.7223784440690134,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 8,
+      "mfeAchieved": 72841.77280000149,
+      "mfePercent": 0.6452802567551001,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 1,
+      "mfeAchieved": 68308.0157999997,
+      "mfePercent": 0.6291557251187179,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 10,
+      "mfeAchieved": 94164.46600000054,
+      "mfePercent": 0.869491191296244,
+      "winOrLoss": "loss"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 16,
+      "mfeAchieved": 510622.87620000134,
+      "mfePercent": 4.700376676232087,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 8,
+      "mfeAchieved": 102070.04679999955,
+      "mfePercent": 0.9431778549797197,
+      "winOrLoss": "win"
+    },
+    {
+      "regime": "UNKNOWN",
+      "candleOffset": 7,
+      "mfeAchieved": 138042.23980000097,
+      "mfePercent": 1.2798329352760354,
+      "winOrLoss": "win"
+    }
+  ]
+}

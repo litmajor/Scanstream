@@ -45,14 +45,57 @@ export class CrossExchangeAggregator extends EventEmitter {
 
       // Emit only when aggregated snapshot changes to reduce noise
       const prev = this.aggregatedCache.get(symbol);
-      const prevStr = prev ? JSON.stringify(prev) : null;
-      const nextStr = JSON.stringify(aggregated);
+      const prevStr = prev ? this.serializeSafely(prev) : null;
+      const nextStr = this.serializeSafely(aggregated);
       if (prevStr !== nextStr) {
         this.aggregatedCache.set(symbol, aggregated);
         this.emit('aggregated.updated', { symbol, aggregated });
       }
     } catch (err) {
       console.error('[CrossExchangeAggregator] onWorldTick error:', err);
+    }
+  }
+
+  private serializeSafely(obj: any): string {
+    try {
+      // Extract only safe serializable properties
+      if (!obj || typeof obj !== 'object') {
+        return String(obj);
+      }
+
+      // For Candle objects, extract just the numeric values
+      if (obj.open !== undefined || obj.close !== undefined) {
+        return JSON.stringify({
+          open: obj.open,
+          high: obj.high,
+          low: obj.low,
+          close: obj.close,
+          volume: obj.volume,
+          timestamp: obj.timestamp
+        });
+      }
+
+      // For other objects, use circular reference detection
+      const seen = new WeakSet();
+      const result = JSON.stringify(obj, (key, value) => {
+        // Skip circular references
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {
+            return undefined;
+          }
+          seen.add(value);
+        }
+        // Skip functions and non-serializable types
+        if (typeof value === 'function' || value instanceof Error) {
+          return undefined;
+        }
+        return value;
+      });
+      
+      return result || '{}';
+    } catch (e) {
+      // Ultimate fallback - just use symbol and price
+      return `${obj?.symbol || 'unknown'}:${obj?.close || 0}`;
     }
   }
 

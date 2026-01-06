@@ -18,7 +18,7 @@ interface WebSocketOptions {
 
 export const useWebSocket = (options: WebSocketOptions = {}) => {
   const {
-    url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws/agents`,
+    url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`,
     onMessage,
     onConnect,
     onDisconnect,

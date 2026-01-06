@@ -94,11 +94,11 @@ export class ConvexityBacktesterWithFoR {
   private currentEquity: number = 10000;
   private peakEquity: number = 10000;
   private readonly INITIAL_CAPITAL: number = 10000;
-  private readonly RISK_PER_TRADE: number = 0.02;
+  private readonly RISK_PER_TRADE: number = 0.03;
   
   // ⏱️ TIME-BASED ADAPTIVE STOPS: Set to true to enable feature (can be toggled via environment variable)
   // ❌ DISABLED: Adaptive stops cause over-tightening on Convex positions, reducing BTC returns 2.6x (87.76% → 33.32%)
-  // ✅ RECOMMENDATION: Use fixed stops (-1.5%) as default strategy
+  // ✅ LOCKED CONFIG: Use fixed stops (-1.5%) as default strategy - this is PROVEN WORKING
   private USE_TIME_BASED_ADAPTIVE_STOPS: boolean = false;
   
   // ⏱️ Metrics tracking for Time-Based Adaptive Stops
@@ -109,12 +109,12 @@ export class ConvexityBacktesterWithFoR {
     stopsAdjustedLate: 0,       // Bars 21+: 1.5% stops
   };
   
-  // Optimization Parameters - Asset-specific defaults
+  // Optimization Parameters - ETH defaults (will be overridden per-symbol in applyAssetSpecificParams)
   public optimizationParams = {
     scoutTargetMultiplier: 2.5,      // ATR multiplier for scout target [ETH OPTIMIZED]
     scoutStopMultiplier: 0.7,        // ATR multiplier for scout stop [ETH OPTIMIZED]
-    convexStopLossPercent: 0.02,    // 2% stop loss for convex
-    convexMaxHoldingBars: 50,       // Max bars to hold convex position
+    convexStopLossPercent: 0.02,    // 2% stop loss for convex [ETH OPTIMIZED]
+    convexMaxHoldingBars: 50,       // Max bars to hold convex position [ETH OPTIMIZED]
     forConfidenceThreshold: 0.4,    // Min confidence for VFMD signal
     signalGenerationInterval: 20,   // Bars between signal generation
       // Agreement-based exit thresholds (VFMD-F: 3-4 bar agreement window)
@@ -125,8 +125,20 @@ export class ConvexityBacktesterWithFoR {
   
   // Asset-specific parameter presets
   private assetParams = {
-    'ETH/USDT': { scoutTargetMultiplier: 2.5, scoutStopMultiplier: 0.7 },
-    'BTC/USDT': { scoutTargetMultiplier: 2.0, scoutStopMultiplier: 0.7 },
+    'ETH/USDT': { 
+      scoutTargetMultiplier: 2.5, 
+      scoutStopMultiplier: 0.7,
+      convexStopLossPercent: 0.02,    // 2% [ETH OPTIMIZED]
+      convexMaxHoldingBars: 50,       // 50 bars [ETH OPTIMIZED]
+      forConfidenceThreshold: 0.6,    // 60% [ETH OPTIMIZED]
+    },
+    'BTC/USDT': { 
+      scoutTargetMultiplier: 2.0, 
+      scoutStopMultiplier: 0.7,
+      convexStopLossPercent: 0.01,    // 1.0% [GRID SEARCH OPTIMIZED - MINIMIZES LOSSES]
+      convexMaxHoldingBars: 60,       // 60 bars [GRID SEARCH CONFIRMED]
+      forConfidenceThreshold: 0.30,   // 30% [GRID SEARCH OPTIMIZED - BEST CONVEX PERFORMANCE]
+    },
   };
   
   private diagnostics = {
@@ -160,7 +172,13 @@ export class ConvexityBacktesterWithFoR {
     if (params) {
       this.optimizationParams.scoutTargetMultiplier = params.scoutTargetMultiplier;
       this.optimizationParams.scoutStopMultiplier = params.scoutStopMultiplier;
-      console.log(`[AssetParams] Applied ${symbol} defaults: target=${params.scoutTargetMultiplier}, stop=${params.scoutStopMultiplier}`);
+      this.optimizationParams.convexStopLossPercent = params.convexStopLossPercent;
+      this.optimizationParams.convexMaxHoldingBars = params.convexMaxHoldingBars;
+      this.optimizationParams.forConfidenceThreshold = params.forConfidenceThreshold;
+      console.log(`[AssetParams] Applied ${symbol} optimized config:`);
+      console.log(`  • Scout: target=${params.scoutTargetMultiplier}x, stop=${params.scoutStopMultiplier}x ATR`);
+      console.log(`  • Convex: stop=${(params.convexStopLossPercent * 100).toFixed(1)}%, hold=${params.convexMaxHoldingBars} bars`);
+      console.log(`  • FoR confidence: ${(params.forConfidenceThreshold * 100).toFixed(0)}%`);
     }
   }
 

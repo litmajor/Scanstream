@@ -8,7 +8,7 @@
  */
 
 import type { MarketTick } from './types';
-import { RegimeClassifier, FlowRegime } from './regimeClassifier';
+import { RegimeClassifier, FlowRegime } from './regimeClassifier.ts';
 import { VFMDBacktester } from './backtester';
 import { VFMDPhysicsAgent } from '../rpg-agents/VFMDPhysicsAgent';
 

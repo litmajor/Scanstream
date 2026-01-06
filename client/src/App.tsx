@@ -46,6 +46,7 @@ import ProfilePage from "@/pages/profile";
 import WatchlistPage from "@/pages/watchlist";
 import GatewayAlertsPage from "@/pages/gateway-alerts";
 import CommanderDashboard from "@/components/CommanderDashboard";
+import AdminAPIDocsPanel from "@/pages/AdminAPIDocsPanel";
 import { useEffect, lazy, Suspense } from "react";
 const AgentArenaPage = lazy(() => import('@/pages/agent-arena-hub'))
 import AgentRosterPage from "@/pages/agent-roster";
@@ -112,6 +113,7 @@ function AuthenticatedRouter() {
         <Route path="/watchlist" component={WatchlistPage} />
         <Route path="/gateway-alerts" component={GatewayAlertsPage} />
         <Route path="/commander" component={CommanderDashboard} />
+        <Route path="/admin/api-docs" component={AdminAPIDocsPanel} />
         <Route component={NotFound} />
       </Switch>
       <RealtimeEventFeed position="bottom-right" maxVisible={3} />

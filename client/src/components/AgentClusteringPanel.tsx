@@ -7,7 +7,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from './AgentClusteringPanel.module.css';
 import Card from './Card';
-import Chart from './Chart';
 
 interface ClusterMetrics {
   totalClusters: number;
@@ -238,7 +237,8 @@ const AgentClusteringPanel: React.FC = () => {
           <div className={styles.content}>
             {activeTab === 'overview' && (
               <>
-                <Card title="Baseline Performance">
+                <Card>
+                  <h3>Baseline Performance</h3>
                   <div className={styles.metrics}>
                     <div className={styles.metric}>
                       <span>Total Return</span>
@@ -263,7 +263,8 @@ const AgentClusteringPanel: React.FC = () => {
                   </div>
                 </Card>
 
-                <Card title="Clustering Configuration">
+                <Card>
+                  <h3>Clustering Configuration</h3>
                   <div className={styles.metrics}>
                     <div className={styles.metric}>
                       <span>Total Clusters</span>
@@ -281,7 +282,8 @@ const AgentClusteringPanel: React.FC = () => {
                 </Card>
 
                 {comparison && (
-                  <Card title="Specialist vs General Routing">
+                  <Card>
+                    <h3>Specialist vs General Routing</h3>
                     <div className={styles.comparison}>
                       <div className={styles.comparisonCol}>
                         <h4>Specialist Routing</h4>
@@ -331,7 +333,8 @@ const AgentClusteringPanel: React.FC = () => {
 
             {activeTab === 'metrics' && (
               <>
-                <Card title="Impact Metrics">
+                <Card>
+                  <h3>Impact Metrics</h3>
                   <div className={styles.impactGrid}>
                     <div className={styles.impactCard}>
                       <div className={styles.impactValue}>{report.impact.returnImprovement.toFixed(1)}%</div>
@@ -363,9 +366,9 @@ const AgentClusteringPanel: React.FC = () => {
                     </div>
                   </div>
                 </Card>
-
-                <Card title="Specialist Performance">
-                  <div className={styles.table}>
+                <Card>
+                  <h3>Specialist Performance</h3>
+                    <div className={styles.table}>
                     <div className={styles.tableHeader}>
                       <div>Specialization</div>
                       <div>Win Rate</div>
@@ -388,7 +391,8 @@ const AgentClusteringPanel: React.FC = () => {
             )}
 
             {activeTab === 'routing' && (
-              <Card title="Routing Patterns by Market Regime">
+              <Card>
+                <h3>Routing Patterns by Market Regime</h3>
                 <div className={styles.table}>
                   <div className={styles.tableHeader}>
                     <div>Market Regime</div>
@@ -417,7 +421,8 @@ const AgentClusteringPanel: React.FC = () => {
             )}
 
             {activeTab === 'quality' && (
-              <Card title="Cluster Quality Assessment">
+              <Card>
+                <h3>Cluster Quality Assessment</h3>
                 <div className={styles.qualityGrid}>
                   <div className={styles.qualityCard}>
                     <div className={styles.qualityLabel}>Cohesion</div>
@@ -497,7 +502,8 @@ const AgentClusteringPanel: React.FC = () => {
             {activeTab === 'recommendations' && (
               <div>
                 {report.recommendations.map((rec, idx) => (
-                  <Card key={idx} title={rec.category}>
+                  <Card key={idx}>
+                    <h3>{rec.category}</h3>
                     <div className={styles.recommendation}>
                       <p className={styles.suggestion}>{rec.suggestion}</p>
                       <p className={styles.benefit}>Expected Benefit: {rec.expectedBenefit}</p>
@@ -509,9 +515,9 @@ const AgentClusteringPanel: React.FC = () => {
           </div>
         </>
       )}
-
       {agents.length > 0 && (
-        <Card title={`Agent Profiles (${agents.length} agents)`}>
+        <Card>
+          <h3>Agent Profiles ({agents.length} agents)</h3>
           <div className={styles.agentGrid}>
             {agents.map((agent) => (
               <div key={agent.id} className={styles.agentCard}>

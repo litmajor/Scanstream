@@ -9,7 +9,7 @@
  */
 
 import express, { Router, Request, Response } from 'express';
-import { db } from '../database';
+import { db } from '../db-storage';
 
 const router = Router();
 
@@ -126,7 +126,7 @@ router.get('/agent-leaderboard', async (req: Request, res: Response) => {
       ORDER BY rank ASC
     `);
 
-    const leaderboard = agents.rows.map((agent) => ({
+    const leaderboard = agents.rows.map((agent: any) => ({
       id: agent.agent_id,
       name: agent.agent_name,
       strategy: agent.strategy,
@@ -195,7 +195,7 @@ router.get('/signal-history', async (req: Request, res: Response) => {
 
     const result = await db.query(query, params);
 
-    const signals = result.rows.map((row) => ({
+    const signals = result.rows.map((row: any) => ({
       id: row.id,
       timestamp: row.timestamp,
       symbol: row.symbol,
@@ -312,7 +312,7 @@ router.get('/regime', async (req: Request, res: Response) => {
       },
       volatilityLevel: regime.volatility_level,
       trendStrength: regime.trend_strength,
-      regimeHistory: transitionsResult.rows.map((t) => ({
+      regimeHistory: transitionsResult.rows.map((t: any) => ({
         timestamp: t.timestamp,
         fromRegime: t.from_regime,
         toRegime: t.to_regime,
@@ -352,7 +352,7 @@ router.get('/regime/history', async (req: Request, res: Response) => {
     `
     );
 
-    const history = result.rows.map((row) => ({
+    const history = result.rows.map((row: any) => ({
       timestamp: row.timestamp,
       regime: row.current_regime,
       confidence: row.regime_confidence,
@@ -392,7 +392,7 @@ router.get('/quality-accuracy-correlation', async (req: Request, res: Response) 
       ORDER BY quality_bucket ASC
     `);
 
-    const correlation = result.rows.map((row) => ({
+    const correlation = result.rows.map((row: any) => ({
       qualityBucket: `${row.quality_bucket}-${row.quality_bucket + 9}%`,
       qualityMid: row.quality_bucket + 5,
       totalSignals: row.total_signals,
@@ -426,7 +426,7 @@ router.get('/confidence-pnl-correlation', async (req: Request, res: Response) =>
       ORDER BY confidence_bucket ASC
     `);
 
-    const correlation = result.rows.map((row) => ({
+    const correlation = result.rows.map((row: any) => ({
       confidenceBucket: `${row.confidence_bucket}-${row.confidence_bucket + 9}%`,
       confidenceMid: row.confidence_bucket + 5,
       totalSignals: row.total_signals,

@@ -595,8 +595,31 @@ class TechnicalIndicators {
 /**
  * Class for generating trading signals based on technical, order flow, and microstructure analysis.
  */
+/**
+ * Microstructure History Buffer - Tracks spread, depth, imbalance per symbol
+ * Enables toxicity calculation and deterioration detection
+ */
+interface MicrostructureHistory {
+  symbol: string;
+  frames: Array<{
+    timestamp: number;
+    spread: number;
+    depth: number;
+    imbalance: number;
+    toxicity: number;
+  }>;
+}
+
 class SignalEngine {
   private config: TradingConfig;
+  private microstructureHistory = new Map<string, Array<{
+    timestamp: number;
+    spread: number;
+    depth: number;
+    imbalance: number;
+    toxicity: number;
+  }>>();
+  private readonly microHistoryWindow = 20; // Keep 20 bars of history
 
   constructor(config: TradingConfig) {
     this.config = config;
@@ -645,6 +668,99 @@ class SignalEngine {
     const imbalance = (bidVolume - askVolume) / totalVolume;
     const flowScore = Math.tanh(netFlow / frame.volume);
     return imbalance * 0.6 + flowScore * 0.4;
+  }
+
+  /**
+   * Calculate toxicity based on microstructure changes
+   * @param current Current microstructure
+   * @param previous Previous microstructure (optional)
+   * @returns Toxicity score (0-1, 0 = healthy, 1 = extremely toxic)
+   */
+  calculateToxicity(
+    current: { spread: number; depth: number; imbalance: number },
+    previous?: { spread: number; depth: number; imbalance: number },
+    avgSpread?: number,
+    avgDepth?: number
+  ): number {
+    if (!previous || !avgSpread || !avgDepth) {
+      return 0; // No history, assume healthy
+    }
+
+    // Spread widening is sign of toxicity
+    const spreadRatio = current.spread / (avgSpread || 0.0001);
+    const spreadToxicity = Math.max(0, Math.min(1, (spreadRatio - 1) * 0.4)); // Widening = toxicity
+
+    // Depth collapse is sign of toxicity
+    const depthRatio = current.depth / (avgDepth || 1);
+    const depthToxicity = Math.max(0, Math.min(1, (1 - depthRatio) * 0.4)); // Shrinking = toxicity
+
+    // Imbalance reversal is sign of toxicity
+    const imbalanceFlip = Math.abs(current.imbalance - previous.imbalance) > 0.2 ? 0.2 : 0;
+
+    return Math.min(1, spreadToxicity + depthToxicity + imbalanceFlip);
+  }
+
+  /**
+   * Record microstructure snapshot to rolling history
+   */
+  recordMicrostructure(symbol: string, timestamp: number, micro: {
+    spread: number;
+    depth: number;
+    imbalance: number;
+    toxicity: number;
+  }): void {
+    if (!this.microstructureHistory.has(symbol)) {
+      this.microstructureHistory.set(symbol, []);
+    }
+    
+    const history = this.microstructureHistory.get(symbol)!;
+    history.push({ timestamp, ...micro });
+    
+    // Keep only last 20 bars
+    if (history.length > this.microHistoryWindow) {
+      history.shift();
+    }
+  }
+
+  /**
+   * Get average microstructure values for a symbol
+   */
+  getAverageMicrostructure(symbol: string): {
+    avgSpread: number;
+    avgDepth: number;
+    avgImbalance: number;
+  } | null {
+    const history = this.microstructureHistory.get(symbol);
+    if (!history || history.length === 0) {
+      return null;
+    }
+
+    const avgSpread = history.reduce((sum, h) => sum + h.spread, 0) / history.length;
+    const avgDepth = history.reduce((sum, h) => sum + h.depth, 0) / history.length;
+    const avgImbalance = history.reduce((sum, h) => sum + h.imbalance, 0) / history.length;
+
+    return { avgSpread, avgDepth, avgImbalance };
+  }
+
+  /**
+   * Get previous microstructure snapshot
+   */
+  getPreviousMicrostructure(symbol: string): {
+    spread: number;
+    depth: number;
+    imbalance: number;
+  } | null {
+    const history = this.microstructureHistory.get(symbol);
+    if (!history || history.length < 2) {
+      return null;
+    }
+    
+    const previous = history[history.length - 2];
+    return {
+      spread: previous.spread,
+      depth: previous.depth,
+      imbalance: previous.imbalance
+    };
   }
 
   /**
@@ -969,6 +1085,80 @@ class ExchangeDataFeed {
     throw new Error('Max retries exceeded');
   }
 
+  /**
+   * Fetch orderbook and extract microstructure metrics
+   * @param symbol Trading pair symbol
+   * @param mainExchange Exchange name
+   * @returns Microstructure data {spread, depth, imbalance} or null if unavailable
+   */
+  private async fetchOrderBookMicrostructure(symbol: string, mainExchange: string): Promise<{
+    spread: number;
+    depth: number;
+    imbalance: number;
+    bidVolume: number;
+    askVolume: number;
+  } | null> {
+    try {
+      const exchange = this.exchanges.get(mainExchange);
+      if (!exchange || !exchange.has.fetchOrderBook) {
+        return null; // Exchange doesn't support orderbook
+      }
+
+      const normalizedSymbol = mainExchange === 'yfinance-forex' ? symbol : normalizeSymbol(symbol, exchange);
+      
+      // Fetch orderbook (limit to top 20 levels to save bandwidth)
+      const orderbook = await this.rateLimitedFetch(exchange, () => {
+        return exchange.fetchOrderBook(normalizedSymbol, 20);
+      });
+
+      if (!orderbook || !orderbook.bids || !orderbook.asks) {
+        return null;
+      }
+
+      // Extract bid/ask volumes - cast to number to handle CCXT's Num type
+      const bidVolume = orderbook.bids.reduce((sum: number, bid: any) => {
+        const qty = typeof bid[1] === 'number' ? bid[1] : parseFloat(bid[1]) || 0;
+        return sum + qty;
+      }, 0);
+      const askVolume = orderbook.asks.reduce((sum: number, ask: any) => {
+        const qty = typeof ask[1] === 'number' ? ask[1] : parseFloat(ask[1]) || 0;
+        return sum + qty;
+      }, 0);
+      const totalDepth = bidVolume + askVolume;
+
+      // Calculate spread
+      let bestBid = 0;
+      let bestAsk = 0;
+      if (orderbook.bids && orderbook.bids.length > 0) {
+        const bidPrice = orderbook.bids[0][0];
+        bestBid = typeof bidPrice === 'number' ? bidPrice : (parseFloat(String(bidPrice)) || 0);
+      }
+      if (orderbook.asks && orderbook.asks.length > 0) {
+        const askPrice = orderbook.asks[0][0];
+        bestAsk = typeof askPrice === 'number' ? askPrice : (parseFloat(String(askPrice)) || 0);
+      }
+      const spread = bestAsk && bestBid ? bestAsk - bestBid : 0;
+
+      // Calculate imbalance (0-1 scale, 0.5 = neutral)
+      const imbalance = totalDepth > 0 ? bidVolume / totalDepth : 0.5;
+
+      return {
+        spread,
+        depth: totalDepth,
+        imbalance,
+        bidVolume,
+        askVolume
+      };
+    } catch (error: any) {
+      // Silently fail - orderbook is optional
+      if (error.message?.includes('not supported')) {
+        return null;
+      }
+      console.debug(`[OrderBook] Failed to fetch for ${symbol}: ${error.message}`);
+      return null;
+    }
+  }
+
   static async create(): Promise<ExchangeDataFeed> {
     const instance = new ExchangeDataFeed();
     await instance.initializeExchanges();
@@ -1150,13 +1340,38 @@ class ExchangeDataFeed {
         return exchange.fetchOHLCV(normalizedSymbol, timeframe, undefined, limit);
       });
       
-      const ticker = await this.rateLimitedFetch(exchange, () => {
-        console.log(`[FETCH] Calling fetchTicker for ${normalizedSymbol}`);
-        return exchange.fetchTicker(normalizedSymbol);
-      });
+      // Use latest candle instead of separate ticker fetch to reduce API calls
+      // Ticker is expensive and OHLCV already gives us current price in last candle
+      const lastCandle = ohlcv[ohlcv.length - 1];
+      const ticker = lastCandle ? {
+        symbol: normalizedSymbol,
+        bid: lastCandle[4],
+        ask: lastCandle[4],
+        last: lastCandle[4],
+        high: lastCandle[2],
+        low: lastCandle[3],
+        close: lastCandle[4],
+        volume: lastCandle[5],
+        timestamp: lastCandle[0]
+      } : null;
       
       console.log(`[FETCH] Successfully fetched ${ohlcv.length} candles for ${symbol}`);
       
+      if (!ticker) {
+        console.warn(`[FETCH] No candle data for ${symbol}, skipping`);
+        return [];
+      }
+
+      // 🔄 FETCH ORDERBOOK FOR MICROSTRUCTURE
+      const microstructureData = await this.fetchOrderBookMicrostructure(symbol, mainExchange);
+      
+      if (microstructureData) {
+        console.log(
+          `[Microstructure] ${symbol}: spread=${microstructureData.spread.toFixed(6)}, ` +
+          `depth=${microstructureData.depth.toFixed(0)}, imbalance=${microstructureData.imbalance.toFixed(3)}`
+        );
+      }
+
       const frames = ohlcv.map((candle, index) => {
         const [timestamp, open, high, low, close, volume] = candle;
         const prices = ohlcv.slice(0, index + 1).map(c => Number(c[4]) || 0);
@@ -1176,8 +1391,12 @@ class ExchangeDataFeed {
         const vwap = TechnicalIndicators.calculateVWAP(prices, volumes);
         const atr = TechnicalIndicators.calculateATR(highs, lows, closes);
         const safeClose = close !== undefined ? close : 0;
-        // Use actual bid/ask volume, netFlow, largeOrders, smallOrders, spread, depth, imbalance, toxicity if available from ticker or exchange
-        // If not available, set to null or 0
+        
+        // ✅ NOW: Use orderbook data for microstructure if available
+        const safeSpread = microstructureData?.spread ?? (ticker.bid && ticker.ask ? ticker.ask - ticker.bid : 0);
+        const safeDepth = microstructureData?.depth ?? 0;
+        const safeImbalance = microstructureData?.imbalance ?? 0.5;
+        
         return {
           id: `${symbol}-${timestamp}`,
           timestamp: new Date(Number(timestamp)),
@@ -1199,19 +1418,54 @@ class ExchangeDataFeed {
             atr
           },
           orderFlow: {
-            bidVolume: ticker.bidVolume ?? 0,
-            askVolume: ticker.askVolume ?? 0,
-            netFlow: 0, // Not available from ticker
-            largeOrders: 0, // Not available from ticker
-            smallOrders: 0 // Not available from ticker
+            bidVolume: microstructureData?.bidVolume ?? 0,
+            askVolume: microstructureData?.askVolume ?? 0,
+            netFlow: (microstructureData?.bidVolume ?? 0) - (microstructureData?.askVolume ?? 0),
+            largeOrders: 0,
+            smallOrders: 0
           },
           marketMicrostructure: {
-            spread: ticker.bid && ticker.ask ? ticker.ask - ticker.bid : 0,
-            depth: 0, // Not available from ticker
-            imbalance: 0, // Not available from ticker
-            toxicity: 0 // Not available from ticker
+            spread: safeSpread,
+            depth: safeDepth,
+            imbalance: safeImbalance,
+            toxicity: 0  // Will be calculated in next step
           }
         } as MarketFrame & { id: string; timestamp: Date };
+      });
+
+      // 🔄 CALCULATE TOXICITY AND UPDATE FRAMES
+      const signalEngine = new SignalEngine(defaultTradingConfig);
+      const enrichedFrames = frames.map((frame, index) => {
+        const avg = signalEngine.getAverageMicrostructure(frame.symbol);
+        const prev = index > 0 ? frames[index - 1]?.marketMicrostructure : signalEngine.getPreviousMicrostructure(frame.symbol);
+        
+        // Calculate toxicity
+        const toxicity = signalEngine.calculateToxicity(
+          frame.marketMicrostructure,
+          prev ? {
+            spread: prev.spread,
+            depth: prev.depth,
+            imbalance: prev.imbalance
+          } : undefined,
+          avg?.avgSpread,
+          avg?.avgDepth
+        );
+        
+        // Record microstructure snapshot to history
+        signalEngine.recordMicrostructure(
+          frame.symbol,
+          frame.timestamp instanceof Date ? frame.timestamp.getTime() : Number(frame.timestamp),
+          { ...frame.marketMicrostructure, toxicity }
+        );
+        
+        // Update frame with calculated toxicity
+        return {
+          ...frame,
+          marketMicrostructure: {
+            ...frame.marketMicrostructure,
+            toxicity
+          }
+        };
       });
 
       // Store market frames in storage for ML/RL agents to access
@@ -1226,8 +1480,8 @@ class ExchangeDataFeed {
         const { getIntegrityGate } = await import('./services/market-data/integrity-gate');
         const gate = getIntegrityGate();
         
-        // Convert frames to candle format for integrity checking
-        const candles = frames.map(f => {
+        // Convert enriched frames to candle format for integrity checking
+        const candles = enrichedFrames.map(f => {
           const ff: any = f;
           const ts = ff.timestamp ? (ff.timestamp instanceof Date ? ff.timestamp.getTime() : Number(ff.timestamp)) : Date.now();
           return {
@@ -1239,7 +1493,7 @@ class ExchangeDataFeed {
             volume: ff.volume ?? 0,
             isFinal: true,
             source: 'ccxt',
-            venue: exchange
+            venue: mainExchange
           };
         });
 
@@ -1248,7 +1502,8 @@ class ExchangeDataFeed {
         const result = await gate.storeValidatedCandles(
           symbol,
           timeframeSeconds,
-          candles
+          candles,
+          mainExchange  // Pass exchange for time authority validation
         );
 
         console.log(
@@ -1269,28 +1524,15 @@ class ExchangeDataFeed {
         console.log(`[Trading] Emitted ${result.ticks.length} world ticks for ${symbol}`);
 
       } catch (integrityError) {
-        console.warn('[Trading] Integrity gate check failed, falling back to direct storage:', integrityError);
-        
-        // Fallback: store directly if integrity gate fails
-        for (const frame of frames) {
-          try {
-            const ff: any = frame;
-            // Insert using storage.createMarketFrame expected shape (avoid passing timestamp if not allowed)
-            await storage.createMarketFrame({
-              symbol: ff.symbol,
-              price: ff.price,
-              volume: ff.volume,
-              indicators: ff.indicators,
-              orderFlow: ff.orderFlow,
-              marketMicrostructure: ff.marketMicrostructure
-            } as any);
-          } catch (storageError) {
-            console.warn(`[Storage] Failed to store market frame for ${symbol}:`, storageError);
-          }
-        }
+        console.error('[Trading] Integrity gate check failed:', integrityError);
+        console.warn('[Trading] Cannot use fallback storage — rejecting all candles for safety');
+        // Do NOT store directly after integrity failure
+        // This prevents contaminating the database with potentially corrupted data
+        // The integrity gate rejection is intentional (maybe all data was stale, gaps detected, etc.)
+        // Next fetch cycle will retry if data becomes valid
       }
 
-      return frames;
+      return enrichedFrames;
     } catch (error: any) {
       // Only log if not a geo-restriction error (403/451)
       const statusCode = error?.status || error?.statusCode || 0;

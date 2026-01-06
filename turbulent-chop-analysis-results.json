@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-12-22T19:31:58.126Z",
+  "currentState": {
+    "totalTrades": 272,
+    "winRate": 0.5257352941176471,
+    "pnL": 100.80007088403596,
+    "profitFactor": 1.4440230231852544
+  },
+  "turbulentChopScenario": {
+    "signals": 165,
+    "executedTrades": 165,
+    "winRate": 0.5333333333333333,
+    "grossProfit": 197.70319076969452,
+    "grossLoss": 119.09232777110356,
+    "totalPnL": 78.61086299859107,
+    "profitFactor": 1.6600833527217782,
+    "avgTrade": 0.47642947271873376
+  },
+  "combined": {
+    "totalTrades": 437,
+    "winRate": 0.528604118993135,
+    "pnL": 179.41093388262703,
+    "profitFactor": 1.5183672934880872,
+    "pnlGain": 78.61086299859107,
+    "pfChange": 0.07434427030283275,
+    "capitalGrowth": 1078.6108629985906
+  },
+  "recommendation": "IMPLEMENT: Trading turbulent chop improves profit factor"
+}

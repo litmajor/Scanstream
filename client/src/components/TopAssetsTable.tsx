@@ -114,8 +114,8 @@ export default function TopAssetsTable({
     );
   };
 
-  const renderChangeCell = (value: number | undefined) => {
-    if (value === undefined) return '-';
+  const renderChangeCell = (value: number | undefined | null) => {
+    if (value === undefined || value === null) return '-';
     const isPositive = value >= 0;
     return (
       <span className={isPositive ? 'text-green-400' : 'text-red-400'}>

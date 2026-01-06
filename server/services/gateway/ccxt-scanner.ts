@@ -142,6 +142,8 @@ export class CCXTScanner {
         const gate = getIntegrityGate();
 
         // Convert to candle format
+        // Preserve enriched frame fields (price snapshot, indicators, orderFlow, microstructure)
+        // so they survive integrity checks and can be persisted by the storage layer.
         const candles = frames.map(f => ({
           ts: (f.timestamp instanceof Date ? f.timestamp.getTime() : Number(f.timestamp)) || Date.now(),
           open: (f.price as any)?.open ?? 0,
@@ -151,7 +153,13 @@ export class CCXTScanner {
           volume: f.volume ?? 0,
           isFinal: true,
           source: 'ccxt',
-          venue: 'scanner'
+          venue: 'scanner',
+          // Enrichment payloads (optional)
+          price: f.price ?? undefined,
+          indicators: (f as any).indicators ?? undefined,
+          orderFlow: (f as any).orderFlow ?? undefined,
+          marketMicrostructure: (f as any).marketMicrostructure ?? undefined,
+          raw: (f as any).raw ?? undefined,
         }));
 
         // Get timeframe in seconds

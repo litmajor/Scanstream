@@ -18,9 +18,14 @@
  */
 
 import { Logger } from './logger';
-import { MLMultiTimeframeService, MultiTimeframePrediction } from './multi-timeframe-ml-service';
+import { MultiTimeframeMLService, MultiTimeframePrediction } from './multi-timeframe-ml-service';
 import { ScannerSignalService } from './scanner/scanner-signal-service';
-import { PriceDataService } from './price-data-service';
+// PriceDataService module may not exist in this repo; declare a minimal interface
+// and accept any implementation matching these methods.
+interface IPriceDataService {
+  getCurrentPrice(symbol: string): Promise<{ price: number }>;
+  getRecentCandles(symbol: string, timeframe: string, limit: number): Promise<any[]>;
+}
 import { TradeClassifier, type TradeClassification, type ClassificationFactors } from './trade-classifier';
 import { UnifiedSignalAggregator, type StrategyContribution } from './unified-signal-aggregator';
 import MarketRegimeDetector from './ml-regime-detector';
@@ -51,17 +56,17 @@ const logger = new Logger('ScoutReportService');
  * Generates comprehensive reports combining all signal sources
  */
 export class ScoutReportService {
-  private mlService: MLMultiTimeframeService;
+  private mlService: MultiTimeframeMLService;
   private scannerService: ScannerSignalService;
-  private priceService: PriceDataService;
+  private priceService: IPriceDataService;
   private tradeClassifier: TradeClassifier;
   private reportCache: Map<string, { report: ScoutReport; timestamp: number }> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(
-    mlService: MLMultiTimeframeService,
+    mlService: MultiTimeframeMLService,
     scannerService: ScannerSignalService,
-    priceService: PriceDataService,
+    priceService: IPriceDataService,
     tradeClassifier?: TradeClassifier
   ) {
     this.mlService = mlService;
@@ -177,7 +182,7 @@ export class ScoutReportService {
    */
   private async analyzeMLS(symbol: string): Promise<MLSourceAnalysis | null> {
     try {
-      const mlPrediction = await this.mlService.getPredictionsForSymbol(symbol);
+      const mlPrediction = await this.mlService.getPredictions(symbol);
 
       if (!mlPrediction) {
         logger.warn(`No ML predictions available for ${symbol}`);
@@ -190,12 +195,12 @@ export class ScoutReportService {
         .filter(([_, pred]) => pred !== null)
         .map(([tf, pred]: [string, any]) => ({
           timeframe: tf,
-          direction: this.mapMLDirection(pred.direction) as Direction,
-          confidence: pred.confidence,
-          strength: Math.round(pred.confidence * 100),
-          indicators: this.extractTopIndicators(pred.indicators || {}),
-          predictedMove: pred.predictedMove || 0,
-          timestamp: pred.timestamp || Date.now(),
+          direction: this.mapMLDirection((pred as any)?.direction) as Direction,
+          confidence: (pred as any)?.confidence ?? 0,
+          strength: Math.round(((pred as any)?.confidence ?? 0) * 100),
+          indicators: this.extractTopIndicators(((pred as any)?.indicators) || {}),
+          predictedMove: (pred as any)?.predictedMove || 0,
+          timestamp: (pred as any)?.timestamp || Date.now(),
         }));
 
       // Count agreement
@@ -253,55 +258,54 @@ export class ScoutReportService {
    */
   private async analyzeScanner(symbol: string): Promise<ScannerSourceAnalysis | null> {
     try {
-      const scannerSignal = await this.scannerService.getLatestSignal(symbol);
+      // ScannerSignalService exposes static helpers; use cached signal lookup
+      const scannerSignal = ScannerSignalService.getCachedSignal(symbol, '1h');
 
       if (!scannerSignal) {
         logger.warn(`No scanner signals available for ${symbol}`);
         return null;
       }
 
+      // Map scanner signal (MomentumScoreResult + targets) into ScannerSourceAnalysis
+      const targets = (scannerSignal as any).targets as any | undefined;
+
       return {
         source: 'SCANNER',
         timestamp: Date.now(),
         primaryPattern: {
-          name: scannerSignal.pattern || 'Unknown',
-          confidence: scannerSignal.confidence || 0.5,
-          confluenceScore: Math.round((scannerSignal.confidence || 0.5) * 100),
+          // Momentum scanner provides a human-readable signal label
+          name: (scannerSignal as any).signal || 'Unknown',
+          confidence: (scannerSignal as any).confidence || 0.5,
+          confluenceScore: Math.round(((scannerSignal as any).confidence || 0.5) * 100),
           foundAt: scannerSignal.timestamp || Date.now(),
           duration: this.estimateDuration(scannerSignal.timestamp),
         },
         secondaryPatterns: [],
         levels: {
           support: [
-            { price: scannerSignal.stopLoss, strength: 0.9, type: 'major' },
-            ...((scannerSignal.alternativeSL && [
-              { price: scannerSignal.alternativeSL, strength: 0.6, type: 'minor' },
-            ]) ||
-              []),
+            { price: targets?.stopLoss ?? targets?.supportLevel ?? 0, strength: 0.9, type: 'major' },
+            ...(targets?.supportLevel ? ([{ price: targets.supportLevel, strength: 0.6, type: 'minor' }] as any) : []),
           ],
           resistance: [
-            { price: scannerSignal.takeProfit, strength: 0.8, type: 'major' },
-            ...((scannerSignal.alternativeTP && [
-              { price: scannerSignal.alternativeTP, strength: 0.5, type: 'minor' },
-            ]) ||
-              []),
+            { price: targets?.takeProfit ?? targets?.resistanceLevel ?? 0, strength: 0.8, type: 'major' },
+            ...(targets?.resistanceLevel ? ([{ price: targets.resistanceLevel, strength: 0.5, type: 'minor' }] as any) : []),
           ],
         },
         volumeAnalysis: {
           trend: 'stable',
-          avgVolume: scannerSignal.volume || 0,
-          currentVolume: scannerSignal.volume || 0,
+          avgVolume: (scannerSignal as any).indicators?.volume || 0,
+          currentVolume: (scannerSignal as any).indicators?.volume || 0,
           volumePercent: 100,
           conclusion: 'Volume data not fully available',
         },
         signal: {
-          direction: this.mapDirection(scannerSignal.direction),
-          confidence: scannerSignal.confidence || 0.5,
-          quality: this.assessQuality(scannerSignal.confidence || 0.5),
+          direction: this.mapDirection((scannerSignal as any).signal),
+          confidence: (scannerSignal as any).confidence || 0.5,
+          quality: this.assessQuality((scannerSignal as any).confidence || 0.5),
         },
         tradeApproach: {
           entryStrategy: 'optimal',
-          targets: [scannerSignal.takeProfit],
+          targets: [targets?.takeProfit ?? 0],
           stopLossStrategy: 'support-based',
         },
       };
@@ -380,8 +384,8 @@ export class ScoutReportService {
         return null;
       }
 
-      const recentHigh = Math.max(...ohlcData.map((c) => c.high));
-      const recentLow = Math.min(...ohlcData.map((c) => c.low));
+      const recentHigh = Math.max(...ohlcData.map((c: any) => c.high));
+      const recentLow = Math.min(...ohlcData.map((c: any) => c.low));
       const pricePosition = (priceData.price - recentLow) / (recentHigh - recentLow);
 
       // Simple momentum calculation
@@ -401,12 +405,12 @@ export class ScoutReportService {
         },
         volume: {
           trend: 'stable',
-          avgVolume: ohlcData.reduce((sum, c) => sum + c.volume, 0) / ohlcData.length,
+          avgVolume: ohlcData.reduce((sum: number, c: any) => sum + (c.volume || 0), 0) / ohlcData.length,
           currentVolume: ohlcData[ohlcData.length - 1]?.volume || 0,
           conclusion: 'Volume trending stable',
         },
         recentAction: {
-          candles: ohlcData.map((c) => ({
+          candles: ohlcData.map((c: any) => ({
             time: c.timestamp,
             open: c.open,
             high: c.high,
@@ -542,7 +546,7 @@ export class ScoutReportService {
     }
 
     // Alternative 2: NEUTRAL if high divergence
-    if (consensus.agreement Percent < 0.5) {
+    if (consensus.agreementPercent < 0.5) {
       alternatives.push({
         title: 'Range-bound Consolidation',
         direction: 'NEUTRAL',
@@ -620,7 +624,7 @@ export class ScoutReportService {
               : currentPrice * (1 + tradeClassification.stopLossPercent)),
           lossPercent: tradeClassification.stopLossPercent * 100,
           riskUSD: tradeClassification.stopLossDollar || 20,
-          method: 'classification-based',
+          method: 'support-based',
         },
         riskRewardRatio: this.calculateRiskRewardFromClassification(tradeClassification, currentPrice),
         expectedValue: this.calculateExpectedValue(
@@ -663,7 +667,7 @@ export class ScoutReportService {
           scannerAnalysis
         ),
         recommendedSize: {
-          method: 'classification-based',
+          method: 'percentage',
           multiplier: tradeClassification.confidence,
           maxUSD: 1000,
           reasoning: `Based on ${(consensus.confidence * 100).toFixed(0)}% confidence & ${tradeType} classification`,
@@ -1034,7 +1038,7 @@ export class ScoutReportService {
    * Extract top indicators list
    */
   private extractTopIndicatorsList(timeframeSignals: any[]): any[] {
-    const all Indicators: any[] = [];
+    const allIndicators: any[] = [];
     timeframeSignals.forEach((ts) => {
       Object.values(ts.indicators).forEach((ind: any) => {
         allIndicators.push(ind);

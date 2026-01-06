@@ -15,7 +15,18 @@
  * - Expected improvement: +20-30% return
  */
 
-import { Trade, BacktestMetrics } from './capability-measurement';
+import { BacktestMetrics } from './capability-measurement';
+
+interface Trade {
+  symbol: string;
+  type: 'LONG' | 'SHORT';
+  entryPrice: number;
+  exitPrice?: number;
+  quantity: number;
+  profit?: number;
+  profitPercent?: number;
+  timestamp?: number;
+}
 
 interface VelocityMetrics {
   priceVelocity: number;      // Rate of price change (%)
@@ -26,7 +37,7 @@ interface VelocityMetrics {
   convictionScore: number;    // Final conviction for sizing (0-1)
 }
 
-interface VelocityProfile {
+export interface VelocityProfile {
   symbol: string;
   timeframe: string;
   period: string;
@@ -64,7 +75,7 @@ interface VelocityImpact {
   timeInHighVelocity: number;
 }
 
-interface VelocityComparisonReport {
+export interface VelocityComparisonReport {
   baseline: BacktestMetrics;
   withVelocityProfile: VelocityImpact;
   adaptiveVelocity: VelocityImpact;
@@ -194,7 +205,7 @@ export class VelocityProfile {
       velocityScores,
       avgVelocity,
       volatilityProfile
-    };
+    } as any;
   }
 
   /**

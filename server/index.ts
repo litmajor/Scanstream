@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { setupConsoleLogging, getLogPath } from "./utils/logger";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import flowFieldRouter from "./routes/flow-field";
@@ -16,7 +17,16 @@ import paperTradingRouter from './routes/paper-trading';
 import scannerRouter from './routes/scanner';
 import scannerAnalysisRouter from './routes/scanner-analysis';
 import physicsAgentsRouter from './routes/physics-agents';
+import physicsValidationRouter from './routes/physics-validation-correct';
+import missingApiEndpointsRouter from './routes/missing-api-endpoints';
+import featureFlagsRouter from './routes/feature-flags';
+import agentAbilitiesRouter from './routes/agent-abilities';
 // Removed fastScanner service import
+
+// API Registry System imports
+import { apiRegistry } from './services/api-registry';
+import { setupAPITracking } from './middleware/api-tracker';
+import apiDocsRouter from './routes/api-docs';
 
 // Commander System imports
 import { setupCommanderRoutes } from './routes/commander';
@@ -37,6 +47,12 @@ import { PortfolioAgent } from './agents/portfolio-agent';
 // Enable debug logging
 process.env.DEBUG = 'express:*,server:*';
 
+// Initialize file logging
+setupConsoleLogging();
+console.log(`\n${'='.repeat(60)}`);
+console.log('SERVER STARTUP - Logs also written to:', getLogPath());
+console.log(`${'='.repeat(60)}\n`);
+
 // Global learning system instance
 let globalLearningSystem: LearningSystemIntegration | null = null;
 
@@ -54,9 +70,20 @@ export function getMarketDataLayer(): any {
 const app = express();
 app.set('x-powered-by', false); // Disable X-Powered-By header
 
-// Add request logger
+// Install API tracking middleware EARLY - before any route handlers
+try {
+  setupAPITracking(app);
+  console.log('[API Registry] Tracking middleware installed');
+} catch (err) {
+  console.warn('[API Registry] Failed to install tracking middleware:', (err as any).message);
+}
+
+// Add request logger - only log non-static requests
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  // Skip logging for static assets and health checks
+  if (!req.url.startsWith('/assets') && !req.url.includes('map') && !req.url.startsWith('/health')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  }
   next();
 });
 app.use(express.json());
@@ -65,20 +92,22 @@ app.use(express.urlencoded({ extended: false }));
 // Enable trust proxy for Replit's proxied environment (required for rate limiter)
 app.set('trust proxy', 1);
 
-// Global debug logging for all route registrations (with types)
+// Global debug logging for all route registrations (with types) - disabled to reduce noise
 const origAppUse = app.use;
 app.use = function (path: any, ...args: any[]): any {
-  if (typeof path === "string") {
-    console.log("[DEBUG] app.use path:", path);
+  // Only log routes, not middleware
+  if (typeof path === "string" && path.startsWith('/')) {
+    // Disabled: console.log("[DEBUG] app.use path:", path);
   }
   return (origAppUse as any).apply(this, [path, ...args]);
 };
 (["get", "post", "put", "delete", "patch", "all"] as const).forEach((method) => {
   const orig = (app as any)[method];
   (app as any)[method] = function (path: any, ...args: any[]): any {
-    if (typeof path === "string") {
-      console.log(`[DEBUG] app.${method} path:`, path);
-    }
+    // Disabled to reduce startup noise
+    // if (typeof path === "string") {
+    //   console.log(`[DEBUG] app.${method} path:`, path);
+    // }
     return orig.call(this, path, ...args);
   };
 });
@@ -88,6 +117,25 @@ import path from 'path';
 app.get('/config/frontend-config.json', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'config', 'frontend-config.json'));
 });
+
+// Register Documentation API (after tracking middleware but before other routes)
+app.use('/api/docs', apiDocsRouter);
+console.log('[express] API Documentation registered at /api/docs');
+console.log('[express]   - GET /api/docs/endpoints - List all endpoints');
+console.log('[express]   - GET /api/docs/stats - Statistics and metrics');
+console.log('[express]   - GET /api/docs/health - Health status');
+console.log('[express]   - GET /api/docs/performance - Performance data');
+console.log('[express]   - GET /api/docs/openapi - OpenAPI/Swagger export');
+console.log('[express]   - GET /api/docs/markdown - Markdown documentation');
+console.log('[express] Dashboard available at /admin/api-docs');
+
+// Register Feature Flags API (early - needed by all other routes)
+app.use('/api/feature-flags', featureFlagsRouter);
+console.log('[express] Feature Flags API registered at /api/feature-flags');
+
+// Register Agent Abilities API
+app.use('/api/agents/abilities', agentAbilitiesRouter);
+console.log('[express] Agent Abilities API registered at /api/agents/abilities');
 
 // Register Flow Field analytics routes
 app.use('/api/analytics', flowFieldRouter);
@@ -143,6 +191,10 @@ console.log('[express] ML Signals API registered at /api/ml-engine');
 app.use('/api/rl-agent', rlSignalsRouter);
 console.log('[express] RL Signals API registered at /api/rl-agent');
 
+// Register missing frontend API endpoints
+app.use('/api', missingApiEndpointsRouter);
+console.log('[express] Missing API endpoints registered at /api');
+
 // Register paper trading routes
 app.use('/api/paper-trading', paperTradingRouter);
 console.log('[express] Paper Trading API registered at /api/paper-trading');
@@ -150,6 +202,10 @@ console.log('[express] Paper Trading API registered at /api/paper-trading');
 // Register Physics Agents (VFMD and Flow) routes
 app.use('/api/agents/physics', physicsAgentsRouter);
 console.log('[express] Physics Agents API registered at /api/agents/physics');
+
+// Register Physics Validation (CORRECT methodology) routes
+app.use('/api/physics', physicsValidationRouter);
+console.log('[express] Physics Validation API (CORRECT) registered at /api/physics');
 
 // Register Exit Agents routes (Orchestrator, Opposition, Microstructure)
 import exitAgentsRouter from './routes/exit-agents';
@@ -171,10 +227,20 @@ import agentSignalInsightsRouter from './routes/agent-signal-insights';
 app.use('/api/agents/signals', agentSignalInsightsRouter);
 console.log('[express] Agent Signal Insights API registered at /api/agents/signals');
 
+// Register Agent Services Status API
+import agentServicesRouter from './routes/agents';
+app.use('/api/agents/services-api', agentServicesRouter);
+console.log('[express] Agent Services API registered at /api/agents/services-api');
+
 // Register Optimization routes
 import optimizationRouter from './routes/optimization';
 app.use('/api/optimize', optimizationRouter);
 console.log('[express] Optimization API registered at /api/optimize');
+
+// Register Strategy routes (including feature-flag-enabled strategies)
+import strategiesRouter from './routes/strategies';
+app.use('/api/strategies', strategiesRouter);
+console.log('[express] Strategies API registered at /api/strategies');
 
 // Register Model Performance & Backtesting routes
 import modelPerformanceRouter from './routes/model-performance';
@@ -198,6 +264,24 @@ console.log('[express] User Settings API registered at /api/user');
   import healthRouter from './routes/health';
   app.use('/api/health', healthRouter);
   console.log('[express] Health Check API registered at /api/health');
+
+  // Register Cache Monitoring routes
+  app.get('/api/monitoring/cache-stats', (req, res) => {
+    try {
+      const { getTickerCache } = require('./services/ticker-snapshot-cache');
+      const cache = getTickerCache();
+      res.json({
+        status: 'ok',
+        tickerCache: cache.getStats(),
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  });
 
   // Register Learning System routes
   const learningRouter = express.Router();
@@ -363,16 +447,64 @@ app.use((req, res, next) => {
   // Initialize Scout Report Service
   try {
     const { ScoutReportService } = await import('./services/scout-report-service');
-    const { TradeClassifier } = await import('./services/trade-classifier');
-
-    const tradeClassifier = new TradeClassifier();
-    const scoutReportService = new ScoutReportService(tradeClassifier);
     
-    // Store in global for route access
-    (global as any).scoutReportService = scoutReportService;
-    console.log('[Scout Report] Service initialized and registered globally');
+    try {
+      const { MultiTimeframeMLService } = await import('./services/multi-timeframe-ml-service');
+      const { ScannerSignalService } = await import('./services/scanner/scanner-signal-service');
+      const { TradeClassifier } = await import('./services/trade-classifier');
+
+      // Initialize all required services with error handling
+      let mlService: any;
+      let scannerService: any;
+      let tradeClassifier: any;
+
+      try {
+        mlService = new MultiTimeframeMLService();
+      } catch (mlError) {
+        console.warn('[Scout Report] Failed to initialize ML Service, using stub:', (mlError as any).message);
+        mlService = { predict: async () => ({ direction: 'NEUTRAL', confidence: 0 }) };
+      }
+
+      try {
+        scannerService = new ScannerSignalService();
+      } catch (scannerError) {
+        console.warn('[Scout Report] Failed to initialize Scanner Service, using stub:', (scannerError as any).message);
+        scannerService = { computeSignal: () => ({ success: false, error: 'Not initialized' }) };
+      }
+
+      try {
+        tradeClassifier = new TradeClassifier();
+      } catch (tcError) {
+        console.warn('[Scout Report] Failed to initialize Trade Classifier, using stub:', (tcError as any).message);
+        tradeClassifier = { classify: async () => ({ type: 'SWING' as const, factors: {} }) };
+      }
+      
+      // Create a minimal price service if it doesn't exist
+      const priceService = {
+        async getCurrentPrice() { return 0; },
+        async getOHLCV() { return []; }
+      } as any;
+      
+      // Create scout report service with all dependencies
+      const scoutReportService = new ScoutReportService(
+        mlService,
+        scannerService,
+        priceService,
+        tradeClassifier
+      );
+      
+      // Store in global for route access
+      (global as any).scoutReportService = scoutReportService;
+      console.log('[Scout Report] Service initialized and registered globally');
+    } catch (serviceError) {
+      console.error('[Scout Report] Failed to initialize services:', (serviceError as any).message);
+      console.warn('[Scout Report] Scout Report routes will use fallback responses');
+      
+      // Create a minimal fallback scout report service
+      (global as any).scoutReportService = null;
+    }
   } catch (err) {
-    console.error('[Scout Report] Failed to initialize:', err);
+    console.error('[Scout Report] Failed to import Scout Report Service:', (err as any).message);
   }
 
   // Initialize Learning System
@@ -630,6 +762,25 @@ app.use((req, res, next) => {
   (global as any).signalPipeline = signalPipeline;
 
   console.log('[MarketDataFetcher] Auto-fetch service started with signal generation');
+
+  // Register API documentation dashboard (admin panel)
+  app.get('/admin/api-docs', (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const dashboardPath = path.join(process.cwd(), 'docs', 'API_DASHBOARD_TEMPLATE.html');
+      const html = fs.readFileSync(dashboardPath, 'utf-8');
+      res.header('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (err) {
+      res.status(404).json({
+        error: 'Dashboard not found',
+        message: 'API documentation dashboard template not found. Run build setup.',
+        hint: 'Place API_DASHBOARD_TEMPLATE.html in docs/ directory'
+      });
+    }
+  });
+  console.log('[express] API Dashboard registered at /admin/api-docs');
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

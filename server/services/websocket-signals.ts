@@ -88,7 +88,51 @@ export class SignalWebSocketService extends EventEmitter {
         cors: {
           origin: '*',
           methods: ['GET', 'POST']
-        }
+        },
+        transports: ['websocket', 'polling']
+      });
+
+      // ALSO create a raw WebSocket server on /ws for raw WebSocket clients
+      // This allows clients connecting with raw WebSocket protocol to work alongside Socket.IO
+      this.wss = new WebSocketServer({
+        server: server as any,
+        path: '/ws'
+      });
+
+      this.wss.on('connection', (ws: WebSocket) => {
+        console.log('[RawWebSocket] New client connected to /ws');
+        this.clients.add(ws);
+
+        // Send initial connection message
+        ws.send(JSON.stringify({
+          type: 'connected',
+          message: 'Connected to Scanstream WebSocket',
+          timestamp: Date.now()
+        }));
+
+        ws.on('message', (message: string) => {
+          try {
+            const data = JSON.parse(message.toString());
+            this.handleClientMessage(ws, data);
+          } catch (error) {
+            console.warn('[RawWebSocket] Failed to parse message:', error);
+            ws.send(JSON.stringify({
+              type: 'error',
+              error: 'Invalid JSON',
+              timestamp: Date.now()
+            }));
+          }
+        });
+
+        ws.on('close', () => {
+          console.log('[RawWebSocket] Client disconnected');
+          this.clients.delete(ws);
+        });
+
+        ws.on('error', (error) => {
+          console.error('[RawWebSocket] Client error:', error);
+          this.clients.delete(ws);
+        });
       });
 
       this.io.on('connection', (socket) => {
@@ -127,7 +171,7 @@ export class SignalWebSocketService extends EventEmitter {
       // Start broadcasting gateway health every 10 seconds
       this.startHealthBroadcast();
 
-      console.log('[WS] Signal WebSocket service initialized with Gateway integration (Socket.IO)');
+      console.log('[WS] Signal WebSocket service initialized with Gateway integration (Socket.IO + Raw WebSocket)');
     } else {
       console.error('[WebSocket] Invalid server object provided for initialization.');
     }

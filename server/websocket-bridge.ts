@@ -22,8 +22,12 @@ async function getGate(): Promise<any | null> {
 
 export function initializeWebsocketBridge(server: http.Server, path = '/events') {
   const wss = new WebSocketServer({ server, path });
+  
+  // Also create a separate WebSocket server on /ws for raw connections (not Socket.IO)
+  const rawWss = new WebSocketServer({ server, path: '/ws' });
 
   console.log('[WS-Bridge] WebSocket bridge listening at', path);
+  console.log('[WS-Bridge] Raw WebSocket server listening at /ws');
 
   // Map of subscribed event names
   const eventNames = [
@@ -142,6 +146,39 @@ export function initializeWebsocketBridge(server: http.Server, path = '/events')
     });
 
     ws.on('close', () => console.log(`[WS-Bridge] client disconnected ${id}`));
+  });
+
+  // Raw WebSocket server at /ws for market data subscriptions
+  rawWss.on('connection', (ws: any, req: any) => {
+    const id = Math.random().toString(36).slice(2, 8);
+    console.log(`[WS-Raw] client connected ${id} from ${req.socket.remoteAddress}`);
+    ws.send(JSON.stringify({ type: 'connected', message: 'Connected to market data stream' }));
+
+    ws.on('message', (data: any) => {
+      try {
+        const msg = typeof data === 'string' ? JSON.parse(data) : null;
+        if (!msg) return;
+
+        // Handle subscription messages
+        if (msg.type === 'subscribe') {
+          console.log(`[WS-Raw] ${id} subscribed to ${msg.symbol}`);
+          // In future: track subscription and send ticks for this symbol
+          ws.send(JSON.stringify({ type: 'subscribed', symbol: msg.symbol, message: `Subscribed to ${msg.symbol}` }));
+        } else if (msg.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+        }
+      } catch (err) {
+        console.debug('[WS-Raw] Error processing message:', err);
+      }
+    });
+
+    ws.on('error', (err: any) => {
+      console.error(`[WS-Raw] Error on client ${id}:`, err);
+    });
+
+    ws.on('close', () => {
+      console.log(`[WS-Raw] client disconnected ${id}`);
+    });
   });
 
   return wss;

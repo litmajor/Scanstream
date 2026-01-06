@@ -75,31 +75,45 @@ export type Asset = CryptoAsset | ForexAsset | StockAsset | CommodityAsset;
 // Fetch CoinGecko cryptocurrencies (Top 250)
 const fetchCryptoAssets = async (page: number = 1) => {
   try {
+    // Try to get all available price change data from CoinGecko
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}&sparkline=false&price_change_percentage=1h%2C24h%2C7d%2C30d`
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}&sparkline=false&price_change_percentage=1h,24h,7d,30d,200d,1y`
     );
 
     if (!response.ok) throw new Error('Failed to fetch cryptos from CoinGecko');
 
     const rawData = await response.json();
     
+    // Log sample data for debugging
+    if (page === 1 && rawData.length > 0) {
+      console.log('Sample CoinGecko response:', rawData[0]);
+    }
+    
     // Normalize CoinGecko API response to our interface
-    const data: CryptoAsset[] = rawData.map((item: any) => ({
-      id: item.id,
-      symbol: item.symbol,
-      name: item.name,
-      image: item.image,
-      market_cap_rank: item.market_cap_rank,
-      price: item.current_price,
-      market_cap: item.market_cap,
-      total_volume: item.total_volume,
-      change1d: item.price_change_percentage_24h,
-      change7d: item.price_change_percentage_7d,
-      change30d: item.price_change_percentage_30d,
-      market_cap_change_percentage_24h: item.market_cap_change_percentage_24h,
-      ath: item.ath,
-      atl: item.atl,
-    }));
+    const data: CryptoAsset[] = rawData.map((item: any) => {
+      // CoinGecko returns price changes in format: price_change_percentage_7d_in_currency
+      // But also has price_change_percentage_7d for USD
+      const change7d = item.price_change_percentage_7d ?? 0;
+      const change30d = item.price_change_percentage_30d ?? 0;
+      const change1d = item.price_change_percentage_24h ?? 0;
+
+      return {
+        id: item.id,
+        symbol: item.symbol,
+        name: item.name,
+        image: item.image,
+        market_cap_rank: item.market_cap_rank,
+        price: item.current_price || 0,
+        market_cap: item.market_cap || 0,
+        total_volume: item.total_volume || 0,
+        change1d,
+        change7d,
+        change30d,
+        market_cap_change_percentage_24h: item.market_cap_change_percentage_24h,
+        ath: item.ath,
+        atl: item.atl,
+      };
+    });
 
     return {
       data,

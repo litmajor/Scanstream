@@ -84,13 +84,55 @@ router.get('/signals', async (req: Request, res: Response) => {
 
     const scanResults = await ccxtScanner.scanSymbols(symbols, '1h', {});
 
+    // Fetch 24h price change data from CoinGecko
+    const symbolMap: Record<string, string> = {
+      'BTC': 'bitcoin',
+      'ETH': 'ethereum',
+      'SOL': 'solana',
+      'AVAX': 'avalanche-2',
+      'ADA': 'cardano',
+      'DOT': 'polkadot',
+      'LINK': 'chainlink',
+      'XRP': 'ripple',
+      'DOGE': 'dogecoin',
+      'ATOM': 'cosmos',
+      'ARB': 'arbitrum',
+      'OP': 'optimism',
+      'AAVE': 'aave',
+      'UNI': 'uniswap',
+      'NEAR': 'near'
+    };
+
+    let priceChanges: Record<string, number> = {};
+    try {
+      const ids = Object.values(symbolMap).join(',');
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false`
+      );
+      if (response.ok) {
+        const coingeckoData = await response.json();
+        for (const item of coingeckoData) {
+          const sym = Object.entries(symbolMap).find(([, id]) => id === item.id)?.[0];
+          if (sym) {
+            priceChanges[sym] = item.price_change_percentage_24h || 0;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[Scanner API] Failed to fetch CoinGecko price changes:', error);
+    }
+
     const signals = scanResults
       .filter((result: any) => result.symbol && result.price > 0)
       .map((result: any) => {
+        // Get symbol name from trading pair (e.g., 'BTC/USDT' -> 'BTC')
+        const symbolName = result.symbol.split('/')[0];
+        
+        // Get 24h change from CoinGecko or use momentum as fallback
+        let changePercent = priceChanges[symbolName] ?? result.metrics?.momentum ?? 0;
+
         // Simple signal generation based on price change
         let signal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-        const change = (result as any).priceChange24h || 0;
-        const changePercent = ((change / (result.price || 1)) * 100);
 
         if (changePercent > 2) signal = 'BUY';
         else if (changePercent < -2) signal = 'SELL';
@@ -99,7 +141,7 @@ router.get('/signals', async (req: Request, res: Response) => {
 
         return {
           symbol: result.symbol,
-          exchange: result.exchange || 'ccxt',
+          exchange: result.sources?.[0] || 'ccxt',
           signal,
           strength: strength || 0,
           price: result.price || 0,
@@ -107,10 +149,13 @@ router.get('/signals', async (req: Request, res: Response) => {
           change: changePercent || 0,
           priceChange: changePercent || 0,
           change24h: changePercent || 0,
-          volume: (result as any).volume24h || 0,
-          volume24h: (result as any).volume24h || 0,
+          volume: (result.metrics?.volume || 0),
+          volume24h: (result.metrics?.volume || 0),
           timestamp: Date.now(),
-          source: 'scanner'
+          source: 'scanner',
+          rsi: result.metrics?.rsi || 0,
+          macd: result.metrics?.macd || 0,
+          confidence: result.confidence || 0,
         };
       });
 

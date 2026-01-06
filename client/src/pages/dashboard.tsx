@@ -187,7 +187,7 @@ export default function DashboardPage() {
   useEffect(() => {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/socket.io/?transport=websocket&v=${Date.now()}`;
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onmessage = (event) => {

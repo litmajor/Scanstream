@@ -341,12 +341,12 @@ function exportToPDF(result: BacktestResult, options: ExportOptions): Blob {
   content += '───────────────────────────────────────────\n';
 
   const metrics = [
-    [`Annualized Return`, ((result.metrics.annualizedReturn ?? 0) * 100).toFixed(2) + '%`],
+    [`Annualized Return`, ((result.metrics.annualizedReturn ?? 0) * 100).toFixed(2) + '%'],
     [`Sharpe Ratio`, (result.metrics.sharpeRatio ?? 0).toFixed(2)],
     [`Sortino Ratio`, (result.metrics.sortinoRatio ?? 0).toFixed(2)],
     [`Calmar Ratio`, (result.metrics.calmarRatio ?? 0).toFixed(2)],
-    [`Max Drawdown`, ((result.metrics.maxDrawdown ?? 0) * 100).toFixed(2) + '%`],
-    [`Win Rate`, ((result.metrics.winRate ?? 0) * 100).toFixed(2) + '%`],
+    [`Max Drawdown`, ((result.metrics.maxDrawdown ?? 0) * 100).toFixed(2) + '%'],
+    [`Win Rate`, ((result.metrics.winRate ?? 0) * 100).toFixed(2) + '%'],
     [`Profit Factor`, (result.metrics.profitFactor ?? 0).toFixed(2)],
     [`Total Trades`, (result.metrics.totalTrades ?? 0).toFixed(0)],
   ];

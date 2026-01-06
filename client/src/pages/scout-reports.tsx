@@ -39,7 +39,10 @@ export default function ScoutReportsPage() {
 
   // Filter and sort reports
   const filteredReports = useMemo(() => {
-    let filtered = reports.filter((report: ScoutReportMeta) =>
+    // Ensure reports is an array
+    const reportsArray = Array.isArray(reports) ? reports : [];
+
+    let filtered = reportsArray.filter((report: ScoutReportMeta) =>
       report.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
 

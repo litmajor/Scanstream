@@ -144,7 +144,7 @@ export interface ConfigResponse {
   [key: string]: any;
 }
 
-class ScannerService {
+export class ScannerService {
   private api: AxiosInstance;
 
   constructor(baseURL: string = API_BASE) {

@@ -12,6 +12,26 @@
  */
 
 /**
+ * 🔄 OPERATION MODE — What data we're currently processing
+ * 
+ * This determines:
+ * - Whether to penalize confidence (not in LIVE)
+ * - How to interpret emit-lag
+ * - If REST backfill is still happening
+ * - If market microstructure is meaningful
+ */
+export enum OperationMode {
+  /** Historical backfill with REST API (no WebSocket yet) */
+  REPLAY = 'REPLAY',
+
+  /** Mix of REST backfill + live WebSocket updates */
+  MIXED = 'MIXED',
+
+  /** Pure WebSocket, memory filled, microstructure active */
+  LIVE = 'LIVE',
+}
+
+/**
  * A normalized candle from any source
  */
 export interface Candle {
@@ -218,6 +238,20 @@ export interface WorldTick {
    * Wall-clock time when this tick was emitted (diagnostic only)
    */
   emitTime: number;                     // ms (when we emitted this tick)
+
+  /**
+   * 🔄 OPERATION MODE — What phase of data are we in?
+   * 
+   * - REPLAY: Historical backfill only (no WS yet)
+   * - MIXED: Mix of REST backfill + live WS
+   * - LIVE: Pure WebSocket, memory filled, ready for trading
+   * 
+   * Used by:
+   * - Confidence scoring (no penalties in LIVE)
+   * - Diagnostics (understand system state)
+   * - Strategy execution (risk adjustments)
+   */
+  mode: OperationMode;
   
   candle: Candle;
   isFinal: boolean;                     // Candle closed

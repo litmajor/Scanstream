@@ -1,0 +1,72 @@
+[
+  {
+    "symbol": "BTC/USDT",
+    "scouts": {
+      "wins": 168,
+      "losses": 263,
+      "winRate": 38.97911832946635,
+      "totalPnL": 18374.4702857143,
+      "totalPnLPct": 0.1967349928577514,
+      "avgWin": 694.1125255102045,
+      "avgLoss": -373.5225627376428,
+      "profitFactor": 1.8582880788321743,
+      "sharpeRatio": 0.0692176408498405,
+      "maxDrawdown": 4413.635357142848
+    },
+    "convex": {
+      "wins": 42,
+      "losses": 126,
+      "winRate": 25,
+      "totalPnL": 947.6099999998987,
+      "totalPnLPct": 0.016286939895454426,
+      "avgWin": 3026.033333333332,
+      "avgLoss": -1001.1570634920639,
+      "profitFactor": 3.0225360671965324,
+      "sharpeRatio": 0.004613050980235776,
+      "maxDrawdown": 12541.529999999999
+    },
+    "combined": {
+      "totalPnL": 19322.080285714197,
+      "totalPnLPct": 0.21302193275320583,
+      "scoutContribution": 95.09571440555231,
+      "convexContribution": 4.904285594447692,
+      "netSharpe": 0.03691534591503814,
+      "netDrawdown": 12541.529999999999
+    }
+  },
+  {
+    "symbol": "ETH/USDT",
+    "scouts": {
+      "wins": 177,
+      "losses": 254,
+      "winRate": 41.067285382830626,
+      "totalPnL": 865.9294285714329,
+      "totalPnLPct": 0.26894973077948864,
+      "avgWin": 33.41147699757867,
+      "avgLoss": -19.873629921259813,
+      "profitFactor": 1.6811964965613426,
+      "sharpeRatio": 0.05825739477230015,
+      "maxDrawdown": 205.9239285714284
+    },
+    "convex": {
+      "wins": 66,
+      "losses": 111,
+      "winRate": 37.28813559322034,
+      "totalPnL": 2044.5600000000036,
+      "totalPnLPct": 0.7329516175493894,
+      "avgWin": 130.06515151515154,
+      "avgLoss": -58.91657657657654,
+      "profitFactor": 2.207615565478418,
+      "sharpeRatio": 0.10155652069107172,
+      "maxDrawdown": 768.2800000000002
+    },
+    "combined": {
+      "totalPnL": 2910.4894285714363,
+      "totalPnLPct": 1.0019013483288781,
+      "scoutContribution": 29.752021088647606,
+      "convexContribution": 70.2479789113524,
+      "netSharpe": 0.07990695773168593,
+      "netDrawdown": 768.2800000000002
+    }
+  }
+]

@@ -47,6 +47,7 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
         {ml && (
           <button
             onClick={() => setActiveTab('ml')}
+            title="ML Analysis"
             className={`
               flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2
               ${
@@ -62,6 +63,7 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
         {scanner && (
           <button
             onClick={() => setActiveTab('scanner')}
+            title="Scanner Analysis"
             className={`
               flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2
               ${
@@ -77,6 +79,7 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
         {agents && (
           <button
             onClick={() => setActiveTab('agents')}
+            title="Agent Analysis"
             className={`
               flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2
               ${
@@ -92,6 +95,7 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
         {priceAction && (
           <button
             onClick={() => setActiveTab('price')}
+            title="Price Action Analysis"
             className={`
               flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2
               ${
@@ -116,7 +120,7 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
 
               {/* Timeframe Breakdown */}
               <div className="space-y-4">
-                {ml.timeframeSignals?.map((tf: TimeframeSignal, idx: number) => (
+                {ml.timeframes?.map((tf: TimeframeSignal, idx: number) => (
                   <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-300">
                     <div className="flex items-center justify-between mb-3">
                       <div className="font-bold text-gray-800">{tf.timeframe}</div>
@@ -132,9 +136,9 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
                       </div>
                     </div>
                     <ConfidenceBar value={tf.confidence * 100} label="Confidence" showPercentage size="md" />
-                    {tf.prediction && (
+                    {tf.predictedMove && (
                       <div className="mt-3 text-sm text-gray-700">
-                        <strong>Predicted Move:</strong> {tf.prediction.toFixed(2)}%
+                        <strong>Predicted Move:</strong> {tf.predictedMove.toFixed(2)}%
                       </div>
                     )}
                   </div>
@@ -157,10 +161,11 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
               )}
 
               {/* Position Sizing */}
-              {ml.positionSizeRecommendation && (
+              {ml.positionSizingRecommendation && (
                 <div className="mt-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
                   <h4 className="font-semibold text-blue-900 mb-2">Position Sizing Recommendation</h4>
-                  <p className="text-blue-800 text-sm">{ml.positionSizeRecommendation}</p>
+                  <p className="text-blue-800 text-sm">{ml.positionSizingRecommendation.reasoning}</p>
+                  <p className="text-blue-800 text-sm mt-2"><strong>Multiplier:</strong> {ml.positionSizingRecommendation.multiplier}x</p>
                 </div>
               )}
             </div>
@@ -177,35 +182,35 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
               {scanner.primaryPattern && (
                 <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500 mb-4">
                   <h4 className="font-semibold text-blue-900 mb-2">Primary Pattern</h4>
-                  <p className="text-blue-800 text-sm mb-2">{scanner.primaryPattern}</p>
+                  <p className="text-blue-800 text-sm mb-2">{scanner.primaryPattern.name}</p>
                   <div className="text-xs text-blue-700">
-                    <strong>Confluence Score:</strong> {scanner.confluenceScore?.toFixed(1)}/10
+                    <strong>Confluence Score:</strong> {scanner.primaryPattern.confluenceScore?.toFixed(1)}/10
                   </div>
                 </div>
               )}
 
               {/* Support/Resistance */}
-              {(scanner.supportLevels || scanner.resistanceLevels) && (
+              {(scanner.levels?.support || scanner.levels?.resistance) && (
                 <div className="grid grid-cols-2 gap-4">
-                  {scanner.supportLevels && scanner.supportLevels.length > 0 && (
+                  {scanner.levels?.support && scanner.levels.support.length > 0 && (
                     <div className="bg-green-50 rounded-lg p-4 border border-green-300">
                       <h4 className="font-semibold text-green-900 mb-3">Support Levels</h4>
                       <div className="space-y-2">
-                        {scanner.supportLevels.map((level: number, idx: number) => (
+                        {scanner.levels.support.map((level: any, idx: number) => (
                           <div key={idx} className="text-sm text-green-800">
-                            <strong>S{idx + 1}:</strong> {level.toFixed(2)}
+                            <strong>S{idx + 1}:</strong> {level.price.toFixed(2)}
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  {scanner.resistanceLevels && scanner.resistanceLevels.length > 0 && (
+                  {scanner.levels?.resistance && scanner.levels.resistance.length > 0 && (
                     <div className="bg-red-50 rounded-lg p-4 border border-red-300">
                       <h4 className="font-semibold text-red-900 mb-3">Resistance Levels</h4>
                       <div className="space-y-2">
-                        {scanner.resistanceLevels.map((level: number, idx: number) => (
+                        {scanner.levels.resistance.map((level: any, idx: number) => (
                           <div key={idx} className="text-sm text-red-800">
-                            <strong>R{idx + 1}:</strong> {level.toFixed(2)}
+                            <strong>R{idx + 1}:</strong> {level.price.toFixed(2)}
                           </div>
                         ))}
                       </div>
@@ -218,7 +223,10 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
               {scanner.volumeAnalysis && (
                 <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-300">
                   <h4 className="font-semibold text-gray-800 mb-2">Volume Analysis</h4>
-                  <p className="text-sm text-gray-700">{scanner.volumeAnalysis}</p>
+                  <p className="text-sm text-gray-700">{scanner.volumeAnalysis.conclusion}</p>
+                  <div className="text-xs text-gray-600 mt-2">
+                    <strong>Trend:</strong> {scanner.volumeAnalysis.trend} ({scanner.volumeAnalysis.volumePercent.toFixed(0)}%)
+                  </div>
                 </div>
               )}
             </div>

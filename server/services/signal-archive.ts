@@ -36,9 +36,31 @@ export class SignalArchiveService {
 
   /**
    * Archive a new signal when generated
+   * Enforces maxArchiveSize limit by deleting oldest signals if exceeded
    */
   async archiveSignal(signal: Omit<ArchivedSignal, 'id' | 'timestamp' | 'outcome'>): Promise<string> {
     try {
+      // Check archive size before adding new signal
+      const currentCount = await this.prisma.signal.count();
+      
+      if (currentCount >= this.maxArchiveSize) {
+        // Delete oldest signals to make room (delete 10% to reduce churn)
+        const toDelete = Math.ceil(this.maxArchiveSize * 0.1);
+        const oldest = await this.prisma.signal.findMany({
+          orderBy: { timestamp: 'asc' },
+          take: toDelete,
+        });
+
+        if (oldest.length > 0) {
+          await this.prisma.signal.deleteMany({
+            where: {
+              id: { in: oldest.map(s => s.id) }
+            }
+          });
+          console.log(`[SignalArchive] Pruned ${oldest.length} oldest signals (total: ${currentCount} → ${currentCount - oldest.length})`);
+        }
+      }
+
       const archived = await this.prisma.signal.create({
         data: {
           symbol: signal.symbol,
@@ -46,6 +68,7 @@ export class SignalArchiveService {
           strength: signal.strength,
           confidence: signal.confidence,
           price: signal.price,
+          entryPrice: signal.price, // Use signal price as entry price
           reasoning: signal.reasoning || {},
           riskReward: signal.takeProfit && signal.stopLoss 
             ? Math.abs((signal.takeProfit - signal.price) / (signal.price - signal.stopLoss))

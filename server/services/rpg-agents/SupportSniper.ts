@@ -1,8 +1,8 @@
 
-import { TradingAgent, type AgentSignal, type TradeResult } from './TradingAgent';
+import { TradingAgent, type AgentSignal, type TradeResult } from './TradingAgent.ts';
 import {
   getClusterMetrics
-} from '../clustering';
+} from '../clustering/index.ts';
 
 /**
  * Volume-Based Support/Resistance Zone Detection
