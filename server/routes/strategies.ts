@@ -434,8 +434,7 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
       const signal = await signalEngine.generateSignal(normalizedFrames, i);
       if (signal) {
         // Map signal type to expected union and fill missing properties
-        const mappedType = (signal.type === 'BUY' || signal.type === 'LONG') ? 'BUY'
-          : (signal.type === 'SELL' || signal.type === 'SHORT') ? 'SELL' : 'HOLD';
+        const mappedType = (signal.type === 'BUY' || signal.type === 'SELL') ? signal.type : 'HOLD';
 
         signals.push({
           ...signal,

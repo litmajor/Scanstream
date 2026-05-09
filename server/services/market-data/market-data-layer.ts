@@ -17,6 +17,7 @@ import type {
   WorldTick,
   WorldState,
   IntegrityIssue,
+  OperationMode,
 } from '../../types/market-data';
 
 import { MarketDataIntegrityChecker } from './integrity-checker';
@@ -149,6 +150,7 @@ export class MarketDataLayer extends EventEmitter implements WorldState {
       candle,
       isFinal: candle.isFinal,
       source: candle.source || 'unknown',
+      mode: 'LIVE' as any as OperationMode,  // TODO: Determine actual operation mode
     };
 
     // Attach regimeContext if available (non-blocking best-effort)

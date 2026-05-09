@@ -93,9 +93,9 @@ export function buildDecisionContext(
     symbol: frame.symbol,
     timeframe: frame.timeframe,
     frame: Object.freeze({ ...frame }), // Deep copy + freeze
-    signals: Object.freeze({ ...signals }), // Deep copy + freeze
+    signals: Object.freeze({ ...signals }) as any, // Deep copy + freeze (type flexibility)
     quality: Object.freeze(calculatedQuality),
-    constraints: Object.freeze(enforcedConstraints),
+    constraints: Object.freeze(enforcedConstraints) as any,
     createdAt: Date.now(),
     contextId: generateContextId(frame),
   };
@@ -147,8 +147,8 @@ export function buildDecisionContextForReplay(
   constraints: DecisionContextConstraints
 ): DecisionContext {
   const ctx = buildDecisionContext(frame, signals, constraints, {
-    isFallback: frame.meta.source === 'replay',
-    reason: frame.meta.source === 'replay' ? 'replay_data' : undefined,
+    isFallback: frame.meta.source === 'REPLAY_API',
+    reason: frame.meta.source === 'REPLAY_API' ? 'replay_data' : undefined,
   });
 
   return ctx;
@@ -173,12 +173,12 @@ function calculateContextQuality(
 
   // Assess staleness
   const now = Date.now();
-  const dataAge = now - frame.timestamp;
+  const dataAge = now - (frame as any).createdAt || (frame as any).timestamp || now;
   const maxAgeMs = 60000; // 1 minute
   const isStale = dataAge > maxAgeMs;
 
   // Assess if using fallback (replay data)
-  const isFallback = frame.meta.source === 'replay';
+  const isFallback = frame.meta.source === 'REPLAY_API';
 
   // Calculate confidence from multiple factors
   let confidence = 1.0;
@@ -318,7 +318,7 @@ export function mergeDecisionContexts(
 export function cloneDecisionContext(ctx: DecisionContext): DecisionContext {
   return buildDecisionContext(
     ctx.frame,
-    ctx.signals,
+    ctx.signals as any,
     ctx.constraints,
     {
       confidence: ctx.quality.confidence,

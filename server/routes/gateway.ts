@@ -2171,7 +2171,7 @@ router.get('/dataframe-validated/:symbol', async (req: Request, res: Response) =
           validCount: integrityResult.stored.length,
           rejectedCount: integrityResult.rejected.length,
           gapCount: integrityResult.gaps.length,
-          rejectionReasons: integrityResult.rejected.map(r => r.reason || 'unknown'),
+          rejectionReasons: integrityResult.rejected.map((r, i) => `Candle ${i}: invalid OHLC or timestamp`),
           gaps: integrityResult.gaps.map(g => ({
             from: g.from,
             to: g.to,

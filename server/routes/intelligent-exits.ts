@@ -35,7 +35,7 @@ router.get('/backtest', async (req: Request, res: Response) => {
       trades.push({
         entryPrice: typeof frame.price === 'object' ? (frame.price as any).close : frame.price,
         priceHistory,
-        atr: frame.indicators?.atr || 100,
+        atr: (frame.indicators as any)?.atr || 100,
         signalType: Math.random() > 0.5 ? 'BUY' : 'SELL' as 'BUY' | 'SELL'
       });
     }

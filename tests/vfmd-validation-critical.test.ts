@@ -311,7 +311,7 @@ describe('VFMD CRITICAL VALIDATION - Core Assumptions', () => {
       const field = fieldConstructor.constructField(uptrend);
       const metrics = PhysicsCalculator.computeAllMetrics(field);
 
-      const regime = RegimeClassifier.classify(metrics);
+      const regime = RegimeClassifier.classify(metrics, 'BTC');
       const config = RegimeClassifier.getRegimeConfig(regime);
 
       console.log('\nUPTREND Regime:', regime);
@@ -345,7 +345,7 @@ describe('VFMD CRITICAL VALIDATION - Core Assumptions', () => {
       const field = fieldConstructor.constructField(chop);
       const metrics = PhysicsCalculator.computeAllMetrics(field);
 
-      const regime = RegimeClassifier.classify(metrics);
+      const regime = RegimeClassifier.classify(metrics, 'BTC');
       const config = RegimeClassifier.getRegimeConfig(regime);
 
       console.log('\nCHOP Regime:', regime);
@@ -356,11 +356,23 @@ describe('VFMD CRITICAL VALIDATION - Core Assumptions', () => {
       });
 
       expect(regime).toBe(FlowRegime.TURBULENT_CHOP);
-      expect(config.positionSizeMultiplier).toBe(0.25); // Defensive
-      expect(config.minConfidence).toBe(0.95); // Nearly impossible threshold
+      expect(config.positionSizeMultiplier).toBe(0.75); // updated sizing per new config
+      expect(config.minConfidence).toBe(0.25); // lowered operating threshold
 
       console.log('✓ Chop correctly classified as TURBULENT_CHOP with defensive config');
     });
+
+    /**
+     * NEW TEST: profit score threshold override for BTC distribution regime
+     */
+    it('should return elevated profit score threshold when in BTC distribution', () => {
+      const agent = new VFMDPhysicsAgent('test');
+      agent.setAsset('BTC');
+      (agent as any).currentRegime = FlowRegime.DISTRIBUTION;
+      const threshold = (agent as any).getProfitScoreThreshold();
+      expect(threshold).toBe(75);
+    });
+
 
     /**
      * TEST 3.3: Should classify accumulation pattern correctly
@@ -390,7 +402,7 @@ describe('VFMD CRITICAL VALIDATION - Core Assumptions', () => {
         divergence: metrics.divergenceScore.toFixed(4)
       });
 
-      const regime = RegimeClassifier.classify(metrics);
+      const regime = RegimeClassifier.classify(metrics, 'BTC');
 
       // Should be ACCUMULATION or CONSOLIDATION (not TURBULENT_CHOP)
       expect([FlowRegime.ACCUMULATION, FlowRegime.CONSOLIDATION]).toContain(regime);

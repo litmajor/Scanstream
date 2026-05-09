@@ -1,6 +1,6 @@
 {
   "include": ["client/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "server/backtest/**/*", "server/scripts/**/*"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
@@ -16,11 +16,19 @@
     "baseUrl": ".",
     "types": ["node", "vite/client"],
     "target": "es2020",
-    "downlevelIteration": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"]
+    }
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalEsm": true,
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "esnext",
+      "moduleResolution": "node"
     }
   }
 }

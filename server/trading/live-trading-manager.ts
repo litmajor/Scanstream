@@ -311,7 +311,7 @@ async function deployLiveTrading() {
 }
 
 // Export for production use
-export { deployLiveTrading, LiveTradingManager };
+export { deployLiveTrading };
 
 // Execute if run directly
 if (import.meta.url === `file://${process.argv[1]}`) {

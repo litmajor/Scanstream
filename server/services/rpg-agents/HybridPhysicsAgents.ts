@@ -446,10 +446,3 @@ export class VolumePhysicsAgent extends VFMDPhysicsAgent {
     }
   }
 }
-
-export {
-  BreakoutPhysicsAgent,
-  MeanReversionPhysicsAgent,
-  TrendPhysicsAgent,
-  VolumePhysicsAgent
-};

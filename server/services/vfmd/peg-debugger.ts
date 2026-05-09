@@ -12,9 +12,10 @@
  * 5. PEG values are inverted or normalized incorrectly
  */
 
-import { MarketTick } from './types';
+import { MarketTick, VectorField } from './types';
 import { FieldConstructor } from './fieldConstructor';
 import { PhysicsCalculator } from './physicsCalculator';
+import TriggerCalculator from './triggerCalculator';
 
 interface VolatilityDebugResult {
   index: number;
@@ -38,12 +39,21 @@ export class PEGVolatilityDebugger {
   /**
    * Deep dive into PEG volatility failures
    * 
+   * Feb 2025: pegThreshold recalibrated from 2.0 (raw scale) to 0.09 (normalized scale)
+   * 0.09 ≈ 1.25x average normalized PEG (~0.07); finds actual spikes not uniform noise
+   * 
    * For each PEG spike, diagnose why volatility didn't follow
+   * 
+   * @param ticks Market data
+   * @param pegThreshold Threshold for PEG signal
+   * @param volThreshold Multiplier for volatility spike detection (e.g., 1.5x)
+   * @param pegType 'gradient' (default) or 'compression' - which PEG calculation to use
    */
   async debugVolatilityFailures(
     ticks: MarketTick[],
-    pegThreshold: number = 2.0,
-    volThreshold: number = 1.5
+    pegThreshold: number = 0.09,
+    volThreshold: number = 1.5,
+    pegType: 'gradient' | 'compression' = 'gradient'
   ): Promise<{
     failures: VolatilityDebugResult[];
     rootCause: string;
@@ -52,6 +62,7 @@ export class PEGVolatilityDebugger {
     
     console.log('🔍 DEBUGGING PEG VOLATILITY FAILURES...');
     console.log('='.repeat(70));
+    console.log(`PEG Type: ${pegType.toUpperCase()}`);
     console.log(`PEG Threshold: ${pegThreshold}`);
     console.log(`Volatility Threshold: ${volThreshold}x`);
     console.log('');
@@ -64,8 +75,13 @@ export class PEGVolatilityDebugger {
       const field = this.fieldConstructor.constructField(prices);
       const metrics = PhysicsCalculator.computeAllMetrics(field);
       
+      // Use appropriate PEG computation based on pegType
+      const pegValue = pegType === 'compression' 
+        ? TriggerCalculator.computeCompressionPEG(field)
+        : metrics.peg;
+      
       // Check if PEG triggered
-      if (metrics.peg > pegThreshold) {
+      if (pegValue > pegThreshold) {
         // Calculate baseline volatility
         const baselineVol = this.calculateVolatility(
           ticks.slice(i - 20, i)
@@ -156,8 +172,9 @@ export class PEGVolatilityDebugger {
     }
 
     // Check 5: Is PEG value reasonable?
-    if (peg > 10) {
-      errors.push('PEG_TOO_HIGH');
+    // PEG is now sigmoid-normalized [0, ~0.64], so extremely high values are rare
+    if (peg > 1.0) {
+      errors.push('PEG_OUT_OF_RANGE');
     }
 
     // Check 6: Vol ratio close to threshold?

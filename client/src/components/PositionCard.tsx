@@ -58,7 +58,7 @@ export const PositionCard: React.FC<PositionCardProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <Badge variant={side === 'LONG' ? 'success' : 'danger'} size="sm">
+          <Badge variant={side === 'LONG' ? 'success' : 'error'} size="sm">
             <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>{sideIcon}{sideBadge}</span>
           </Badge>
 

@@ -22,7 +22,7 @@ import {
   RiskApproval,
   ExecutionProposal,
   EXECUTION_COMPARTMENT_CONSTANTS,
-} from '../types/ExecutionCompartments';
+} from '../../types/ExecutionCompartments';
 
 // ============================================================================
 // MARKET SNAPSHOT (external dependency)
@@ -39,6 +39,7 @@ export interface MarketSnapshot {
   bid: number;
   ask: number;
   last: number;
+  mid?: number; // Midpoint price, calculated as (bid + ask) / 2
   volume24hUsd: number;
   volatilityPercent24h: number;
   timestamp: number;
@@ -141,7 +142,7 @@ export function generateExecutionProposal(
     postOnly: orderType === 'limit',
 
     marketCondition: {
-      bidAsk: (market.ask - market.bid) / market.mid * 10000,
+      bidAsk: ((market.ask - market.bid) / ((market.bid + market.ask) / 2)) * 10000,
       volatilityPercent24h: market.volatilityPercent24h,
     },
   };
@@ -250,7 +251,8 @@ function estimateSlippage(
   size: number
 ): number {
   // Base: half-spread
-  const halfSpreadBps = ((market.ask - market.bid) / market.mid * 10000) / 2;
+  const mid = (market.bid + market.ask) / 2;
+  const halfSpreadBps = ((market.ask - market.bid) / mid * 10000) / 2;
 
   // Adjustment for size (larger orders have more impact)
   const sizeImpactBps = Math.min(

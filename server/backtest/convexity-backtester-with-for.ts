@@ -21,6 +21,7 @@ import { RegimeClassifier } from '../services/vfmd/regimeClassifier.ts';
 import FailureOfReversionCalculator from '../services/vfmd/failureOfReversionCalculator.ts';
 import { AntiLosingStreakManager, AdaptivePositionSizer } from './anti-losing-streak.ts';
 import { TimeBasedAdaptiveStop } from './convexity-backtester-with-adaptive-stops.ts';
+import { ForceOfReversalCalculator } from './force-of-reversal-calculator.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +50,20 @@ export interface VFMDScoutTrade {
   hitTarget?: boolean;
   hitStop?: boolean;
   exitReason?: 'TARGET' | 'STOP' | 'TIMEOUT' | 'AGREEMENT_FAIL';
+  
+  // ===== REVERSION ELIGIBILITY FIELDS =====
+  // State tracking for FoR evaluation
+  barsAlive?: number;                  // How many bars the scout has been alive
+  maxAdverseExcursion?: number;        // Worst price excursion against position
+  touchedMeanReference?: boolean;      // Did price reach structural mean level?
+  reversionsEligible?: boolean;        // Is this scout eligible for FoR evaluation?
+  
+  // ===== REVERSION ELIGIBILITY AT EXIT (frozen state) =====
+  // These capture the eligibility state exactly at exit time
+  reversionsEligibleAtExit?: boolean;  // Final eligibility determination
+  barsAliveAtExit?: number;            // Final bar count at exit
+  maxAdverseExcursionAtExit?: number;  // Final MAE measurement
+  touchedMeanReferenceAtExit?: boolean;// Final mean touch state
 }
 
 export interface ConvexTrade {
@@ -250,7 +265,7 @@ export class ConvexityBacktesterWithFoR {
           price: currentPrice,
           regime,
           confidence,
-          direction,
+          direction: direction as 'BUY' | 'SELL',
           // Use absolute ATR (price units) for realistic short window targets/stops
           target: direction === 'BUY'
             ? currentPrice + atr * this.optimizationParams.scoutTargetMultiplier
@@ -393,6 +408,22 @@ export class ConvexityBacktesterWithFoR {
             // attach diagnostics for offline analysis
             // (using as any to avoid changing VFMDScoutTrade shape globally)
             // @ts-ignore
+            _traceId: `SCOUT_${bar}_${signal.direction}`,
+            _lifecycleTrace: {
+              phase: 'VFMD_ENTRY',
+              bar,
+              entryPrice: signal.price,
+              direction: signal.direction,
+              confidence: signal.confidence,
+              target: signal.target,
+              stop: signal.stop,
+              targetPct,
+              stopPct,
+              max5barGainPct,
+              max5barLossPct,
+              vfmdRegime: signal.regime,
+              events: [`VFMD identified ${signal.direction} @ bar ${bar} (confidence=${signal.confidence.toFixed(2)})`],
+            },
             _diagnostics: {
               targetPct,
               stopPct,
@@ -432,6 +463,44 @@ export class ConvexityBacktesterWithFoR {
           const currentPrice = currentCandle.close;
           const barsHeld = bar - scout.entryBar;
           
+          // ===== TRACK REVERSION ELIGIBILITY METRICS =====
+          // Initialize eligibility tracking on first bar
+          if (scout.barsAlive === undefined) {
+            scout.barsAlive = 0;
+            scout.maxAdverseExcursion = 0;
+            scout.touchedMeanReference = false;
+            scout.reversionsEligible = false;
+          }
+          
+          // Update bars alive
+          scout.barsAlive = barsHeld;
+          
+          // Calculate max adverse excursion (worst price move against position)
+          const adversePrice = scout.direction === 'BUY' 
+            ? Math.max(scout.maxAdverseExcursion || 0, scout.entryPrice - currentPrice)
+            : Math.max(scout.maxAdverseExcursion || 0, currentPrice - scout.entryPrice);
+          scout.maxAdverseExcursion = adversePrice;
+          
+          // Check if price touched mean reference (simple: within 0.5% of entry)
+          const meanProximity = Math.abs(currentPrice - scout.entryPrice) / scout.entryPrice;
+          if (meanProximity < 0.005) {
+            scout.touchedMeanReference = true;
+          }
+          
+          // Calculate reversion eligibility (STRICT: requires credible reversal attempt)
+          // A reversal is credible ONLY if the market established it before reversing
+          // This filters noise while preserving early true reversals
+          const minReversionsBar = 4;  // Time-based: >= 4 bars (market tested direction)
+          const minAdverseExcursion = scout.entryPrice * 0.01;  // Distance-based: 1% MAE (meaningful test)
+          
+          // Scout is eligible ONLY if it demonstrates reversion credentials:
+          // - Lived long enough (4+ bars) for mean reversion physics to act
+          // - OR pushed far enough against entry to establish credibility (1%+ MAE)
+          // Single criterion sufficient: either time OR distance proves legitimate reversion attempt
+          scout.reversionsEligible = 
+            barsHeld >= minReversionsBar ||
+            scout.maxAdverseExcursion >= minAdverseExcursion;
+          
           if (scout.direction === 'BUY') {
             if (currentPrice >= scout.target) {
               scout.exitBar = bar;
@@ -440,6 +509,11 @@ export class ConvexityBacktesterWithFoR {
               scout.exitReason = 'TARGET';
               scout.pnl = scout.target - scout.entryPrice;
               scout.pnlPct = scout.pnl / scout.entryPrice;
+              // FREEZE ELIGIBILITY AT EXIT TIME
+              scout.reversionsEligibleAtExit = scout.reversionsEligible;
+              scout.barsAliveAtExit = barsHeld;
+              scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+              scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
             } else if (currentPrice <= scout.stop) {
               scout.exitBar = bar;
               scout.exitPrice = scout.stop;
@@ -447,6 +521,11 @@ export class ConvexityBacktesterWithFoR {
               scout.exitReason = 'STOP';
               scout.pnl = scout.stop - scout.entryPrice;
               scout.pnlPct = scout.pnl / scout.entryPrice;
+              // FREEZE ELIGIBILITY AT EXIT TIME
+              scout.reversionsEligibleAtExit = scout.reversionsEligible;
+              scout.barsAliveAtExit = barsHeld;
+              scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+              scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
             }
           } else {
             // SELL
@@ -457,6 +536,11 @@ export class ConvexityBacktesterWithFoR {
               scout.exitReason = 'TARGET';
               scout.pnl = scout.entryPrice - scout.target;
               scout.pnlPct = scout.pnl / scout.entryPrice;
+              // FREEZE ELIGIBILITY AT EXIT TIME
+              scout.reversionsEligibleAtExit = scout.reversionsEligible;
+              scout.barsAliveAtExit = barsHeld;
+              scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+              scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
             } else if (currentPrice >= scout.stop) {
               scout.exitBar = bar;
               scout.exitPrice = scout.stop;
@@ -464,6 +548,11 @@ export class ConvexityBacktesterWithFoR {
               scout.exitReason = 'STOP';
               scout.pnl = scout.entryPrice - scout.stop;
               scout.pnlPct = scout.pnl / scout.entryPrice;
+              // FREEZE ELIGIBILITY AT EXIT TIME
+              scout.reversionsEligibleAtExit = scout.reversionsEligible;
+              scout.barsAliveAtExit = barsHeld;
+              scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+              scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
             }
           }
 
@@ -493,6 +582,11 @@ export class ConvexityBacktesterWithFoR {
                   ? currentPrice - scout.entryPrice
                   : scout.entryPrice - currentPrice;
                 scout.pnlPct = scout.pnl / scout.entryPrice;
+                // FREEZE ELIGIBILITY AT EXIT TIME
+                scout.reversionsEligibleAtExit = scout.reversionsEligible;
+                scout.barsAliveAtExit = barsHeld;
+                scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+                scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
               }
             } catch (err) {
               // If metrics calculation fails, don't crash — continue to other checks
@@ -511,30 +605,88 @@ export class ConvexityBacktesterWithFoR {
               ? currentPrice - scout.entryPrice
               : scout.entryPrice - currentPrice;
             scout.pnlPct = scout.pnl / scout.entryPrice;
+            // FREEZE ELIGIBILITY AT EXIT TIME
+            scout.reversionsEligibleAtExit = scout.reversionsEligible;
+            scout.barsAliveAtExit = barsHeld;
+            scout.maxAdverseExcursionAtExit = scout.maxAdverseExcursion;
+            scout.touchedMeanReferenceAtExit = scout.touchedMeanReference;
           }
 
-          // If scout completed, check for FoR
-          if (scout.exitBar !== undefined) {
+          // If scout completed, add to list for FoR evaluation
+          if (scout.exitBar !== undefined && !completedScouts.includes(entryBar)) {
             completedScouts.push(entryBar);
+          }
 
-            // Feed scout data to FoR calculator
-            // Calculate simple FoR trigger: scout was profitable (indicating failed reversion)
-            if (scout.pnlPct! > 0) {
-              // Profitable scout = mean reversion failed, setup for FoR
+          // If scout completed, check for FoR (using exit-time eligibility)
+          if (scout.exitBar !== undefined) {
+
+            // Scout lifecycle metrics
+            const scoutDuration = scout.exitBar - scout.entryBar;
+            const scoutPnLPct = scout.pnlPct || 0;
+            const scoutProfitable = scoutPnLPct > 0;
+            
+            // ===== PHYSICS-BASED FoR ANALYSIS =====
+            // Use actual market physics to detect force of reversal exhaustion
+            // Measures: Decay Strength, Depth Compression, Time Compression, Volatility Paradox
+            
+            // Get ticks from scout entry to current bar for physics analysis
+            const scoutStartBar = scout.entryBar;
+            const scoutTicks = candles.slice(Math.max(0, scoutStartBar), bar + 1).map(c => ({
+              open: c.open,
+              high: c.high,
+              low: c.low,
+              close: c.close,
+            }));
+
+            // Analyze using physics-based FoR calculator
+            const forAnalysis = ForceOfReversalCalculator.analyze(
+              scoutTicks,
+              scout.direction as 'BUY' | 'SELL',
+              scout.entryPrice
+            );
+
+            // ===== REVERSION ELIGIBILITY GATE =====
+            // Filter noise scouts that never establish reversion credentials
+            // Use the frozen eligibility state captured at scout exit time
+            const scoutEligible = scout.reversionsEligibleAtExit === true;
+            
+            // ===== FRESHNESS GATE (HYPOTHESIS: Stale Signals Lose) =====
+            // Only deploy on "hot" FoR signals (0-3 bars after scout exit)
+            // Stale signals (4+ bars post-exit) = market regime has shifted
+            const scoutFreshnessBar = bar - (scout.exitBar || bar);
+            const maxFreshnessBar = 3;
+            const isSignalFresh = scoutFreshnessBar <= maxFreshnessBar;
+            
+            // Deploy Convex only if BOTH eligibility passed AND physics conditions met AND signal is fresh
+            if (scoutEligible && forAnalysis.shouldDeploy && isSignalFresh) {
               this.diagnostics.forTriggers++;
+              console.log(`[FoR TRIGGERED] Scout#${scout.entryBar} (${scout.direction}) eligible=${scoutEligible} bars=${scout.barsAliveAtExit} MAE=${scout.maxAdverseExcursionAtExit?.toFixed(4)} score=${forAnalysis.score} | ${forAnalysis.reasoning}`);
 
               // Generate Convex entry on FoR
               const convexEntry = {
                 entryBar: bar,
                 entryPrice: currentCandle.close,
-                direction: scout.direction,  // Same direction as scout
+                direction: scout.direction,
                 triggerBar: bar,
                 scout: scout,
               };
 
               activeConvex.set(bar, convexEntry);
-              console.log(`[FoR TRIGGERED] Scout at bar ${scout.entryBar} (${scout.direction}) profitable → FoR trigger at bar ${bar}`);
+            } else {
+              // Log rejection with reason (eligibility, freshness, or physics)
+              let reason = '';
+              if (!scoutEligible) {
+                reason = `INELIGIBLE (bars=${scout.barsAliveAtExit}, MAE=${scout.maxAdverseExcursionAtExit?.toFixed(4)})`;
+              } else if (!isSignalFresh) {
+                reason = `STALE (${scoutFreshnessBar} bars old, threshold=${maxFreshnessBar})`;
+              } else {
+                reason = `PHYSICS (score=${forAnalysis.score.toFixed(2)})`;
+              }
+              console.log(`[FoR REJECTED] Scout#${scout.entryBar} (${scout.direction}) ${reason}`);
             }
+            
+            // Track to diagnostics for final report
+            // this.diagnostics.lifecycleTraces.push(trace);  // TODO: Fix lifecycle tracing
           }
         }
       });
@@ -615,6 +767,10 @@ export class ConvexityBacktesterWithFoR {
 
             this.convexTrades.push(position);
             this.diagnostics.convexDeployments++;
+            
+            // Log lifecycle
+            console.log(`[CONVEX EXIT] Bar ${bar}: ${position.direction} position (entered ${position.entryBar}, duration=${bar - position.entryBar}b) → ${(position.pnlPct * 100).toFixed(2)}%`);
+            
             completedConvex.push(entryBar);
           }
         }
@@ -626,7 +782,7 @@ export class ConvexityBacktesterWithFoR {
 
       this.barReturns.push({
         bar,
-        returnPct: (currentCandle.close - candles[bar - 1].close) / candles[bar - 1].close,
+        pnlPct: (currentCandle.close - candles[bar - 1].close) / candles[bar - 1].close,
       });
     }
 
@@ -674,16 +830,22 @@ export class ConvexityBacktesterWithFoR {
     console.log(`   Convex Deployments: ${this.diagnostics.convexDeployments}`);
 
     // Convert to TradeResult for MetricsCalculator
-    const trades: TradeResult[] = this.convexTrades.map(t => ({
-      entryBar: t.entryBar,
-      exitBar: t.exitBar,
-      entryPrice: t.entryPrice,
-      exitPrice: t.exitPrice,
-      pnlPct: t.pnlPct,
-      pnl: t.pnl,
-      won: t.pnlPct > 0,
-      holdingBars: t.exitBar - t.entryBar,
-    }));
+    const trades: TradeResult[] = this.convexTrades
+      .filter(t => t.exitBar !== undefined)
+      .map(t => ({
+        quantity: 1,
+        pnlAbs: (t.pnlPct / 100) * t.entryPrice,
+        status: 'closed' as any,
+        exitReason: 'NORMAL',
+        entryBar: t.entryBar,
+        exitBar: t.exitBar!,
+        entryPrice: t.entryPrice,
+        exitPrice: t.exitPrice,
+        pnlPct: t.pnlPct,
+        pnl: t.pnl,
+        won: t.pnlPct > 0,
+        holdingBars: t.exitBar! - t.entryBar,
+      })) as TradeResult[];
 
     const metrics = MetricsCalculator.calculate(
       trades,
@@ -691,6 +853,9 @@ export class ConvexityBacktesterWithFoR {
       this.INITIAL_CAPITAL,
       config.symbol
     );
+
+    // ===== EDGE ANALYSIS REPORT =====
+    // TODO: Reinstate when diagnostics fully implemented
 
     return {
       symbol: config.symbol,
@@ -898,7 +1063,7 @@ async function main() {
       const pnl = (s.pnl || 0).toFixed(4);
       console.log(`   │  ─ Scout ${i + 1}: entryBar=${s.entryBar}, entry=${s.entryPrice.toFixed(4)}, stop=${s.stop.toFixed(4)}, stopPct=${stopPct}% , pnl=${pnl}, barsHeld=${(s.exitBar! - s.entryBar)}`);
       console.log(`   │     Surrounding prices (bar:close [low-high]):`);
-      console.log('   │     ' + window.map(w => `${w.bar}:${w.close.toFixed(4)} [${w.low.toFixed(4)}-${w.high.toFixed(4)}]`).join(' | '));
+      console.log('   │     ' + window.map((w: any) => `${w.bar}:${w.close.toFixed(4)} [${w.low.toFixed(4)}-${w.high.toFixed(4)}]`).join(' | '));
     }
     console.log('   └─ End of STOP sample\n');
   };

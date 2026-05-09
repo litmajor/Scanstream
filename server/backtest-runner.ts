@@ -44,6 +44,7 @@ export async function runBacktest(options: BacktestOptions): Promise<BacktestRes
     const quantity = positionSize / entryPrice;
     const trade: Trade = {
       id: `${signal.symbol}-${signal.timestamp}`,
+      signalId: signal.id,
       symbol: signal.symbol,
       side: signal.type,
       entryTime: new Date(entryFrame.timestamp),

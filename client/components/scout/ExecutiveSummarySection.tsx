@@ -27,14 +27,14 @@ export const ExecutiveSummarySection: React.FC<ExecutiveSummaryProps> = ({
   alternatives = [],
   className,
 }) => {
-  // Calculate conviction level from confidence and agreement
+  // Calculate conviction level from confidence and metrics
   const convictionLevel = useMemo(() => {
-    const combined = (summary.confidence + summary.agreement) / 2;
+    const combined = summary.confidence * (summary.metrics?.sourceConsensus || 0.5);
     if (combined >= 0.8) return { level: 'Very Strong', color: 'green' };
     if (combined >= 0.6) return { level: 'Strong', color: 'blue' };
     if (combined >= 0.4) return { level: 'Moderate', color: 'orange' };
     return { level: 'Weak', color: 'red' };
-  }, [summary.confidence, summary.agreement]);
+  }, [summary.confidence, summary.metrics?.sourceConsensus]);
 
   // Determine urgency from strength
   const urgencyBadge = useMemo(() => {
@@ -90,10 +90,10 @@ export const ExecutiveSummarySection: React.FC<ExecutiveSummaryProps> = ({
 
         {/* Source Agreement */}
         <MetricCard
-          label="Source Agreement"
-          value={Math.round(summary.agreement * 100)}
+          label="Source Consensus"
+          value={Math.round((summary.metrics?.sourceConsensus || 0) * 100)}
           unit="%"
-          barValue={summary.agreement * 100}
+          barValue={(summary.metrics?.sourceConsensus || 0) * 100}
           color="green"
           icon="🤝"
         />
@@ -121,13 +121,6 @@ export const ExecutiveSummarySection: React.FC<ExecutiveSummaryProps> = ({
       <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">CONFIDENCE TREND</h3>
         <ConfidenceBar value={summary.confidence * 100} label="Overall Confidence" showPercentage size="lg" />
-        {summary.confidenceTrend && (
-          <div className="mt-3 text-sm text-gray-600">
-            <span className={summary.confidenceTrend > 0 ? 'text-green-600' : 'text-red-600'}>
-              {summary.confidenceTrend > 0 ? '↑' : '↓'} {Math.abs(summary.confidenceTrend).toFixed(1)}% from previous
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Alternative Scenarios */}
@@ -156,9 +149,9 @@ export const ExecutiveSummarySection: React.FC<ExecutiveSummaryProps> = ({
       )}
 
       {/* Summary Text */}
-      {summary.summary && (
+      {summary.status && (
         <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
-          <p className="text-sm text-gray-700 leading-relaxed">{summary.summary}</p>
+          <p className="text-sm text-gray-700 leading-relaxed">{summary.status}</p>
         </div>
       )}
     </div>

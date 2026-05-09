@@ -829,7 +829,7 @@ class SignalEngine {
           const prevTs = frames[index - 1]?.timestamp ?? frames[Math.max(0, index - 2)]?.timestamp;
           const currTs = frames[index]?.timestamp ?? frames[index - 1]?.timestamp;
           if (prevTs && currTs && currTs > prevTs) {
-            const ms = currTs - prevTs;
+            const ms = Math.floor((currTs as any) || 0) - Math.floor((prevTs as any) || 0);
             tfMinutes = Math.max(1, Math.round(ms / 60000));
           }
         } catch (e) {

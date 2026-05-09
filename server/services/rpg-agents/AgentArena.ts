@@ -585,8 +585,32 @@ export class AgentArena {
     const reasoning: string[] = [];
     const participating_agents: string[] = [];
 
+    // VOLUME TRUTH LAYER VETO — core moat enforcement
+    // Volume agent acts as system-wide verifier before final consensus
+    const volumeAgent = this.agents.get(this.volumeAgent?.name || 'VOLUME_AGENT') as VolumeMechanicalVerifierAgent;
+    if (volumeAgent && volumeAgent.validateOtherSignal) {
+      for (let i = 0; i < signals.length; i++) {
+        if (signals[i].agent.name !== volumeAgent.name) {
+          // Get current market data for volume agent validation
+          const marketData = this.marketOracle.getMarketData(signals[i].signal?.symbol || 'BTC/USDT') || {};
+          const multiplier = volumeAgent.validateOtherSignal(signals[i].signal, marketData);
+          signals[i].signal.confidence = (signals[i].signal.confidence ?? 1) * multiplier;
+          
+          // Hard veto on severe volume mismatches (fakeouts/traps)
+          if (multiplier < 0.3) {
+            signals[i].signal.action = 'HOLD'; // Don't trade on fakeouts
+            console.log(`🚫 Volume Veto: Rejected ${signals[i].agent.name} signal (multiplier: ${multiplier.toFixed(2)})`);
+          }
+        }
+      }
+    }
+
+    // Filter out HOLD signals before final voting
+    const activeSignals = signals.filter(s => s.signal?.action !== 'HOLD');
+    if (activeSignals.length === 0) return null;
+
     // Weighted voting based on agent performance
-    for (const { agent, signal } of signals) {
+    for (const { agent, signal } of activeSignals) {
       if (!signal) continue;
 
       const weight = this.calculateAgentWeight(agent);

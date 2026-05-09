@@ -8,6 +8,10 @@
 import type { MarketTick, PhysicsMetrics } from './types';
 import { FieldConstructor } from './fieldConstructor';
 import { PhysicsCalculator } from './physicsCalculator';
+import TriggerCalculator from './triggerCalculator';
+
+// Create default field constructor
+const fieldConstructor = new FieldConstructor();
 
 /**
  * Validation results for each critical test
@@ -96,8 +100,8 @@ export class VFMDValidator {
         for (let i = 20; i < window.length; i++) {
           const subwindow = window.slice(0, i + 1);
           const closes = subwindow.map(t => t.close);
-          const field = FieldConstructor.constructField(closes);
-          const peg = PhysicsCalculator.computePEG(field, 10);
+          const field = fieldConstructor.constructField(closes);
+          const peg = TriggerCalculator.computeCompressionPEG(field, 10);
           pegValues.push({
             bar: i,
             peg
@@ -185,7 +189,7 @@ export class VFMDValidator {
       const closes = window.map(t => t.close);
 
       try {
-        const field = FieldConstructor.constructField(closes);
+        const field = fieldConstructor.constructField(closes);
         const ti = PhysicsCalculator.computeTurbulenceIndex(field, 10);
         results.chopTI.push(ti);
       } catch (e) {
@@ -201,7 +205,7 @@ export class VFMDValidator {
       const closes = window.map(t => t.close);
 
       try {
-        const field = FieldConstructor.constructField(closes);
+        const field = fieldConstructor.constructField(closes);
         const ti = PhysicsCalculator.computeTurbulenceIndex(field, 10);
         results.trendTI.push(ti);
       } catch (e) {
@@ -271,7 +275,7 @@ export class VFMDValidator {
       const closes = window.map(t => t.close);
 
       try {
-        const field = FieldConstructor.constructField(closes);
+        const field = fieldConstructor.constructField(closes);
         const metrics = PhysicsCalculator.computeAllMetrics(field);
         results.trendCoherence.push(metrics.coherenceScore);
       } catch (e) {
@@ -287,7 +291,7 @@ export class VFMDValidator {
       const closes = window.map(t => t.close);
 
       try {
-        const field = FieldConstructor.constructField(closes);
+        const field = fieldConstructor.constructField(closes);
         const metrics = PhysicsCalculator.computeAllMetrics(field);
         results.rangeCoherence.push(metrics.coherenceScore);
       } catch (e) {

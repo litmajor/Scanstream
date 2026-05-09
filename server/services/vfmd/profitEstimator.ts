@@ -10,6 +10,8 @@
  * 
  * This completes the physics model:
  * STATE (regime) + ENERGY (PEG) + PERMISSION (TRIGGER) + DIRECTION + PROFIT
+ * 
+ * Mar 2026: Updated gradient threshold for normalized metrics (0.01-0.2 observed range)
  */
 
 import { TriggerCalculator } from './triggerCalculator';
@@ -45,8 +47,13 @@ export interface ProfitEstimate {
 }
 
 export class ProfitEstimator {
+  /** Mar 2026: Normalized gradient threshold after FieldConstructor fix (was 200 raw scale) */
+  private static readonly GRADIENT_THRESHOLD = 0.05;
   /**
    * Estimate direction and profit from physics metrics
+   * 
+   * @param direction_score Optional HTF-based direction score from VFMDDirectionPatch
+   *                        If provided, replaces sin(dominantAngle) direction logic
    */
   static estimateProfit(
     metrics: PhysicsMetrics,
@@ -59,7 +66,8 @@ export class ProfitEstimator {
       prevHighPrice?: number;
       prevLowPrice?: number;
       volumeTrend?: 'rising' | 'stable' | 'falling';
-      pricePosition?: number; // 0-1, where price is in recent range
+      pricePosition?: number;
+      direction_score?: number;
     }
   ): ProfitEstimate {
     const triggerState = TriggerCalculator.computeTrigger(metrics);
@@ -68,13 +76,14 @@ export class ProfitEstimator {
       triggerState.trigger
     );
 
-    // Estimate direction
-    const direction = this.estimateDirection(metrics, previousMetrics, context);
-    const directionConfidence = this.getDirectionConfidence(
-      metrics,
-      previousMetrics,
-      direction
-    );
+    // Estimate direction (uses direction_score from VFMDDirectionPatch if available)
+    const direction = context?.direction_score !== undefined
+      ? this.estimateDirectionFromScore(context.direction_score)
+      : this.estimateDirection(metrics, previousMetrics, context);
+    
+    const directionConfidence = context?.direction_score !== undefined
+      ? this.getDirectionConfidenceFromScore(context.direction_score)
+      : this.getDirectionConfidence(metrics, previousMetrics, direction);
 
     // Estimate move magnitude
     const { expectedMove, moveConfidence } = this.estimateMoveMagnitude(
@@ -126,6 +135,25 @@ export class ProfitEstimator {
       recommended_stop_distance_pct: stopDistance,
       recommended_take_profit_pct: expectedMove * 1.0, // Exit at 100% of expected move (was 70%, too conservative)
     };
+  }
+
+  /**
+   * Convert HTF direction_score [-1, +1] to DirectionalBias
+   * Replaces sin(dominantAngle) logic with HTF-grounded bias
+   */
+  private static estimateDirectionFromScore(score: number): DirectionalBias {
+    if (Math.abs(score) < 0.1) return 'neutral';
+    return score > 0 ? 'bullish' : 'bearish';
+  }
+
+  /**
+   * Get direction confidence from HTF score
+   */
+  private static getDirectionConfidenceFromScore(score: number): number {
+    // Confidence scales with absolute value of score
+    // 0.0 → 0.3 (minimal), 0.5 → 0.65, 1.0 → 1.0
+    const absScore = Math.abs(score);
+    return 0.3 + absScore * 0.7;
   }
 
   /**
@@ -209,8 +237,8 @@ export class ProfitEstimator {
     if (metrics.coherenceScore > 0.7) confidence += 0.3;
     else if (metrics.coherenceScore > 0.5) confidence += 0.15;
 
-    // Gradient alignment
-    if (metrics.gradientMagnitude > 200) confidence += 0.2;
+    // Gradient alignment (normalized scale 0.01-0.2, threshold at 0.05)
+    if (metrics.gradientMagnitude > ProfitEstimator.GRADIENT_THRESHOLD) confidence += 0.2;
 
     // Trend consistency
     if (previousMetrics && metrics.divergenceScore > previousMetrics.divergenceScore) {
@@ -231,12 +259,12 @@ export class ProfitEstimator {
     volatilityProb: number,
     context?: any
   ): { expectedMove: number; moveConfidence: number } {
-    // Base move from PEG intensity
-    // PEG=300 → ~1.5% move
-    // PEG=600 → ~2.5% move
-    // PEG=1000+ → ~4%+ move
-    const pegMagnitude = Math.min(metrics.peg / 500, 5); // Cap at 5x multiplier
-    let expectedMove = 1.5 + pegMagnitude * 0.5; // 1.5% to 3.5% range
+    // Base move from PEG intensity (continuous sigmoid range [0.0, 0.64])
+    // PEG=0.1 → ~0.8% move (low compression)
+    // PEG=0.3 → ~1.5% move (moderate compression)
+    // PEG=0.6+ → ~3%+ move (high compression = high energy release)
+    const pegMagnitude = Math.min(metrics.peg / 0.2, 5); // Normalize sigmoid [0,0.64] to [0,5] range
+    let expectedMove = 0.8 + pegMagnitude * 0.4; // 0.8% to 2.8% range
 
     // Adjust for ATR context
     if (context?.atrValue) {
@@ -244,10 +272,10 @@ export class ProfitEstimator {
       expectedMove = Math.max(expectedMove, atrPct * 1.2); // At least 1.2x current ATR
     }
 
-    // Confidence from coherence and gradient
+    // Confidence from coherence and gradient (normalized scale 0.01-0.2, threshold at 0.05)
     let confidence = 0.5;
     if (metrics.coherenceScore > 0.6) confidence += 0.2;
-    if (metrics.gradientMagnitude > 150) confidence += 0.15;
+    if (metrics.gradientMagnitude > ProfitEstimator.GRADIENT_THRESHOLD) confidence += 0.15;
 
     return {
       expectedMove: expectedMove / 100, // Convert to decimal

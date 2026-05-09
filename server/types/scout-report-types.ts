@@ -251,6 +251,10 @@ export interface ConsensuData {
     previous4h: number;
     direction: 'increasing' | 'decreasing' | 'stable';
   };
+
+  // Additional fields for client compatibility
+  agreement: number; // 0-1, same as agreementPercent
+  timestamp: number; // Unix timestamp in milliseconds
 }
 
 export interface AlternativeView {

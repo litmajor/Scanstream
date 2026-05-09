@@ -295,11 +295,8 @@ export default function BacktestPage() {
           startDate,
           endDate,
           initialCapital,
-          ...advancedParams,
-          // NEW: Gap detection parameters
-          autoHealGaps: autoHealGaps,
-          reportGaps: reportGaps,
-          maxGapsToHeal: maxGapsToHeal
+          ...advancedParams
+          // Gap healing and reporting handled internally
         });
       }
     } catch (error: any) {

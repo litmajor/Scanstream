@@ -79,7 +79,7 @@ export class UnifiedFrameworkExamples {
       marketData.currentVolume,
       marketData.prevVolume,
       marketData.rsi,
-      marketData.macd,
+      (marketData.macd as any)?.macd || marketData.macd,
       marketData.ema20,
       marketData.ema50,
       marketData.sma200,
@@ -93,7 +93,7 @@ export class UnifiedFrameworkExamples {
     console.log(`  Confluence Count: ${patternResult.confluenceCount}`);
     console.log(`  Pattern Confidence: ${(patternResult.confidence * 100).toFixed(0)}%`);
     console.log(`  Detected Patterns:`);
-    patternResult.detectedPatterns.forEach(p => {
+    (patternResult as any).patterns?.forEach((p: any) => {
       console.log(`    • ${p.type}: confidence ${(p.confidence * 100).toFixed(0)}%`);
     });
 
@@ -193,7 +193,7 @@ export class UnifiedFrameworkExamples {
       marketData.currentVolume,
       marketData.prevVolume,
       marketData.rsi,
-      marketData.macd,
+      (marketData.macd as any)?.macd || marketData.macd,
       marketData.ema20,
       marketData.ema50,
       marketData.sma200,
@@ -319,7 +319,7 @@ export class UnifiedFrameworkExamples {
       marketData.currentVolume,
       marketData.prevVolume,
       marketData.rsi,
-      marketData.macd,
+      (marketData.macd as any)?.macd || (marketData as any).macd || 0,
       marketData.ema20,
       marketData.ema50,
       marketData.sma200,

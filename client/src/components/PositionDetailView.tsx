@@ -9,7 +9,6 @@ import { X, TrendingUp, TrendingDown, Clock, Zap, AlertCircle, Copy } from 'luci
 interface PositionDetailViewProps {
   isOpen: boolean;
   onClose: () => void;
-  onClose: () => void;
   position: {
     id: string;
     symbol: string;
@@ -138,7 +137,7 @@ export default function PositionDetailView({
                     <YAxis stroke="#94a3b8" />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                      formatter={(value) => `$${value.toFixed(2)}`}
+                      formatter={(value: any) => `$${typeof value === 'number' ? value.toFixed(2) : value}`}
                     />
                     <Area
                       type="monotone"
@@ -267,13 +266,15 @@ export default function PositionDetailView({
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="text-sm font-semibold mb-2 block">Exit Price</label>
+                  <label htmlFor="exit-price" className="text-sm font-semibold mb-2 block">Exit Price</label>
                   <input
+                    id="exit-price"
                     type="number"
                     value={exitPrice}
                     onChange={(e) => setExitPrice(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
                     step="0.01"
+                    placeholder="Enter exit price"
                   />
                   <div className="text-xs text-slate-400 mt-1">
                     Current: ${position.currentPrice.toFixed(2)}

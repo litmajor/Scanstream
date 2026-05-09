@@ -467,13 +467,7 @@ export default function SignalsPage() {
       {viewMode === 'unified' && (
         <div className="space-y-6">
           <MarketOverview />
-          <UnifiedSignalDisplay
-            signals={allSignals.map(signal => ({
-              ...signal,
-              // Add sourceLabel to UnifiedSignalDisplay props if it expects it
-              sourceLabel: signal.sourceLabel || '📊 Signal', 
-            }))}
-          />
+          <UnifiedSignalDisplay />
         </div>
       )}
 

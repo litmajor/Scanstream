@@ -141,11 +141,11 @@ export default function GatewayMetricsDashboard() {
       </div>
 
       {/* Exchange Latency Chart */}
-      {latencyHistory?.success && (
+      {(latencyHistory as any)?.success && (
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Exchange Latency Trends</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={latencyHistory.data}>
+            <LineChart data={(latencyHistory as any)?.data || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis 
                 dataKey="timestamp" 
@@ -166,11 +166,11 @@ export default function GatewayMetricsDashboard() {
       )}
 
       {/* Rate Limit Usage Chart */}
-      {usageHistory?.success && (
+      {(usageHistory as any)?.success && (
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4">Rate Limit Usage</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={usageHistory.data}>
+            <LineChart data={(usageHistory as any)?.data || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis 
                 dataKey="timestamp" 

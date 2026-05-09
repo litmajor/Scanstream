@@ -41,7 +41,7 @@ async function generateMockInsights(symbol: string, price: number): Promise<any>
     
     if (frames && frames.length >= 2) {
       // RSI calculation (14-period simplified)
-      const closes = frames.map(f => f.close);
+      const closes = frames.map(f => (f.price as any)?.close || 0);
       const gains = closes.slice(1).map((c, i) => Math.max(0, c - closes[i]));
       const losses = closes.slice(1).map((c, i) => Math.max(0, closes[i] - c));
       const avgGain = gains.reduce((a, b) => a + b, 0) / gains.length;

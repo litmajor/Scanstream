@@ -12,10 +12,10 @@
 
 import React, { useMemo } from 'react';
 import ConfidenceBar from './ConfidenceBar';
-import type { ConsensuData, SourceType } from '../../types/scout-report-types';
+import type { ConsensusData, SourceType } from '../../types';
 
 interface ConsensusDashboardProps {
-  consensus: ConsensuData;
+  consensus: ConsensusData;
   className?: string;
 }
 
@@ -42,14 +42,14 @@ export const ConsensusDashboard: React.FC<ConsensusDashboardProps> = ({ consensu
             <div
               className={`
                 inline-block px-4 py-2 rounded-full text-lg font-bold
-                ${consensus.direction === 'BULLISH' ? 'bg-green-100 text-green-800' : ''}
-                ${consensus.direction === 'BEARISH' ? 'bg-red-100 text-red-800' : ''}
-                ${consensus.direction === 'NEUTRAL' ? 'bg-gray-100 text-gray-800' : ''}
+                ${consensus.direction === 'BUY' ? 'bg-green-100 text-green-800' : ''}
+                ${consensus.direction === 'SELL' ? 'bg-red-100 text-red-800' : ''}
+                ${consensus.direction === 'HOLD' ? 'bg-gray-100 text-gray-800' : ''}
               `}
             >
-              {consensus.direction === 'BULLISH' ? '📈 Bullish' : ''}
-              {consensus.direction === 'BEARISH' ? '📉 Bearish' : ''}
-              {consensus.direction === 'NEUTRAL' ? '➡️ Neutral' : ''}
+              {consensus.direction === 'BUY' ? '📈 Buy' : ''}
+              {consensus.direction === 'SELL' ? '📉 Sell' : ''}
+              {consensus.direction === 'HOLD' ? '➡️ Hold' : ''}
             </div>
           </div>
           <div className="text-right">
@@ -125,12 +125,12 @@ export const ConsensusDashboard: React.FC<ConsensusDashboardProps> = ({ consensu
                     <span
                       className={`
                         inline-block px-2 py-1 rounded text-xs font-bold
-                        ${detail.direction === 'BULLISH' ? 'bg-green-100 text-green-700' : ''}
-                        ${detail.direction === 'BEARISH' ? 'bg-red-100 text-red-700' : ''}
-                        ${detail.direction === 'NEUTRAL' ? 'bg-gray-100 text-gray-700' : ''}
+                        ${detail.direction === 'BUY' ? 'bg-green-100 text-green-700' : ''}
+                        ${detail.direction === 'SELL' ? 'bg-red-100 text-red-700' : ''}
+                        ${detail.direction === 'HOLD' ? 'bg-gray-100 text-gray-700' : ''}
                       `}
                     >
-                      {detail.direction}
+                      {detail.direction === 'BUY' ? '📈 Buy' : detail.direction === 'SELL' ? '📉 Sell' : '➡️ Hold'}
                     </span>
                   </td>
                   <td className="py-3 text-center">
@@ -178,8 +178,8 @@ export const ConsensusDashboard: React.FC<ConsensusDashboardProps> = ({ consensu
             size="lg"
           />
           <div className="mt-4 text-blue-800">
-            <span className={consensus.confidenceTrend > 0 ? 'text-green-600' : 'text-red-600'}>
-              {consensus.confidenceTrend > 0 ? '↑' : '↓'} {Math.abs(consensus.confidenceTrend).toFixed(1)}%
+            <span className={consensus.confidenceTrend.direction === 'increasing' ? 'text-green-600' : 'text-red-600'}>
+              {consensus.confidenceTrend.direction === 'increasing' ? '↑' : '↓'} {Math.max(consensus.confidenceTrend.previous1h, consensus.confidenceTrend.previous4h).toFixed(1)}%
             </span>
             <span className="text-blue-800"> from previous scan</span>
           </div>

@@ -16,26 +16,26 @@ interface DirectionBadgeProps {
 }
 
 const directionConfig = {
-  BULLISH: {
+  BUY: {
     bg: 'bg-green-100',
     text: 'text-green-800',
     border: 'border-green-300',
     icon: '📈',
-    label: 'Bullish',
+    label: 'Buy',
   },
-  BEARISH: {
+  SELL: {
     bg: 'bg-red-100',
     text: 'text-red-800',
     border: 'border-red-300',
     icon: '📉',
-    label: 'Bearish',
+    label: 'Sell',
   },
-  NEUTRAL: {
+  HOLD: {
     bg: 'bg-gray-100',
     text: 'text-gray-800',
     border: 'border-gray-300',
     icon: '➡️',
-    label: 'Neutral',
+    label: 'Hold',
   },
 };
 

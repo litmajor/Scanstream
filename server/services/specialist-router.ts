@@ -119,6 +119,38 @@ export class SpecialistRouter {
         avgReturnPerTrade: 2.1,
         totalTradesHandled: 0,
       },
+      [AgentSpecialization.CONVEXITY]: {
+        specialization: AgentSpecialization.CONVEXITY,
+        strength: 0.88,
+        matchedRegimes: ['acceleration', 'volatility-expansion'],
+        profitability: 0.58,
+        avgReturnPerTrade: 2.5,
+        totalTradesHandled: 0,
+      },
+      [AgentSpecialization.FLOW_PHYSICS]: {
+        specialization: AgentSpecialization.FLOW_PHYSICS,
+        strength: 0.86,
+        matchedRegimes: ['order-flow-imbalance', 'liquidity-stress'],
+        profitability: 0.61,
+        avgReturnPerTrade: 1.8,
+        totalTradesHandled: 0,
+      },
+      [AgentSpecialization.VOLUME_VERIFICATION]: {
+        specialization: AgentSpecialization.VOLUME_VERIFICATION,
+        strength: 0.82,
+        matchedRegimes: ['volume-confirmation', 'volume-divergence'],
+        profitability: 0.56,
+        avgReturnPerTrade: 1.6,
+        totalTradesHandled: 0,
+      },
+      [AgentSpecialization.VFMD_PHYSICS]: {
+        specialization: AgentSpecialization.VFMD_PHYSICS,
+        strength: 0.84,
+        matchedRegimes: ['mean-reversion-setup', 'force-of-reversion'],
+        profitability: 0.64,
+        avgReturnPerTrade: 2.0,
+        totalTradesHandled: 0,
+      },
       [AgentSpecialization.GENERAL]: {
         specialization: AgentSpecialization.GENERAL,
         strength: 0.70,
@@ -215,7 +247,7 @@ export class SpecialistRouter {
     candidates.sort((a, b) => b.score - a.score);
 
     // Build fallback chain
-    const fallbackChain = candidates.map((c) => c.specialization);
+    const fallbackChain = candidates.map((c) => c.specialist);
     if (fallbackChain.length === 0 || candidates[0].score < 20) {
       fallbackChain.unshift(AgentSpecialization.GENERAL);
     }

@@ -317,7 +317,7 @@ export default function CapabilityMeasurementPanel({
                       <tr
                         key={method.method}
                         className={`border-b border-gray-100 ${
-                          method.method === report.votingComparison.best ? 'bg-green-50' : ''
+                          method.method === (report.votingComparison?.best || '') ? 'bg-green-50' : ''
                         }`}
                       >
                         <td className="py-2 px-2 font-medium">{method.method}</td>

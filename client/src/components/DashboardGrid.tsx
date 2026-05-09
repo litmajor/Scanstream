@@ -114,10 +114,6 @@ export default function DashboardGrid({ onClose }: DashboardGridProps) {
         return (
           <PortfolioWidget
             id={widget.id}
-            balance={12500.75}
-            totalReturn={0.15}
-            winRate={0.62}
-            totalTrades={120}
             onRemove={handleRemoveWidget}
           />
         );

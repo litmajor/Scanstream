@@ -246,7 +246,7 @@ export class MarketDataLayer {
         symbol: buffered.symbol,
         price: buffered.price,
       },
-      sub.replayMode ? 'REPLAY' : 'WS'
+      sub.replayMode ? 'REPLAY_API' : 'WS'
     );
 
     // Mark as REPLAY if in replay mode
@@ -345,7 +345,7 @@ export class MarketDataLayer {
               console.warn('[MarketDataLayer] fallback handler error', e);
             }
           });
-          return snap as UITick[];
+          return snap.map(t => this.transformToUITick(t, sub));
         } finally {
           sub.replayMode = wasReplay;
         }

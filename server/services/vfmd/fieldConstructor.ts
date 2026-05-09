@@ -50,6 +50,11 @@ function gaussianBlur(
 }
 
 function createGaussianKernel(sigma: number): number[][] {
+  // Guard against tiny sigma producing 1×1 kernel → division by zero
+  if (sigma < 0.6) {
+    return [[1]]; // return identity kernel for very small sigma
+  }
+
   const size = Math.ceil(sigma * 3) * 2 + 1;
   const kernel: number[][] = [];
   const mean = Math.floor(size / 2);
@@ -68,10 +73,12 @@ function createGaussianKernel(sigma: number): number[][] {
     }
   }
 
-  // Normalize
-  for (let i = 0; i < size; i++) {
-    for (let j = 0; j < size; j++) {
-      kernel[i][j] /= sum;
+  // Normalize (sum > 0 guaranteed due to guard above)
+  if (sum > 0) {
+    for (let i = 0; i < size; i++) {
+      for (let j = 0; j < size; j++) {
+        kernel[i][j] /= sum;
+      }
     }
   }
 
@@ -121,14 +128,16 @@ export class FieldConstructor {
 
     const normalizedPrices = recentPrices.map(p => (p - priceMin) / priceRange);
 
-    // Calculate price velocity (change per bar)
+    // Calculate price velocity (change per bar) — NORMALIZED BY PRICE RANGE
+    // Velocities are now in returns-space (% of window range) instead of raw dollar-space
+    // This makes them scale-agnostic: BTC and ETH velocities are now comparable
     const priceVelocity: number[] = [];
     for (let i = 1; i < recentPrices.length; i++) {
-      priceVelocity.push(recentPrices[i] - recentPrices[i - 1]);
+      priceVelocity.push((recentPrices[i] - recentPrices[i - 1]) / priceRange);
     }
     priceVelocity.push(priceVelocity[priceVelocity.length - 1] || 0);
 
-    // Calculate acceleration
+    // Calculate acceleration (already normalized since velocities are normalized)
     const priceAccel: number[] = [];
     for (let i = 1; i < priceVelocity.length; i++) {
       priceAccel.push(priceVelocity[i] - priceVelocity[i - 1]);
@@ -314,6 +323,6 @@ export class FieldAnalyzer {
       return [0, 0];
     }
 
-    return field.data[spatialPos][temporalPos];
+    return field.data[spatialPos][temporalPos] as [number, number];
   }
 }

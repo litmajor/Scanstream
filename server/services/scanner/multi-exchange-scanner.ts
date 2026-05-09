@@ -143,7 +143,7 @@ export class MultiExchangeScanner {
         .then(results => ({ exchange, results }))
         .catch(error => {
           console.error(`[MultiExchangeScanner] Failed to scan ${exchange}:`, error);
-          return { exchange, results: { results: [] } };
+          return { exchange, results: [] };
         })
     );
 
@@ -233,12 +233,7 @@ export class MultiExchangeScanner {
           this.calculateMomentum(frames, 1),
           this.calculateMomentum(frames, 7),
           this.calculateRSI(frames),
-          this.calculateMACD(frames),
-          {},
-          {},
-          undefined,
-          undefined,
-          armRegime
+          this.calculateMACD(frames)
         );
 
         // Prepare ARM context (needs all technical indicators)
@@ -255,7 +250,7 @@ export class MultiExchangeScanner {
           signal: armResult.signal,
           signalStrength: armResult.strength,
           confidence: armResult.confidence,
-          armSignal: armResult.armSignal,
+          armSignal: armResult.armSignal || undefined,
           armConfidence: armResult.armConfidence,
           price: frames[frames.length - 1].price.close,
           volume: avgVolume,
@@ -455,17 +450,17 @@ export class MultiExchangeScanner {
     exchange: string,
     timeframe: string,
     limit: number
-  ): Promise<MarketFrame[]> {
+  ): Promise<any[]> {
     const cacheKey = `ohlcv:${symbol}:${exchange}:${timeframe}`;
-    const cached = this.cache.get<MarketFrame[]>(cacheKey);
+    const cached = this.cache.get<any[]>(cacheKey);
     if (cached) return cached;
 
     try {
-      const frames = await this.aggregator.getOHLCV(symbol, timeframe, limit, exchange);
-      if (frames && frames.length > 0) {
-        this.cache.set(cacheKey, frames, 180000); // 3-min cache
+      const ohlcvData = await this.aggregator.getOHLCV(symbol, timeframe, limit);
+      if (ohlcvData && ohlcvData.length > 0) {
+        this.cache.set(cacheKey, ohlcvData, 180000); // 3-min cache
       }
-      return frames || [];
+      return ohlcvData || [];
     } catch (error) {
       console.error(`Error fetching OHLCV for ${symbol} from ${exchange}:`, error);
       return [];

@@ -127,12 +127,12 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
                       <div
                         className={`
                           px-3 py-1 rounded-full text-sm font-semibold
-                          ${tf.direction === 'BULLISH' ? 'bg-green-100 text-green-700' : ''}
-                          ${tf.direction === 'BEARISH' ? 'bg-red-100 text-red-700' : ''}
-                          ${tf.direction === 'NEUTRAL' ? 'bg-gray-100 text-gray-700' : ''}
+                          ${tf.direction === 'BUY' ? 'bg-green-100 text-green-700' : ''}
+                          ${tf.direction === 'SELL' ? 'bg-red-100 text-red-700' : ''}
+                          ${tf.direction === 'HOLD' ? 'bg-gray-100 text-gray-700' : ''}
                         `}
                       >
-                        {tf.direction}
+                        {tf.direction === 'BUY' ? '📈 Buy' : tf.direction === 'SELL' ? '📉 Sell' : '➡️ Hold'}
                       </div>
                     </div>
                     <ConfidenceBar value={tf.confidence * 100} label="Confidence" showPercentage size="md" />
@@ -269,13 +269,13 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
               )}
 
               {/* Overall Consensus */}
-              {agents.consensusDirection && (
+              {(agents as any).consensusDirection && (
                 <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
                   <h4 className="font-semibold text-amber-900 mb-2">Overall Agent Consensus</h4>
-                  <p className="text-amber-800 text-sm">{agents.consensusDirection}</p>
-                  {agents.agreementPercentage !== undefined && (
+                  <p className="text-amber-800 text-sm">{(agents as any).consensusDirection}</p>
+                  {(agents as any).agreementPercentage !== undefined && (
                     <div className="mt-2 text-xs text-amber-700">
-                      <strong>Agreement:</strong> {(agents.agreementPercentage * 100).toFixed(0)}%
+                      <strong>Agreement:</strong> {(((agents as any).agreementPercentage || 0) * 100).toFixed(0)}%
                     </div>
                   )}
                 </div>
@@ -318,17 +318,17 @@ export const SourceAnalysisPanel: React.FC<SourceAnalysisPanelProps> = ({
               {priceAction.momentum !== undefined && (
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-300 mb-4">
                   <div className="text-sm text-blue-600 mb-1">Momentum</div>
-                  <div className={`text-lg font-bold ${priceAction.momentum > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {priceAction.momentum > 0 ? '↑' : '↓'} {Math.abs(priceAction.momentum).toFixed(2)}
+                  <div className={`text-lg font-bold ${(priceAction.momentum as any)?.score > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {(priceAction.momentum as any)?.direction === 'up' ? '↑' : '↓'} {Math.abs(((priceAction.momentum as any)?.score || 0)).toFixed(2)}
                   </div>
                 </div>
               )}
 
               {/* Volume Trend */}
-              {priceAction.volumeTrend && (
+              {(priceAction as any).volumeTrend && (
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-300">
                   <h4 className="font-semibold text-gray-800 mb-2">Volume Trend</h4>
-                  <p className="text-sm text-gray-700">{priceAction.volumeTrend}</p>
+                  <p className="text-sm text-gray-700">{(priceAction as any).volumeTrend}</p>
                 </div>
               )}
             </div>

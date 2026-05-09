@@ -189,12 +189,12 @@ async function optimizeRegimeParams() {
         winRate: result.winRate,
         profitFactor: result.profitFactor,
         sharpe: result.sharpe,
-        pnl: result.pnL,
+        pnl: result.pnl,
         maxDD: result.maxDD,
         score: compositeScore
       });
 
-      console.log(`  → ${result.trades} trades | ${(result.winRate * 100).toFixed(1)}% WR | PF ${result.profitFactor.toFixed(2)} | $${result.pnL.toFixed(2)} | Sharpe ${result.sharpe.toFixed(2)} | Score ${compositeScore.toFixed(1)}`);
+      console.log(`  → ${result.trades} trades | ${(result.winRate * 100).toFixed(1)}% WR | PF ${result.profitFactor.toFixed(2)} | $${result.pnl.toFixed(2)} | Sharpe ${result.sharpe.toFixed(2)} | Score ${compositeScore.toFixed(1)}`);
     } catch (error) {
       console.log(`  ⚠️  Error: ${error}`);
     }
@@ -209,7 +209,7 @@ async function optimizeRegimeParams() {
   results.slice(0, 5).forEach((result, idx) => {
     console.log(`${idx + 1}. Profit Score ${result.profitScore} (Score: ${result.score.toFixed(1)})`);
     console.log(`   Trades: ${result.trades} | WR: ${(result.winRate * 100).toFixed(1)}% | PF: ${result.profitFactor.toFixed(2)}`);
-    console.log(`   PnL: $${result.pnL.toFixed(2)} | Sharpe: ${result.sharpe.toFixed(3)} | DD: ${result.maxDD.toFixed(2)}%\n`);
+  console.log(`   PnL: $${result.pnl.toFixed(2)} | Sharpe: ${result.sharpe.toFixed(3)} | DD: ${result.maxDD.toFixed(2)}%\n`);
   });
 
   // Save results

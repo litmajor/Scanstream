@@ -513,7 +513,7 @@ const BatchBacktestRunner: React.FC<BatchBacktestRunnerProps> = ({
                   </div>
                   {result.metrics && (
                     <p className="font-bold text-green-400">
-                      {(result.metrics.totalReturn * 100).toFixed(1)}%
+                      {result.metrics.totalReturn ? (result.metrics.totalReturn * 100).toFixed(1) : '0.0'}%
                     </p>
                   )}
                 </div>

@@ -5,7 +5,7 @@
  * Integrates with the existing trading system and order management.
  */
 
-import type { TradeOpportunity } from '@/types/scout-report-types';
+import type { TradeOpportunity } from '../types/scout-report-types';
 
 export interface ExecutionRequest {
   symbol: string;
@@ -56,13 +56,13 @@ export const useScoutReportTrading = () => {
 
       // Validate entry price within zone
       if (
-        entryPrice < request.opportunity.entryPrice.min ||
-        entryPrice > request.opportunity.entryPrice.max
+        entryPrice < request.opportunity.entryZone.low ||
+        entryPrice > request.opportunity.entryZone.high
       ) {
         return {
           success: false,
           message: 'Entry price outside acceptable range',
-          error: `Entry price ${entryPrice} outside range [${request.opportunity.entryPrice.min}, ${request.opportunity.entryPrice.max}]`,
+          error: `Entry price ${entryPrice} outside range [${request.opportunity.entryZone.low}, ${request.opportunity.entryZone.high}]`,
         };
       }
 
@@ -83,7 +83,7 @@ export const useScoutReportTrading = () => {
           positionSize: request.positionSize || calculatePositionSize(request.opportunity),
           opportunityId: request.opportunity.id,
           strategy: request.entryStrategy,
-          opportunitySource: request.opportunity.sources,
+          opportunitySource: request.opportunity.supportingSources?.map(s => s.source) || [],
           confidence: request.opportunity.confidence,
           riskReward: request.opportunity.riskRewardRatio,
         }),
@@ -125,17 +125,17 @@ export const useScoutReportTrading = () => {
     opportunity: TradeOpportunity,
     strategy: 'conservative' | 'optimal' | 'aggressive'
   ): number => {
-    const { min, max } = opportunity.entryPrice;
+    const { low, high, optimal } = opportunity.entryZone;
 
     switch (strategy) {
       case 'conservative':
-        return max; // Enter at top of range for better risk/reward
+        return opportunity.entryStrategy?.conservative?.price ?? high;
       case 'optimal':
-        return (min + max) / 2; // Enter at midpoint
+        return opportunity.entryStrategy?.optimal?.price ?? optimal;
       case 'aggressive':
-        return min; // Enter at bottom for better targets
+        return opportunity.entryStrategy?.aggressive?.price ?? low;
       default:
-        return (min + max) / 2;
+        return optimal;
     }
   };
 
@@ -171,7 +171,7 @@ export const useScoutReportTrading = () => {
     }
 
     // Check entry price is within zone
-    if (entryPrice < opportunity.entryPrice.min || entryPrice > opportunity.entryPrice.max) {
+    if (opportunity.entryZone && (entryPrice < opportunity.entryZone.low || entryPrice > opportunity.entryZone.high)) {
       errors.push('Entry price outside acceptable zone');
     }
 

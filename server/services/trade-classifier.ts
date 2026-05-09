@@ -12,6 +12,8 @@
 import { getAssetBySymbol } from '@shared/tracked-assets';
 import MarketRegimeDetector, { type MarketRegime } from './ml-regime-detector';
 import { assetVelocityProfiler } from './asset-velocity-profile';
+import { UnifiedRegimeDetector, UnifiedRegimeType, RegimeDetectionResult } from './unified-regime-system';
+import { RegimeConsolidationBridge } from './regime-consolidation-bridge';
 
 export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 
@@ -31,6 +33,9 @@ export interface TradeClassification {
     expectedMoveDollar: number;
     movePercentile: string; // p75, p90, etc
   };
+  // Unified regime fields (Phase 3 wiring)
+  unifiedRegime?: UnifiedRegimeType;
+  unifiedRegimeResult?: RegimeDetectionResult;
 }
 
 export interface ClassificationFactors {
@@ -43,6 +48,8 @@ export interface ClassificationFactors {
   detectedRegime?: MarketRegime; // From MarketRegimeDetector (bull_trending, bear_trending, etc)
   mlPredictedHoldingPeriodCandles?: number; // From ML predictor
   mlHoldingPeriodConfidence?: number; // Confidence in ML prediction
+  // Unified regime parameters (Phase 3 wiring)
+  unifiedRegimeResult?: RegimeDetectionResult;
 }
 
 export class TradeClassifier {
@@ -54,7 +61,8 @@ export class TradeClassifier {
   classifyTrade(factors: ClassificationFactors, entryPrice?: number): TradeClassification {
     const { 
       volatilityRatio, adx, volumeRatio, patternType, assetCategory, marketRegime, 
-      detectedRegime, mlPredictedHoldingPeriodCandles = 50, mlHoldingPeriodConfidence = 0.5
+      detectedRegime, mlPredictedHoldingPeriodCandles = 50, mlHoldingPeriodConfidence = 0.5,
+      unifiedRegimeResult
     } = factors;
 
     // Get velocity profile for asset (used for dynamic profit targets)
@@ -65,11 +73,11 @@ export class TradeClassifier {
 
     // SCALP TRADES: High volatility + weak trend + high volume spike
     // ENHANCED: Validates with high_volatility regime detection + velocity-based targets
-    if ((volatilityRatio > 1.5 || detectedRegime === 'high_volatility') && adx < 25 && volumeRatio > 2.0) {
+    if ((volatilityRatio > 1.5 || (detectedRegime as any) === 'high_volatility') && adx < 25 && volumeRatio > 2.0) {
       const scalpTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SCALP', velocityProfile) : undefined;
       const scalpStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SCALP', velocityProfile) : undefined;
       
-      return {
+      const classification: TradeClassification = {
         type: 'SCALP',
         holdingPeriodHours: 2,
         profitTargetPercent: 0.6,
@@ -84,14 +92,17 @@ export class TradeClassifier {
           expectedMovePercent: velocityProfile['1D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['1D'].p75,
           movePercentile: 'p75'
-        }
+        },
+        unifiedRegime: unifiedRegimeResult?.regime,
+        unifiedRegimeResult
       };
+      return classification;
     }
 
     // DAY TRADES: Moderate volatility + moderate trend + normal-to-high volume
     // Use case: Intraday volatility capture (6-18 hours)
     if (volatilityRatio > 1.2 && adx < 40 && adx >= 25 && volumeRatio > 1.5) {
-      return {
+      const dayClassification: TradeClassification = {
         type: 'DAY',
         holdingPeriodHours: 10,
         profitTargetPercent: 1.5,
@@ -99,8 +110,11 @@ export class TradeClassifier {
         trailingStop: true,
         pyramidStrategy: 'pyramid-3',
         confidence: 0.88,
-        reasoning: 'Moderate volatility + moderate trend = day trade setup (optimized for risk)'
+        reasoning: 'Moderate volatility + moderate trend = day trade setup (optimized for risk)',
+        unifiedRegime: unifiedRegimeResult?.regime,
+        unifiedRegimeResult
       };
+      return dayClassification;
     }
 
     // SWING TRADES: Normal-to-low volatility + strong trend + breakout pattern
@@ -109,7 +123,7 @@ export class TradeClassifier {
       const swingTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SWING', velocityProfile) : undefined;
       const swingStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SWING', velocityProfile) : undefined;
       
-      return {
+      const swingClassification: TradeClassification = {
         type: 'SWING',
         holdingPeriodHours: 60,
         profitTargetPercent: 4.5,
@@ -124,19 +138,22 @@ export class TradeClassifier {
           expectedMovePercent: velocityProfile['7D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['7D'].p75,
           movePercentile: 'p75'
-        }
+        },
+        unifiedRegime: unifiedRegimeResult?.regime,
+        unifiedRegimeResult
       };
+      return swingClassification;
     }
 
     // POSITION TRADES: Low volatility + very strong trend + momentum + market regime confirmation
     // ENHANCED: Uses 21-day velocity profile for major trend rides
-    if (adx > 50 && volatilityRatio < 0.9 && (marketRegime === 'TRENDING' || detectedRegime === 'bull_trending' || detectedRegime === 'bear_trending')) {
+    if (adx > 50 && volatilityRatio < 0.9 && (marketRegime === 'TRENDING' || (detectedRegime as any) === 'bull_trending' || (detectedRegime as any) === 'bear_trending')) {
       const mlSuggestsLongHold = mlPredictedHoldingPeriodCandles && mlPredictedHoldingPeriodCandles > 40;
       const mlConfidence = mlHoldingPeriodConfidence || 0.5;
       const posTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'POSITION', velocityProfile) : undefined;
       const posStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'POSITION', velocityProfile) : undefined;
       
-      return {
+      const positionClassification: TradeClassification = {
         type: 'POSITION',
         holdingPeriodHours: mlSuggestsLongHold ? Math.min(336, 200 + (mlPredictedHoldingPeriodCandles * 4)) : 216,
         profitTargetPercent: 10.0,
@@ -151,14 +168,17 @@ export class TradeClassifier {
           expectedMovePercent: velocityProfile['21D'].avgPercentMove,
           expectedMoveDollar: velocityProfile['21D'].p90,
           movePercentile: 'p90'
-        }
+        },
+        unifiedRegime: unifiedRegimeResult?.regime,
+        unifiedRegimeResult
       };
+      return positionClassification;
     }
 
     // CONSOLIDATION BREAK: Moderate conditions + consolidation break pattern
     // ENHANCED: Uses regime detector to catch accumulation/distribution phases
-    if ((marketRegime === 'CONSOLIDATING' || detectedRegime === 'accumulation' || detectedRegime === 'distribution') && volumeRatio > 1.8) {
-      return {
+    if ((marketRegime === 'CONSOLIDATING' || (detectedRegime as any) === 'accumulation' || (detectedRegime as any) === 'distribution') && volumeRatio > 1.8) {
+      const consolidationClassification: TradeClassification = {
         type: 'SWING',
         holdingPeriodHours: 96,
         profitTargetPercent: 4.0,
@@ -166,15 +186,18 @@ export class TradeClassifier {
         trailingStop: true,
         pyramidStrategy: 'pyramid-3',
         confidence: 0.82,
-        reasoning: `Consolidation break with volume spike + regime: ${detectedRegime || 'consolidating'} = swing breakout`
+        reasoning: `Consolidation break with volume spike + regime: ${detectedRegime || 'consolidating'} = swing breakout`,
+        unifiedRegime: unifiedRegimeResult?.regime,
+        unifiedRegimeResult
       };
+      return consolidationClassification;
     }
 
     // REVERSAL BOUNCE: Pattern reversal at support/resistance with volume
     // Use case: Bounce trades (1-3 days typically)
     if (patternType === 'SUPPORT_BOUNCE' || patternType === 'REVERSAL') {
       if (volumeRatio > 1.5 && adx < 35) {
-        return {
+        const bounceClassification: TradeClassification = {
           type: 'DAY',
           holdingPeriodHours: 36,
           profitTargetPercent: 1.5,
@@ -182,8 +205,11 @@ export class TradeClassifier {
           trailingStop: true,
           pyramidStrategy: 'pyramid-3',
           confidence: 0.85,
-          reasoning: 'Support bounce with volume confirmation = day trade'
+          reasoning: 'Support bounce with volume confirmation = day trade',
+          unifiedRegime: unifiedRegimeResult?.regime,
+          unifiedRegimeResult
         };
+        return bounceClassification;
       }
     }
 
@@ -191,7 +217,7 @@ export class TradeClassifier {
     // Lower confidence, tighter stops, shorter holds
     if (assetCategory === 'meme' || assetCategory === 'ai/ml') {
       if (volumeRatio > 2.0) {
-        return {
+        const memeScalpClassification: TradeClassification = {
           type: 'SCALP',
           holdingPeriodHours: 2,
           profitTargetPercent: 1.2,
@@ -199,8 +225,11 @@ export class TradeClassifier {
           trailingStop: true,
           pyramidStrategy: 'pyramid-3',
           confidence: 0.72,
-          reasoning: 'Meme/risky asset with volume spike = very tight scalp'
+          reasoning: 'Meme/risky asset with volume spike = very tight scalp',
+          unifiedRegime: unifiedRegimeResult?.regime,
+          unifiedRegimeResult
         };
+        return memeScalpClassification;
       }
     }
 
@@ -208,7 +237,7 @@ export class TradeClassifier {
     const defaultTarget = entryPrice ? assetVelocityProfiler.calculateProfitTarget(asset, entryPrice, 'SWING', velocityProfile) : undefined;
     const defaultStop = entryPrice ? assetVelocityProfiler.calculateStopLoss(asset, entryPrice, 'SWING', velocityProfile) : undefined;
     
-    return {
+    const defaultClassification: TradeClassification = {
       type: 'SWING',
       holdingPeriodHours: 96,
       profitTargetPercent: 3.5,
@@ -223,8 +252,11 @@ export class TradeClassifier {
         expectedMovePercent: velocityProfile['7D'].avgPercentMove,
         expectedMoveDollar: velocityProfile['7D'].medianDollarMove,
         movePercentile: 'avg'
-      }
+      },
+      unifiedRegime: unifiedRegimeResult?.regime,
+      unifiedRegimeResult
     };
+    return defaultClassification;
   }
 
   /**

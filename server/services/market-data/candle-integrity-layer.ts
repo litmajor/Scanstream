@@ -15,7 +15,7 @@
  * Result: Immediate reduction in false signals across all agents
  */
 
-import type { Candle, ValidatedCandle } from '../types/market-data';
+import type { Candle, ValidatedCandle } from '../../types/market-data';
 
 export interface Gap {
   symbol: string;

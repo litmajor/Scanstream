@@ -100,14 +100,11 @@ export class TradeExecutionManager {
         clusterSizeMultiplier = Math.max(0.5, Math.min(2.0, sizeMultiplier)); // Clamp 0.5x-2.0x
         
         // STEP 2: Adjust stops based on cluster strength
-        const stopOptimizer = createStopLossOptimizer();
-        const stopAdjustment = stopOptimizer.optimizeStop({
-          base_stop: (signal as any).stop || 0.95, // 5% default stop
-          cluster_strength: clusterMetrics.cluster_strength,
-          trend_formation: clusterMetrics.trend_formation_signal,
-          directional_ratio: clusterMetrics.directional_ratio
-        });
-        clusterStopLossAdjustment = stopAdjustment.stop_multiplier; // 0.8x to 1.2x
+        const baseStop = (signal as any).stop || 0.95;
+        const clusterStrength = clusterMetrics.cluster_strength || 0;
+        // Adjust stop loss: stronger clusters allow tighter stops
+        const stopMultiplier = Math.max(0.8, Math.min(1.2, 1.0 - (clusterStrength * 0.2)));
+        clusterStopLossAdjustment = stopMultiplier; // 0.8x to 1.2x
         
         // STEP 3: Select exit strategy based on clusters
         const exitSelector = createExitStrategySelector();

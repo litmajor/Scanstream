@@ -24,11 +24,11 @@ export class PythonStrategyAgent extends TradingAgent {
   private pythonTrait: PythonStrategyTrait;
   
   constructor(name: string, trait: PythonStrategyTrait) {
-    super(name);
+    super(name, 'TREND_RIDER', 'balanced');
     this.pythonTrait = trait;
     
     // Inherit specialty as agent ability
-    this.specialty = trait.specialty;
+    (this as any).specialty = trait.specialty;
     
     console.log(`🐍 ${name} inherited trait from ${trait.strategy_name}!`);
   }

@@ -118,8 +118,8 @@ export class StrategyDeploymentManager {
           return false;
 
         case 'paper':
-          const paperOrder = await paperTradingEngine.executeSignal(signal);
-          if (paperOrder) {
+          const paperOrder = await (paperTradingEngine as any).executeSignal(signal, {} as any);
+          if (paperOrder?.id) {
             this.updatePerformance(strategyId, 'trade_executed');
             return true;
           }

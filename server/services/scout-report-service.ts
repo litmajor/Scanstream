@@ -510,6 +510,8 @@ export class ScoutReportService {
         previous4h: avgConfidence,
         direction: 'stable',
       },
+      agreement: sourceAgreements.length > 0 ? agreeCount / sourceAgreements.length : 0,
+      timestamp: Date.now(),
     };
   }
 
@@ -1194,5 +1196,19 @@ export class ScoutReportService {
       report,
       timestamp: Date.now(),
     });
+  }
+
+  /**
+   * Map internal direction values (BULLISH/BEARISH/NEUTRAL) to client format (BUY/SELL/HOLD)
+   */
+  public mapDirectionToClient(direction: 'BULLISH' | 'BEARISH' | 'NEUTRAL'): 'BUY' | 'SELL' | 'HOLD' {
+    switch (direction) {
+      case 'BULLISH':
+        return 'BUY';
+      case 'BEARISH':
+        return 'SELL';
+      case 'NEUTRAL':
+        return 'HOLD';
+    }
   }
 }

@@ -1,0 +1,84 @@
+{
+  "analytics_summary": {
+    "for_firing": {
+      "total_fires": 314,
+      "avg_bars_until_for": 1.63,
+      "avg_displacement_usd": 16.22,
+      "avg_displacement_pct": 0.527,
+      "interpretation": "FoR fires very early (within 2 bars), indicating scouts are short-term and this is correct behavior"
+    },
+    "scout_profitability_by_bar": {
+      "bar_1": { "profitable": 3, "total": 3, "pct": 100.0 },
+      "bar_2": { "profitable": 11, "total": 11, "pct": 100.0 },
+      "bar_3": { "profitable": 9, "total": 9, "pct": 100.0 },
+      "bar_4": { "profitable": 11, "total": 11, "pct": 100.0 },
+      "bar_5": { "profitable": 8, "total": 397, "pct": 2.0 },
+      "key_insight": "CLIFF DROP at bar 5: Only 2% profitable vs 100% in bars 1-4"
+    },
+    "scout_milestones": {
+      "profitable_by_bar_5": 397,
+      "profitable_by_bar_12": 0,
+      "profitable_by_bar_20": 0,
+      "avg_profitable_bars_when_profitable": 3.24,
+      "interpretation": "When scouts are profitable, they exit very quickly (avg 3.24 bars)"
+    },
+    "timeout_analytics": {
+      "total_timeouts": 219,
+      "timeouts_unprofitable": 219,
+      "timeout_unprofitable_rate_pct": 100.0,
+      "avg_bars_until_timeout": 5.0,
+      "avg_pnl_on_timeout_pct": -1.175,
+      "key_insight": "ALL timeouts are unprofitable, losing 1.175% avg each"
+    },
+    "root_cause": {
+      "problem": "Scout entry timing is poor - entering at exhaustion/end of momentum",
+      "evidence": [
+        "42 scouts hit TARGET (9.7%) - these are quick profits",
+        "219 scouts timeout (51%) - these are slow losses",
+        "Profitable scouts average 3.24 bars held",
+        "Unprofitable scouts average 5.0 bars held (timeout)"
+      ],
+      "hypothesis": "VFMD signals are triggering LATE in momentum move, not at start"
+    },
+    "exit_breakdown": {
+      "exit_reason": {
+        "TARGET": { "count": 42, "pct": 9.7, "avg_pnl": 0.055, "win_rate": 1.0 },
+        "TIMEOUT": { "count": 219, "pct": 50.8, "avg_pnl": -0.01175, "win_rate": 0.0 },
+        "OTHER": { "count": 170, "pct": 39.5, "avg_pnl": -0.0045, "win_rate": 0.072 }
+      },
+      "overall_scout_win_rate": 0.097,
+      "overall_scout_avg_pnl": -0.004
+    },
+    "solutions_ranked": [
+      {
+        "rank": 1,
+        "solution": "Reduce timeout from bar 5 to bar 4 (or 3)",
+        "impact": "Capture more profits before mean reversion kicks in",
+        "risk": "May exit some winners early"
+      },
+      {
+        "rank": 2,
+        "solution": "Add momentum filter at entry - only enter during high turbulence",
+        "impact": "Avoid exhaustion-point entries, improve entry quality",
+        "risk": "May miss some trades"
+      },
+      {
+        "rank": 3,
+        "solution": "Increase TARGET distance from 2x to 3-4x ATR",
+        "impact": "More scouts might hit target before timeout",
+        "risk": "Lower hit rate overall"
+      },
+      {
+        "rank": 4,
+        "solution": "Exit on first unprofitable bar after being profitable",
+        "impact": "Dynamic exit based on scout behavior",
+        "risk": "Complex logic, may be whipsawed"
+      }
+    ],
+    "bottom_line": {
+      "for_system_status": "WORKING PERFECTLY (72.9% trigger rate)",
+      "scout_system_status": "BROKEN (9.7% win rate, 51% unprofitable timeouts)",
+      "priority": "Fix scout entry quality or timeout handling, NOT FoR"
+    }
+  }
+}

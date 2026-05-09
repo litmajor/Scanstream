@@ -258,7 +258,7 @@ export default function StrategyMarketplace({ onClose }: StrategyMarketplaceProp
                         <div className="flex items-center space-x-2 mb-1">
                           <h3 className="text-lg font-semibold text-white">{strategy.name}</h3>
                           {strategy.isPremium && (
-                            <Crown className="w-4 h-4 text-yellow-400" title="Premium Strategy" />
+                            <Crown className="w-4 h-4 text-yellow-400" />
                           )}
                         </div>
                         <p className="text-sm text-slate-400">by {strategy.author}</p>

@@ -3,6 +3,7 @@ import * as ccxt from 'ccxt';
 import { EventEmitter } from 'events';
 import { db } from './db-storage';
 import type { Signal } from '@shared/schema';
+import { RLFeedbackCallbacks } from './rl-system-integration';
 
 interface LiveOrder {
   id: string;
@@ -98,6 +99,9 @@ export class LiveTradingEngine extends EventEmitter {
         }
       });
 
+      if (!this.exchange) {
+        throw new Error(`Failed to initialize exchange ${exchangeName}`);
+      }
       await this.exchange.loadMarkets();
       
       console.log(
@@ -107,6 +111,7 @@ export class LiveTradingEngine extends EventEmitter {
 
       this.emit('initialized', { exchange: exchangeName, testMode: this.config.testMode });
     } catch (error: any) {
+      console.error('[Live Trading] Initialization failed:', error);
       console.error('[Live Trading] Initialization failed:', error);
       throw error;
     }
@@ -196,7 +201,10 @@ export class LiveTradingEngine extends EventEmitter {
         filled: order.filled || 0,
         remaining: order.remaining || amount,
         cost: order.cost || 0,
-        fee: order.fee,
+        fee: order.fee ? {
+          cost: typeof order.fee.cost === 'number' ? order.fee.cost : Number(order.fee.cost) || 0,
+          currency: String(order.fee.currency || 'USDT')
+        } : undefined,
         timestamp: order.timestamp || Date.now(),
         signalId: signal.id
       };
@@ -216,6 +224,24 @@ export class LiveTradingEngine extends EventEmitter {
         `[Live Trading] Order placed: ${signal.type} ${amount.toFixed(4)} ${signal.symbol} ` +
         `@ market (signal confidence: ${(signal.confidence * 100).toFixed(0)}%)`
       );
+
+      // ✅ RL CALLBACK: Register trade with RL system for learning
+      try {
+        const frames = await db.getMarketFrames(signal.symbol, 20) || [];
+        RLFeedbackCallbacks.onTradeOpen({
+          tradeId: liveOrder.id,
+          symbol: signal.symbol,
+          side: signal.type === 'BUY' ? 'BUY' : 'SELL',
+          entryPrice: (liveOrder.cost || 0) / (liveOrder.filled || 1),
+          entryTime: new Date(),
+          quantity: liveOrder.filled,
+          frames: frames as any,
+          mlConfidence: signal.confidence || 0.5,
+          source: 'LIVE'
+        });
+      } catch (rlError) {
+        console.warn(`[Live Trading] RL onTradeOpen callback error: ${rlError}`);
+      }
 
       return liveOrder;
     } catch (error: any) {
@@ -298,6 +324,13 @@ export class LiveTradingEngine extends EventEmitter {
           };
 
           this.positions.set(livePos.id, livePos);
+
+          // ✅ RL CALLBACK: Track live position metrics (MFE/MAE on every update)
+          try {
+            RLFeedbackCallbacks.onTradeTick(livePos.id, pos.markPrice || 0);
+          } catch (rlError) {
+            console.warn(`[Live Trading] RL onTradeTick callback error: ${rlError}`);
+          }
         }
       }
 
@@ -359,6 +392,21 @@ export class LiveTradingEngine extends EventEmitter {
 
       this.positions.delete(positionId);
       this.emit('positionClosed', position);
+
+      // ✅ RL CALLBACK: Calculate rewards and trigger learning
+      try {
+        RLFeedbackCallbacks.onTradeClose(positionId, {
+          exitPrice: position.currentPrice,
+          exitTime: new Date(),
+          exitReason: 'MANUAL',
+          pnl: position.pnl,
+          pnlPercent: position.pnlPercent,
+          maxProfit: 0,
+          maxLoss: 0
+        });
+      } catch (rlError) {
+        console.warn(`[Live Trading] RL onTradeClose callback error: ${rlError}`);
+      }
       
       console.log(`[Live Trading] Position closed: ${position.symbol}`);
       return true;

@@ -49,6 +49,32 @@ export interface Candle {
   
   // Optional raw data from source
   raw?: any;
+  
+  // Additional fields for compatibility
+  symbol?: string;
+  timestamp?: Date;
+  id?: string;
+  price?: unknown;
+  indicators?: unknown;
+  orderFlow?: unknown;
+  marketMicrostructure?: unknown;
+}
+
+/**
+ * Validated candle — passed all integrity checks
+ */
+export interface ValidatedCandle extends Candle {
+  validated: boolean;
+  validationErrors?: string[];
+}
+
+/**
+ * Gap in market data
+ */
+export interface Gap {
+  startTime: number;
+  endTime: number;
+  duration: number;
 }
 
 /**

@@ -201,7 +201,7 @@ export default function WatchlistManager({ watchlists: initialWatchlists, setWat
         )}
 
         <div className="space-y-1 overflow-y-auto max-h-[calc(100%-60px)]">
-          {watchlists.map((watchlist) => (
+          {watchlists.map((watchlist: any) => (
             <button
               key={watchlist.id}
               onClick={() => setSelectedWatchlist(watchlist)}

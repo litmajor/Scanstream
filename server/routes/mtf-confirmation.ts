@@ -17,7 +17,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
     const baseConfidence = parseFloat(req.query.confidence as string) || 0.75;
 
     // Initialize analyzers
-    const signalEngine = new SignalEngine();
+    const signalEngine = new SignalEngine({} as any);
     const mtfAnalyzer = new EnhancedMultiTimeframeAnalyzer(signalEngine);
     const mtfConfirmation = new MultiTimeframeConfirmation();
 
@@ -89,7 +89,7 @@ router.post('/batch', async (req: Request, res: Response) => {
       });
     }
 
-    const signalEngine = new SignalEngine();
+    const signalEngine = new SignalEngine({} as any);
     const mtfAnalyzer = new EnhancedMultiTimeframeAnalyzer(signalEngine);
     const mtfConfirmation = new MultiTimeframeConfirmation();
 

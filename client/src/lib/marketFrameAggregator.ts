@@ -220,7 +220,7 @@ export class MarketFrameAggregator {
           isFinal: true,
           exchangeCount: 1,
           latencyMs: Date.now() - tick.ts,
-          source: 'live',
+          source: 'WS' as any,
         }
       );
 
@@ -264,7 +264,7 @@ export class MarketFrameAggregator {
             isFinal: true,
             exchangeCount: 1,
             latencyMs: Date.now() - (acc.ticks[acc.ticks.length - 1]?.ts ?? Date.now()),
-            source: 'live',
+            source: 'WS' as any,
           }
         );
 

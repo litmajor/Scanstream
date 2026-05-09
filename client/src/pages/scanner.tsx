@@ -14,7 +14,7 @@ import EntryDialog, { PositionEntry } from '../components/EntryDialog';
 import { StrategyPanel } from '../components/StrategyPanel'; // Import new strategy panel component
 
 // NEW: Import ARM scanner components and services
-import { ScannerService, ScanRequest, MultiExchangeScanResults } from '../services/scannerService';
+import { scannerService, ScanRequest, MultiExchangeScanResponse } from '../services/scannerService';
 import TopAssetsCard from '../components/TopAssetsCard';
 import CrossExchangeSignalsPanel from '../components/CrossExchangeSignalsPanel';
 import SignalDistributionChart from '../components/SignalDistributionChart';
@@ -120,7 +120,7 @@ export default function ScannerPage() {
   // NEW: ARM Multi-Exchange Scanner State
   const [showArmScanner, setShowArmScanner] = useState(false);
   const [armScanLoading, setArmScanLoading] = useState(false);
-  const [armScanResults, setArmScanResults] = useState<MultiExchangeScanResults | null>(null);
+  const [armScanResults, setArmScanResults] = useState<MultiExchangeScanResponse | null>(null);
   const [selectedExchanges, setSelectedExchanges] = useState<string[]>(['binance', 'coinbase', 'okx']);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
   const [scannerServiceError, setScannerServiceError] = useState<string | null>(null);
@@ -655,7 +655,7 @@ export default function ScannerPage() {
         }
       };
 
-      const results = await ScannerService.multiExchangeScan(scanRequest);
+      const results = await scannerService.multiExchangeScan(scanRequest) as MultiExchangeScanResponse;
       console.log('✅ ARM scan complete:', results);
 
       setArmScanResults(results);
@@ -666,7 +666,7 @@ export default function ScannerPage() {
       }
 
       // Show success message
-      alert(`✅ Multi-Exchange Scan Complete!\n\nFound ${results.allResults.length} total results across ${results.exchanges.size} exchanges\n\nTop Asset: ${results.topAssets[0]?.symbol || 'N/A'}\nCross-Exchange Signals: ${results.crossExchangeSignals.length}`);
+      alert(`✅ Multi-Exchange Scan Complete!\n\nFound ${results.totalResults} total results across ${results.exchanges?.length || 0} exchanges\n\nTop Asset: ${results.topAssets[0]?.symbol || 'N/A'}\nCross-Exchange Signals: ${results.crossExchangeSignals.length}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('❌ ARM scan error:', error);
@@ -1440,14 +1440,14 @@ export default function ScannerPage() {
 
             {/* Signal Distribution */}
             <SignalDistributionChart
-              results={armScanResults.allResults}
+              results={armScanResults.totalResults ? armScanResults.exchanges?.flatMap(e => e.topAssets) || [] : []}
               loading={armScanLoading}
             />
 
             {/* Historical Trend Chart (if enabled) */}
             {showHistoricalChart && armScanResults.topAssets.length > 0 && (
               <HistoricalTrendChart
-                data={armScanResults.topAssets.map(asset => ({
+                data={armScanResults.topAssets.map((asset: any) => ({
                   timestamp: Date.now(),
                   signal: asset.signal || 'NEUTRAL',
                   confidence: asset.strength || 0,
@@ -1463,11 +1463,11 @@ export default function ScannerPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-800/30 rounded-lg p-4">
                   <p className="text-sm text-slate-400 mb-1">Total Results</p>
-                  <p className="text-2xl font-bold text-white">{armScanResults.allResults.length}</p>
+                  <p className="text-2xl font-bold text-white">{armScanResults.totalResults}</p>
                 </div>
                 <div className="bg-slate-800/30 rounded-lg p-4">
                   <p className="text-sm text-slate-400 mb-1">Exchanges Scanned</p>
-                  <p className="text-2xl font-bold text-blue-400">{armScanResults.exchanges.size}</p>
+                  <p className="text-2xl font-bold text-blue-400">{armScanResults.exchanges?.length || 0}</p>
                 </div>
                 <div className="bg-slate-800/30 rounded-lg p-4">
                   <p className="text-sm text-slate-400 mb-1">Cross-Exchange Signals</p>

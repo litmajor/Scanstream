@@ -179,15 +179,15 @@ async function main() {
     
     const tradeRatio = (ethResult.trades / btcResult.trades * 100).toFixed(1);
     const pnlRatio = (ethResult.pnl / btcResult.pnl * 100).toFixed(1);
-    const wrDiff = (ethResult.winRate - btcResult.winRate).toFixed(2);
-    const sharpeDiff = (ethResult.sharpe - btcResult.sharpe).toFixed(3);
-    const confidenceDiff = (ethResult.avgConfidence - btcResult.avgConfidence).toFixed(4);
+    const wrDiffNum = (ethResult.winRate - btcResult.winRate);
+    const sharpeDiffNum = (ethResult.sharpe - btcResult.sharpe);
+    const confidenceDiffNum = (ethResult.avgConfidence - btcResult.avgConfidence);
 
     console.log(`Trade Volume Ratio:      ETH is ${tradeRatio}% of BTC (${ethResult.trades} vs ${btcResult.trades})`);
     console.log(`PnL Ratio:               ETH is ${pnlRatio}% of BTC ($${ethResult.pnl.toFixed(2)} vs $${btcResult.pnl.toFixed(2)})`);
-    console.log(`Win Rate Difference:     ETH is ${wrDiff}% ${wrDiff > 0 ? 'higher' : 'lower'} (${ethResult.winRate.toFixed(2)}% vs ${btcResult.winRate.toFixed(2)}%)`);
-    console.log(`Sharpe Difference:       ETH is ${sharpeDiff} ${sharpeDiff > 0 ? 'better' : 'worse'} (${ethResult.sharpe.toFixed(3)} vs ${btcResult.sharpe.toFixed(3)})`);
-    console.log(`Avg Confidence:          ETH is ${confidenceDiff} ${confidenceDiff > 0 ? 'higher' : 'lower'} (${ethResult.avgConfidence.toFixed(4)} vs ${btcResult.avgConfidence.toFixed(4)})\n`);
+    console.log(`Win Rate Difference:     ETH is ${wrDiffNum.toFixed(2)}% ${wrDiffNum > 0 ? 'higher' : 'lower'} (${ethResult.winRate.toFixed(2)}% vs ${btcResult.winRate.toFixed(2)}%)`);
+    console.log(`Sharpe Difference:       ETH is ${sharpeDiffNum.toFixed(3)} ${sharpeDiffNum > 0 ? 'better' : 'worse'} (${ethResult.sharpe.toFixed(3)} vs ${btcResult.sharpe.toFixed(3)})`);
+    console.log(`Avg Confidence:          ETH is ${confidenceDiffNum.toFixed(4)} ${confidenceDiffNum > 0 ? 'higher' : 'lower'} (${ethResult.avgConfidence.toFixed(4)} vs ${btcResult.avgConfidence.toFixed(4)})\n`);
 
     // Verdict
     console.log('✅ CONFIGURATION ASSESSMENT:\n');

@@ -250,7 +250,7 @@ export class MultiTimeframeConfirmation {
       type: recommendation.action.includes('BUY') ? 'BUY' : 
             recommendation.action.includes('SELL') ? 'SELL' : 'HOLD',
       reasoning: [
-        ...mtfSignal.reasoning,
+        ...(Array.isArray(mtfSignal.reasoning) ? mtfSignal.reasoning : []),
         recommendation.reasoning,
         `MTF Alignment: ${recommendation.alignmentScore.toFixed(1)}%`,
         `Timeframe Consensus: ${recommendation.alignedTimeframes}/${recommendation.totalTimeframes}`

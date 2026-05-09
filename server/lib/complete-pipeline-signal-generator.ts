@@ -13,7 +13,8 @@
 import { UnifiedSignalAggregator, type UnifiedSignal } from '../services/unified-signal-aggregator';
 import { RegimeAwareSignalRouter, type MarketRegime, type RegimeAdjustedWeights } from '../services/regime-aware-signal-router';
 import { EnsemblePredictor, type EnsemblePrediction } from '../services/ensemble-predictor';
-import { DynamicPositionSizer, type PositionSizingOutput } from '../services/dynamic-position-sizer';
+import { DynamicPositionSizer } from '../services/dynamic-position-sizer';
+type PositionSizingOutput = any; // Type may not be exported
 import type { StrategyContribution } from '../services/unified-signal-aggregator';
 
 export interface CompleteSignal {
@@ -155,10 +156,10 @@ export class CompletePipelineSignalGenerator {
         ensembleModel = {
           direction: { prediction: 'NEUTRAL', confidence: 0.5, votes: { UP: 0, DOWN: 0, NEUTRAL: 1 }, modelAgreement: 33 },
           price: { predicted: currentPrice, high: currentPrice, low: currentPrice, confidence: 0.5 },
-          volatility: { predicted: volatilityLevel === 'LOW' ? 0.01 : 0.03, level: volatilityLevel, confidence: 0.5 },
+          volatility: { predicted: volatilityLevel === 'LOW' ? 0.01 : 0.03, level: volatilityLevel.toLowerCase() as any, confidence: 0.5 },
           trendDirection: { direction: 'SIDEWAYS', alignment: 50, alignmentMultiplier: 1.0 },
           position: { sizeMultiplier: 1.0, riskReward: 1.5, confidence: 0.5 },
-          risk: { score: 50, level: 'MEDIUM', factors: [] },
+          risk: { score: 50, level: 'medium', factors: [] },
           ensembleScore: 0.5,
           recommendation: { action: 'HOLD', strength: 0, reason: 'Ensemble unavailable' },
           metadata: { timestamp: Date.now(), modelCount: 0, averageModelConfidence: 0.5, consensusLevel: 'weak' }

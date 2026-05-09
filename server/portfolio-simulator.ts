@@ -742,6 +742,7 @@ export class EnhancedPortfolioSimulator {
         this.openPosition({
           id: `${signal.symbol}_${signal.timestamp}`,
           symbol: signal.symbol,
+          signalId: signal.id || null,
           side: 'BUY',
           entryTime: signalDate,
           entryPrice: pricePoint.price,
@@ -760,6 +761,7 @@ export class EnhancedPortfolioSimulator {
           this.openPosition({
             id: `${signal.symbol}_${signal.timestamp}`,
             symbol: signal.symbol,
+            signalId: signal.id || null,
             side: 'SELL',
             entryTime: signalDate,
             entryPrice: pricePoint.price,

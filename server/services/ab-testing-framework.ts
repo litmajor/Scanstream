@@ -131,7 +131,10 @@ export class ABTestingFramework {
         currentPrice: trade.entryPrice,
         atr: trade.entryPrice * (trade.volatilityRatio * 0.02),
         marketRegime: trade.regime,
-        primaryPattern: trade.pattern
+        primaryPattern: trade.pattern,
+        trendDirection: 'BULLISH',
+        sma20: trade.entryPrice,
+        sma50: trade.entryPrice
       });
 
       const positionSize = sizing.positionSize;

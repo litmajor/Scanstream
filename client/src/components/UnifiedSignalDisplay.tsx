@@ -510,8 +510,8 @@ function SignalCard({ unified, highlighted = false, onTrade }: { unified: any; h
   const handleCopySignal = (signal: Signal) => {
     navigator.clipboard.writeText(JSON.stringify(signal, null, 2));
     addNotification(
-      'copy',
-      'info',
+      'signal',
+      'high',
       'Signal Copied',
       `Signal details for ${signal.symbol} copied to clipboard.`,
       { metadata: signal }

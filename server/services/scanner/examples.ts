@@ -58,7 +58,7 @@ async function productionExample() {
   scanner.on('processed', (event) => {
     // Emit to API clients or save to database
     console.log(`Processed ${event.results.length} symbol/timeframe combinations`);
-    event.results.forEach(r => {
+    (event.results as any[]).forEach((r: any) => {
       console.log(`  ${r.symbol}/${r.timeframe}: score=${r.score.toFixed(2)}`);
     });
   });
@@ -102,7 +102,7 @@ async function customIndicatorExample() {
   // (balanced profile already includes key indicators)
 
   scanner.on('processed', (event) => {
-    event.results.forEach(r => {
+    (event.results as any[]).forEach((r: any) => {
       console.log(`${r.symbol}/${r.timeframe}:`);
       console.log(`  Score: ${r.score}`);
       console.log(`  Computed indicators: ${r.diagnostics?.computedIndicators.length || 0}`);
@@ -146,7 +146,7 @@ async function adaptiveProfileExample() {
 
   scanner.on('processed', (event) => {
     // Monitor score volatility
-    const scores = event.results.map(r => r.score);
+    const scores = (event.results as any[]).map((r: any) => r.score);
     const variance = calculateVariance(scores);
 
     if (variance > 0.8 && !isHighVolatility) {
@@ -187,7 +187,8 @@ async function cacheOptimizationExample() {
     console.log('Cache Statistics:');
     console.log(`  Hit rate: ${(stats.hitRate * 100).toFixed(0)}%`);
     console.log(`  Entries: ${stats.size}/${5000}`);
-    console.log(`  Memory: ${(stats.memoryUsage / 1024 / 1024).toFixed(0)}MB`);
+    const memUsage = (stats as any).memoryUsage || 0;
+    console.log(`  Memory: ${(memUsage / 1024 / 1024).toFixed(0)}MB`);
 
     if (stats.hitRate < 0.4) {
       console.warn('Low cache hit rate! Consider:');
@@ -241,7 +242,7 @@ async function payloadComplianceExample() {
   });
 
   scanner.on('processed', (event) => {
-    event.results.forEach(r => {
+    (event.results as any[]).forEach((r: any) => {
       if (r.diagnostics) {
         const sizeKb = r.diagnostics.payloadSizeBytes / 1024;
         if (sizeKb > MAX_PAYLOAD_KB * 0.9) {

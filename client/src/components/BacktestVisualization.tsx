@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, ScatterChart, Scatter,
-  HeatmapChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   ComposedChart, Cell
 } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, Calendar, AlertCircle } from 'lucide-react';

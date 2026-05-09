@@ -7,10 +7,13 @@
  * - Hysteresis mechanism (prevent false flips)
  * - Confidence scoring and transition tracking
  * - Real-time regime assessment reports
+ * - PHASE 2: Unified regime system integration with parallel detection
  */
 
 import type { MarketFrame } from '@shared/schema';
 import type { Candle } from '../types/market-data';
+import { UnifiedRegimeDetector, type UnifiedRegimeType } from '../services/unified-regime-system';
+import { RegimeConsolidationBridge } from '../services/regime-consolidation-bridge';
 
 // Export Candle type for external use
 export type { Candle };
@@ -99,6 +102,10 @@ export interface RegimeDetectionResult {
   canUpdateRegime: boolean;            // Can safely use for trading
   lastRegimeFlip: number;              // Candles since last flip
   falseFlipRisk: number;               // 0-1 risk of false flip
+  
+  // PHASE 2: Unified regime system
+  unifiedRegime?: UnifiedRegimeType;
+  unifiedConfidence?: number;
 }
 
 export interface MultiTimeframeAssessment {
@@ -135,13 +142,130 @@ export class RegimeAssessmentEngine {
     duration: 0
   };
   
+  // PHASE 2: Unified regime system integration
+  private divergenceLog: Array<{
+    timestamp: number;
+    legacy: RegimeType;
+    unified: UnifiedRegimeType;
+    match: boolean;
+  }> = [];
+  private readonly MAX_DIVERGENCE_LOG = 1000;
+  
   private hysteresisWindow = 5;        // Require 2+ confirmations in last 5 candles
   private minConfirmations = 2;        // Need 2 consecutive confirmations
 
   /**
    * Assess market regime comprehensively
+   * PHASE 2: Runs both legacy and unified detection in parallel
    */
   assessRegime(candles: Candle[]): RegimeDetectionResult {
+    if (candles.length < 50) {
+      return this.createPoorDataResult('Insufficient candles (< 50)');
+    }
+
+    // PHASE 2: Run legacy assessment first
+    const legacyResult = this.assessRegimeLegacy(candles);
+    
+    // PHASE 2: Run unified detection in parallel
+    const unifiedResult = this.assessUnified(candles);
+    
+    // PHASE 2: Log divergence
+    const matches = legacyResult.regime === this.mapUnifiedToLegacy(unifiedResult.regime);
+    this.divergenceLog.push({
+      timestamp: Date.now(),
+      legacy: legacyResult.regime,
+      unified: unifiedResult.regime,
+      match: matches
+    });
+    
+    // Maintain max log size
+    if (this.divergenceLog.length > this.MAX_DIVERGENCE_LOG) {
+      this.divergenceLog.shift();
+    }
+    
+    // Return legacy result + unified fields (backward compatible)
+    return {
+      ...legacyResult,
+      unifiedRegime: unifiedResult.regime,
+      unifiedConfidence: unifiedResult.confidence
+    };
+  }
+
+  /**
+   * PHASE 2: Unified regime detection
+   * Maps assessment indicators to unified detection parameters
+   */
+  private assessUnified(candles: Candle[]): { regime: UnifiedRegimeType; confidence: number } {
+    const indicators = this.calculateCompleteIndicators(candles);
+    
+    // Map assessment indicators to unified parameters
+    const unifiedParams = {
+      adx: indicators.adx,                            // Direct: 0-100
+      volatility: this.mapVolatilityToUnified(indicators.volatilityLevel),  // Map volatility level
+      divergence: Math.abs(indicators.momentum - (indicators.priceVsMA ?? 0)), // Divergence
+      coherence: this.getIndicatorCoherence(indicators), // Agreement between indicators
+      momentum: indicators.momentum,                   // Direct: momentum
+      priceVsMA: indicators.priceVsMA ?? 0,           // Direct: price vs MA
+      rangeWidth: indicators.rangeWidth ?? 0,         // Direct: range width
+      compression: indicators.consolidating ? 0.2 : 0.8  // Low if consolidating
+    };
+    
+    return UnifiedRegimeDetector.detectRegime(unifiedParams);
+  }
+
+  /**
+   * PHASE 2: Convert volatility level to numeric score
+   */
+  private mapVolatilityToUnified(level: VolatilityLevel): number {
+    switch (level) {
+      case 'LOW': return 0.01;
+      case 'MEDIUM': return 0.015;
+      case 'HIGH': return 0.025;
+      case 'EXTREME': return 0.05;
+      default: return 0.01;
+    }
+  }
+
+  /**
+   * PHASE 2: Get indicator coherence (agreement between indicators)
+   */
+  private getIndicatorCoherence(indicators: RegimeIndicators): number {
+    let agreementScore = 0;
+    let totalChecks = 0;
+    
+    // Check ADX alignment with trend
+    if (indicators.adx > 25 && indicators.trendDirection !== 'SIDEWAYS') {
+      agreementScore++;
+    }
+    totalChecks++;
+    
+    // Check momentum alignment with price vs MA
+    if ((indicators.momentum > 0) === (indicators.priceVsMA > 0)) {
+      agreementScore++;
+    }
+    totalChecks++;
+    
+    // Check volatility consistency with ATR
+    if ((indicators.volatilityLevel === 'HIGH' || indicators.volatilityLevel === 'EXTREME') === (indicators.atrPercent > 0.02)) {
+      agreementScore++;
+    }
+    totalChecks++;
+    
+    return totalChecks > 0 ? agreementScore / totalChecks : 0.5;
+  }
+
+  /**
+   * PHASE 2: Map unified regime back to assessment regimes using bridge
+   * Assessment and ML have same regime types, so use toML()
+   */
+  private mapUnifiedToLegacy(unifiedRegime: UnifiedRegimeType): RegimeType {
+    return RegimeConsolidationBridge.toML(unifiedRegime) as RegimeType;
+  }
+
+  /**
+   * Legacy assessment - original logic preserved
+   */
+  private assessRegimeLegacy(candles: Candle[]): RegimeDetectionResult {
     if (candles.length < 50) {
       return this.createPoorDataResult('Insufficient candles (< 50)');
     }
@@ -764,6 +888,45 @@ export class RegimeAssessmentEngine {
       canUpdateRegime: false,
       lastRegimeFlip: 0,
       falseFlipRisk: 1
+    };
+  }
+
+  /**
+   * PHASE 2: Get divergence statistics for validation
+   * Returns match percentage and recent divergences for monitoring
+   */
+  getDivergenceStats(): {
+    totalSamples: number;
+    matchingDetections: number;
+    matchPercentage: number;
+    recentDivergences: Array<{ timestamp: number; legacy: string; unified: string }>;
+  } {
+    if (this.divergenceLog.length === 0) {
+      return {
+        totalSamples: 0,
+        matchingDetections: 0,
+        matchPercentage: 0,
+        recentDivergences: []
+      };
+    }
+    
+    const matchingDetections = this.divergenceLog.filter(d => d.match).length;
+    const matchPercentage = (matchingDetections / this.divergenceLog.length) * 100;
+    
+    const recentDivergences = this.divergenceLog
+      .filter(d => !d.match)
+      .slice(-10)
+      .map(d => ({
+        timestamp: d.timestamp,
+        legacy: d.legacy,
+        unified: d.unified
+      }));
+    
+    return {
+      totalSamples: this.divergenceLog.length,
+      matchingDetections,
+      matchPercentage,
+      recentDivergences
     };
   }
 }

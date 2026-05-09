@@ -522,41 +522,8 @@ async function fetchHistoricalData(
   try {
     let candles: any[] = [];
 
-    // Try to fetch from database first
-    const dbPath = 'market_data.db';
-    if (require('fs').existsSync(dbPath)) {
-      const database = new db(dbPath);
-      const table = `candles_${asset.replace('/', '_')}`;
-
-      try {
-        const data = database.prepare(
-          `SELECT * FROM ${table} 
-           WHERE timestamp >= ? AND timestamp <= ?
-           ORDER BY timestamp ASC`
-        ).all(startDate.getTime(), endDate.getTime());
-
-        database.close();
-        candles = data.map(d => ({
-          symbol: asset,
-          timestamp: new Date(d.timestamp),
-          ts: d.timestamp,
-          price: {
-            open: d.open,
-            high: d.high,
-            low: d.low,
-            close: d.close
-          },
-          volume: d.volume
-        }));
-      } catch (e) {
-        console.warn(`Table ${table} not found`);
-      }
-    }
-
     // Fallback: generate mock data for testing
-    if (candles.length === 0) {
-      candles = generateMockMarketData(asset, startDate, endDate);
-    }
+    candles = generateMockMarketData(asset, startDate, endDate);
 
     // ===== NEW: GAP DETECTION =====
     const initialGapReport = detectCandleGaps(candles, timeframe);

@@ -269,7 +269,7 @@ export class IntegrityGate extends EventEmitter {
             // Do NOT emit this tick — time is incoherent
             return {
               stored,
-              rejected: [...report.rejected, validCandle],
+              rejected: [...report.rejected.map(r => r.candle), validCandle as any as Candle],
               gaps: report.gaps,
               ticks
             };
@@ -356,7 +356,7 @@ export class IntegrityGate extends EventEmitter {
       
       // If we have gaps during LIVE window, downgrade to MIXED
       // LIVE mode requires continuous, unbroken feed
-      if (liveEpoch.liveStartTime && report.gaps.some(g => g.startTime >= liveEpoch.liveStartTime!)) {
+      if (liveEpoch.liveStartTime && report.gaps.some(g => g.from >= liveEpoch.liveStartTime!)) {
         console.warn(
           `[IntegrityGate] 🟡 Gap detected during LIVE window for ${symbol}:${timeframe} — ` +
           `forcing MIXED mode (no gap healing in LIVE)`

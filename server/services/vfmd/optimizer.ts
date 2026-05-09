@@ -100,7 +100,6 @@ export class RegimeOptimizer {
                   const backtest = await VFMDBacktester.backtest(
                     'PARAM_TEST',
                     historicalData,
-                    agent,
                     100,
                     0.02,
                     0.04

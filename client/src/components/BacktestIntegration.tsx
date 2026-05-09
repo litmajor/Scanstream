@@ -290,7 +290,7 @@ export default function BacktestIntegration({
                     <YAxis stroke="#94a3b8" />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                      formatter={(value) => `$${value.toFixed(2)}`}
+                      formatter={(value: any) => `$${typeof value === 'number' ? value.toFixed(2) : value}`}
                     />
                     <Area
                       type="monotone"

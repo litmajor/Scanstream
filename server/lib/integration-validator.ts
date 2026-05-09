@@ -263,7 +263,7 @@ export class IntegrationValidator {
         99.50,  // ema20
         99.00,  // ema50
         98.50,  // sma200
-        { upper: 101, lower: 100, basis: 100.5 }, // bb
+        { upper: 101, lower: 100 }, // bb (removed non-existent basis property)
         0.5,    // atr
         0.02    // volatility
       );

@@ -62,7 +62,7 @@ router.get('/list', async (req: Request, res: Response) => {
       const fallbackList = symbolsToScan.map((symbol) => ({
         symbol,
         confidence: 0.65,
-        direction: 'NEUTRAL' as const,
+        direction: 'HOLD' as const,
         opportunities: 0,
         riskScore: 5,
         lastUpdated: Date.now(),
@@ -78,7 +78,7 @@ router.get('/list', async (req: Request, res: Response) => {
           return {
             symbol: report.symbol,
             confidence: report.executiveSummary.strength,
-            direction: report.executiveSummary.direction,
+            direction: service.mapDirectionToClient(report.executiveSummary.direction),
             opportunities: report.opportunities.length,
             riskScore: report.riskAssessment?.overallRiskScore || 5,
             lastUpdated: report.timestamp || Date.now(),
@@ -88,7 +88,7 @@ router.get('/list', async (req: Request, res: Response) => {
           return {
             symbol,
             confidence: 0,
-            direction: 'NEUTRAL' as const,
+            direction: 'HOLD' as const,
             opportunities: 0,
             riskScore: 5,
             lastUpdated: Date.now(),
@@ -155,9 +155,30 @@ router.get('/:symbol', async (req: Request, res: Response) => {
 
     const report = await service.generateScoutReport(symbol, request);
 
+    // Map directions to client format
+    const clientReport = {
+      ...report,
+      executiveSummary: {
+        ...report.executiveSummary,
+        direction: service.mapDirectionToClient(report.executiveSummary.direction),
+      },
+      consensus: {
+        ...report.consensus,
+        direction: service.mapDirectionToClient(report.consensus.direction),
+      },
+      alternatives: report.alternatives?.map(alt => ({
+        ...alt,
+        direction: service.mapDirectionToClient(alt.direction),
+      })) || [],
+      opportunities: report.opportunities?.map(opp => ({
+        ...opp,
+        direction: service.mapDirectionToClient(opp.direction),
+      })) || [],
+    };
+
     res.json({
       success: true,
-      data: report,
+      data: clientReport,
       timestamp: Date.now(),
     });
   } catch (error) {
@@ -460,11 +481,21 @@ router.get('/:symbol/consensus', async (req: Request, res: Response) => {
     }
     const report = await service.generateScoutReport(symbol);
 
+    const consensus = {
+      ...report.consensus,
+      direction: service.mapDirectionToClient(report.consensus.direction),
+    };
+
+    const alternatives = report.alternatives?.map(alt => ({
+      ...alt,
+      direction: service.mapDirectionToClient(alt.direction),
+    })) || [];
+
     res.json({
       success: true,
       data: {
-        consensus: report.consensus,
-        alternatives: report.alternatives,
+        consensus,
+        alternatives,
         insights: report.insights,
       },
       timestamp: Date.now(),
@@ -566,9 +597,18 @@ router.get('/multi', async (req: Request, res: Response) => {
     // Apply filters if specified
     let results = reports.map((report) => ({
       symbol: report.symbol,
-      executiveSummary: report.executiveSummary,
-      opportunities: report.opportunities,
-      consensus: report.consensus,
+      executiveSummary: {
+        ...report.executiveSummary,
+        direction: service.mapDirectionToClient(report.executiveSummary.direction),
+      },
+      opportunities: report.opportunities.map(opp => ({
+        ...opp,
+        direction: service.mapDirectionToClient(opp.direction),
+      })),
+      consensus: {
+        ...report.consensus,
+        direction: service.mapDirectionToClient(report.consensus.direction),
+      },
     }));
 
     if (type && type !== 'ALL') {

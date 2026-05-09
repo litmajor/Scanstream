@@ -169,7 +169,7 @@ export function detectArm(inputs: ArmInputs): ArmDetectionResult {
     }
   }
 
-  return { armLong, armShort, armReason };
+  return { armLong: !!armLong, armShort: !!armShort, armReason };
 }
 
 /**

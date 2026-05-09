@@ -116,10 +116,7 @@ export class MomentumScanner {
         rsiMax: 70,
         macdMin: 0
       },
-      { ichimokuBullish: true },
-      undefined,
-      undefined,
-      armRegime // pass external regime when available
+      { ichimokuBullish: true }
     );
 
     // === STATE CLASSIFICATION ===

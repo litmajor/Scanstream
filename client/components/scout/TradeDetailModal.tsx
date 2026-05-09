@@ -78,7 +78,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     conservative: {
       name: 'Conservative',
       description: 'Enter at top of range for better risk/reward',
-      entry: opportunity.entryPrice.max,
+      entry: (opportunity as any).entryPrice?.max || (opportunity as any).price || 0,
       confidence: 'Lower entry confidence',
       bestFor: 'Risk-averse traders',
       color: 'blue',
@@ -86,7 +86,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     optimal: {
       name: 'Optimal',
       description: 'Enter at midpoint of suggested range',
-      entry: (opportunity.entryPrice.min + opportunity.entryPrice.max) / 2,
+      entry: ((opportunity as any).entryPrice?.min || 0 + (opportunity as any).entryPrice?.max || 0) / 2,
       confidence: 'Balanced entry',
       bestFor: 'Most traders',
       color: 'green',
@@ -94,7 +94,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
     aggressive: {
       name: 'Aggressive',
       description: 'Enter at bottom of range for better targets',
-      entry: opportunity.entryPrice.min,
+      entry: (opportunity as any).entryPrice?.min || (opportunity as any).price || 0,
       confidence: 'Higher entry confidence needed',
       bestFor: 'Confident traders',
       color: 'orange',
@@ -151,11 +151,11 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-xs text-gray-600 mb-1">Min Entry</p>
-                <p className="text-2xl font-bold text-gray-800">{opportunity.entryPrice.min.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-gray-800">{((opportunity as any).entryPrice?.min || (opportunity as any).price || 0).toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-600 mb-1">Max Entry</p>
-                <p className="text-2xl font-bold text-gray-800">{opportunity.entryPrice.max.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-gray-800">{((opportunity as any).entryPrice?.max || (opportunity as any).price || 0).toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -214,10 +214,10 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
             <h3 className="font-bold text-gray-800 mb-3">Targets</h3>
             <div className="space-y-2">
-              {opportunity.targets.map((target: number, idx: number) => (
+              {opportunity.targets.map((target: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-center p-3 bg-green-50 rounded border border-green-300">
                   <span className="font-semibold text-gray-800">Target {idx + 1}</span>
-                  <span className="text-lg font-bold text-green-600">{target.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-green-600">{(typeof target === 'number' ? target : target.level || 0).toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -228,7 +228,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             <h3 className="font-bold text-gray-800 mb-3">Stop Loss</h3>
             <div className="bg-red-50 rounded p-3 border border-red-300">
               <span className="text-xs text-red-600 mb-1 block">Recommended SL</span>
-              <span className="text-2xl font-bold text-red-800">{opportunity.stopLoss.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-red-800">{(typeof (opportunity as any).stopLoss === 'number' ? (opportunity as any).stopLoss : (opportunity as any).stopLoss?.price || 0).toFixed(2)}</span>
             </div>
           </div>
 
@@ -236,17 +236,17 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
           <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
             <h3 className="font-bold text-gray-800 mb-3">Supporting Sources</h3>
             <div className="flex gap-3 flex-wrap">
-              {opportunity.sources?.map((source: any, idx: number) => (
+              {((opportunity as any).sources || []).map((source: any, idx: number) => (
                 <SourceIcon key={idx} source={source} size="md" showLabel />
               ))}
             </div>
           </div>
 
           {/* Description */}
-          {opportunity.description && (
+          {(opportunity as any).description && (
             <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-500">
               <h4 className="font-bold text-blue-900 mb-2">Analysis</h4>
-              <p className="text-blue-800 text-sm">{opportunity.description}</p>
+              <p className="text-blue-800 text-sm">{(opportunity as any).description}</p>
             </div>
           )}
 

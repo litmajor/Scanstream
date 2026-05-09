@@ -29,25 +29,25 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   trade_duration_predictor: {
     name: 'trade_duration_predictor',
     description: 'Predict holding period based on cluster strength and trend characteristics',
-    enabled: false,
+    enabled: true,
     category: 'strategy',
   },
   pyramid_strategy: {
     name: 'pyramid_strategy',
     description: 'Safely add to winning positions using cluster validation',
-    enabled: false,
+    enabled: true,
     category: 'strategy',
   },
   adaptive_holding_period: {
     name: 'adaptive_holding_period',
     description: 'Dynamically adjust position holding based on market conditions',
-    enabled: false,
+    enabled: true,
     category: 'strategy',
   },
   regime_aware_trading: {
     name: 'regime_aware_trading',
     description: 'Adjust trading parameters based on detected market regime',
-    enabled: false,
+    enabled: true,
     category: 'strategy',
   },
 
@@ -73,19 +73,19 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   agent_synergy: {
     name: 'agent_synergy',
     description: 'Enable agent synergy detection and cooperative trading',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_achievement_system: {
     name: 'agent_achievement_system',
     description: 'Track agent achievements, XP, and progression',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_portfolio_manager: {
     name: 'agent_portfolio_manager',
     description: 'Enable portfolio-level agent coordination',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
 
@@ -117,13 +117,13 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   agent_ability_physics_flow: {
     name: 'agent_ability_physics_flow',
     description: 'Enable Flow Physics agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_physics_vfmd: {
     name: 'agent_ability_physics_vfmd',
     description: 'Enable VFMD Physics agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_ml_oracle: {
@@ -135,37 +135,37 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   agent_ability_market_oracle: {
     name: 'agent_ability_market_oracle',
     description: 'Enable Market Oracle agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_volume_verifier: {
     name: 'agent_ability_volume_verifier',
     description: 'Enable Volume Mechanical Verifier agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_exit_orchestrator: {
     name: 'agent_ability_exit_orchestrator',
     description: 'Enable Exit Orchestrator agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_opposition_reader: {
     name: 'agent_ability_opposition_reader',
     description: 'Enable Opposition Reader agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_microstructure_specialist: {
     name: 'agent_ability_microstructure_specialist',
     description: 'Enable Microstructure Specialist agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   agent_ability_feature_engineer: {
     name: 'agent_ability_feature_engineer',
     description: 'Enable Feature Engineer agent ability',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
 
@@ -221,7 +221,7 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   agent_ability_strategy_creation: {
     name: 'agent_ability_strategy_creation',
     description: 'Unlock at Level 25 - Create and spawn new sub-strategies',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
 
@@ -229,25 +229,25 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   commander_approval: {
     name: 'commander_approval',
     description: 'Enable commander approval system for major decisions',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   daily_briefing: {
     name: 'daily_briefing',
     description: 'Generate daily briefing reports with market summary',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   information_channels: {
     name: 'information_channels',
     description: 'Enable agent information channel system for communication',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
   online_learning_system: {
     name: 'online_learning_system',
     description: 'Enable online learning for agents to adapt in real-time',
-    enabled: false,
+    enabled: true,
     category: 'service',
   },
 
@@ -267,7 +267,7 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   bayesian_belief_update: {
     name: 'bayesian_belief_update',
     description: 'Update agent beliefs using Bayesian learning system',
-    enabled: false,
+    enabled: true,
     category: 'analysis',
   },
   flow_field_analytics: {
@@ -279,7 +279,7 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   cross_exchange_aggregation: {
     name: 'cross_exchange_aggregation',
     description: 'Aggregate data and signals across multiple exchanges',
-    enabled: false,
+    enabled: true,
     category: 'analysis',
   },
 
@@ -287,19 +287,19 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   advanced_risk_metrics: {
     name: 'advanced_risk_metrics',
     description: 'Calculate advanced risk metrics like VaR and CVaR',
-    enabled: false,
+    enabled: true,
     category: 'experimental',
   },
   neural_network_signals: {
     name: 'neural_network_signals',
     description: 'Use neural network based signal generation',
-    enabled: false,
+    enabled: true,
     category: 'experimental',
   },
   portfolio_optimization: {
     name: 'portfolio_optimization',
     description: 'Enable portfolio-level optimization algorithms',
-    enabled: false,
+    enabled: true,
     category: 'experimental',
   },
 
@@ -307,7 +307,7 @@ const DEFAULT_FLAGS: FeatureFlagsConfig = {
   feature_flag_ui: {
     name: 'feature_flag_ui',
     description: 'Enable UI dashboard for feature flag management',
-    enabled: false,
+    enabled: true,
     category: 'admin',
   },
   debug_logging: {

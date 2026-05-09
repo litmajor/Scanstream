@@ -355,7 +355,7 @@ export default function MLEnginePage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-slate-400">Active Models</p>
                 <p className="text-2xl font-semibold text-white">
-                  {mlData?.models.filter(m => m.status === 'trained').length}
+                  {mlData?.models.filter((m: any) => m.status === 'trained').length}
                 </p>
               </div>
             </div>
@@ -374,13 +374,13 @@ export default function MLEnginePage() {
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Select Model
               </label>
-              <select
+              <select aria-label="Model filter"
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e: any) => setSelectedModel(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-700/50 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-colors"
               >
                 <option value="">Select Model to Train</option>
-                {mlData?.models.map(model => (
+                {mlData?.models.map((model: any) => (
                   <option key={model.id} value={model.id}>{model.name}</option>
                 ))}
               </select>
@@ -413,7 +413,7 @@ export default function MLEnginePage() {
           <h2 className="text-lg font-semibold text-white">ML Models</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {mlData?.models.map((model) => (
+            {mlData?.models.map((model: any) => (
               <div key={model.id} className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-slate-600/50 transition-all hover:shadow-xl hover:shadow-blue-500/5">
                 {/* Model Header */}
                 <div className="flex items-center justify-between mb-4">

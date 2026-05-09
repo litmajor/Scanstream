@@ -183,9 +183,9 @@ export function assertMarketFrameSourceMatchesMode(
   frame: MarketFrame,
   mode: 'live' | 'backtest'
 ): void {
-  const isLive = frame.meta.source === 'live';
-  const isReplay = frame.meta.source === 'replay';
-  const isFallback = frame.meta.source === 'fallback';
+  const isLive = frame.meta.source === 'WS';
+  const isReplay = frame.meta.source === 'REPLAY_API';
+  const isFallback = frame.meta.source === 'FALLBACK';
 
   if (mode === 'live' && isReplay) {
     throw new Error(

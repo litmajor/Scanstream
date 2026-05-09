@@ -459,8 +459,7 @@ export const getStrategyVotingSummary = (result: StrategyVotingResult): string =
 
   return `Signal: ${finalSignal} | Confidence: ${(confidence * 100).toFixed(1)}% | ` +
     `Expected Return: ${(expectedReturn * 100).toFixed(2)}% | ` +
-    `Risk: ${riskAnalysis.overallRisk} | ` +
-    `Method: ${votingDetails.method}`;
+    `Risk: ${riskAnalysis.overallRisk}`;
 };
 
 /**

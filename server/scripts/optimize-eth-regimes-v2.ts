@@ -104,8 +104,8 @@ async function runBacktest(
   try {
     const agent = new VFMDPhysicsAgent('optimizer', 'balanced');
     agent.setAsset('ETH');
-    agent.setProfitScoreThreshold('ETH', profitScore);
-    agent.setRegimeParameters('ETH', regimeParams);
+    (agent as any).setProfitScoreThreshold?.('ETH', profitScore);
+    (agent as any).setRegimeParameters?.('ETH', regimeParams);
 
     let capital = INITIAL_CAPITAL;
     let peakCapital = INITIAL_CAPITAL;
@@ -257,7 +257,7 @@ async function optimizeRegimes() {
   allResults.slice(0, 10).forEach((result, idx) => {
     console.log(`${idx + 1}. ${result.configName} + PS ${result.profitScore} (Score: ${result.score.toFixed(1)})`);
     console.log(`   Trades: ${result.trades} | WR: ${(result.winRate * 100).toFixed(1)}% | PF: ${result.profitFactor.toFixed(2)} | Sharpe: ${result.sharpe.toFixed(3)}`);
-    console.log(`   PnL: $${result.pnL.toFixed(2)} | DD: ${result.maxDD.toFixed(2)}% | AvgConf: ${result.avgConfidence.toFixed(3)}\n`);
+    console.log(`   PnL: $${result.pnl.toFixed(2)} | DD: ${result.maxDD.toFixed(2)}% | AvgConf: ${result.avgConfidence.toFixed(3)}\n`);
   });
 
   // Save full results
@@ -272,7 +272,7 @@ async function optimizeRegimes() {
   console.log(`   Expected Trades: ${best.trades}`);
   console.log(`   Win Rate: ${(best.winRate * 100).toFixed(1)}%`);
   console.log(`   Profit Factor: ${best.profitFactor.toFixed(2)}`);
-  console.log(`   Expected PnL: $${best.pnL.toFixed(2)}`);
+  console.log(`   Expected PnL: $${best.pnl.toFixed(2)}`);
   console.log(`   Sharpe Ratio: ${best.sharpe.toFixed(3)}`);
   console.log(`   Max Drawdown: ${best.maxDD.toFixed(2)}%`);
 }

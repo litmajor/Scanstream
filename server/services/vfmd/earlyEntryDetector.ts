@@ -17,12 +17,14 @@ export interface EarlyEntryContext {
 
 export class EarlyEntryDetector {
   private fieldConstructor: FieldConstructor;
+  private fieldAnalyzer: typeof FieldAnalyzer;
 
   constructor(
     spatialBins: number = 50,
     temporalWindow: number = 100
   ) {
     this.fieldConstructor = new FieldConstructor(spatialBins, temporalWindow);
+    this.fieldAnalyzer = FieldAnalyzer;
   }
 
   /**
@@ -36,7 +38,10 @@ export class EarlyEntryDetector {
 
     // Build field from price data
     const prices = ticks.map(t => t.close);
-    const field = this.fieldConstructor.constructField(prices);
+    const field: VectorField = this.fieldConstructor.constructField(prices);
+
+    // Analyze field structure using gradient analysis
+    const gradientMagnitude = this.fieldAnalyzer.computeGradientMagnitude(field);
 
     // Compute physics metrics
     const metrics = PhysicsCalculator.computeAllMetrics(field);
@@ -60,6 +65,7 @@ export class EarlyEntryDetector {
 
   /**
    * Main detection logic: find early entries by analyzing field state
+   * Uses both physics metrics and direct field gradient analysis
    */
   private detectEarlyEntry(
     context: EarlyEntryContext,

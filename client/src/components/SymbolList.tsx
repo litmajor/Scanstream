@@ -17,8 +17,8 @@ export default function SymbolList<T extends { symbol?: string }>(props: {
   const latestTickBySymbol = useMemo(() => {
     const map = new Map<string, number>();
     (worldTicks || []).forEach(t => {
-      if (!t.symbol || !t.timestamp) return;
-      const ts = t.timestamp < 1e12 ? t.timestamp * 1000 : t.timestamp;
+      if (!t.symbol || !((t as any).timestamp || (t as any).ts)) return;
+      const ts = (((t as any).timestamp || (t as any).ts) || 0) < 1e12 ? (((t as any).timestamp || (t as any).ts) || 0) * 1000 : (((t as any).timestamp || (t as any).ts) || 0);
       const prev = map.get(t.symbol) || 0;
       if (ts > prev) map.set(t.symbol, ts);
     });
@@ -61,7 +61,9 @@ export default function SymbolList<T extends { symbol?: string }>(props: {
       </div>
       <div className="p-2 overflow-y-auto flex-1 space-y-1">
         {list.length === 0 && <div className="text-xs text-slate-500 p-2">No symbols</div>}
-        {list.map(sym => (
+        {list.map(sym => {
+          const isSymbolPinned = pinned.includes(sym);
+          return (
           <button
             key={sym}
             onClick={() => onSelect && onSelect(sym)}
@@ -81,14 +83,15 @@ export default function SymbolList<T extends { symbol?: string }>(props: {
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin && onTogglePin(sym); }}
-                className={`px-2 py-0.5 text-xs rounded ${pinned.includes(sym) ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-300'}`}
-                aria-pressed={pinned.includes(sym)}
+                className={`px-2 py-0.5 text-xs rounded ${isSymbolPinned ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-300'}`}
+                aria-pressed={isSymbolPinned}
               >
-                {pinned.includes(sym) ? 'Pinned' : 'Pin'}
+                {isSymbolPinned ? 'Pinned' : 'Pin'}
               </button>
             </div>
           </button>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

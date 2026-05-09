@@ -80,6 +80,19 @@ export type SmartMoneySignal = 'ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL';
 export type BreakoutValidity = 'VALID' | 'FAKEOUT' | 'NONE';
 export type AggressionDelta = 'BUYERS_DOMINANT' | 'SELLERS_DOMINANT' | 'BALANCED';
 export type ClimaticEvent = 'BUYING_CLIMAX' | 'SELLING_CLIMAX' | 'NONE';
+export type DeltaDivergenceSignal = 'DISTRIBUTION_TRAP' | 'ACCUMULATION_TRAP' | 'NONE';
+export type ClimaticMagnitude = 'MILD' | 'STRONG' | 'EXTREME';
+
+export interface ClimaticDetection {
+  event: ClimaticEvent;
+  magnitude: ClimaticMagnitude;
+  strength: number;  // 0-300+ scale
+}
+
+export interface VPVRClustering {
+  clusteredHVNs: number[][];
+  strongestCluster: number;  // count of HVNs in strongest cluster
+}
 
 export interface VolumeProfile {
   poc: number;              // Point of Control (highest volume price level)
@@ -89,12 +102,83 @@ export interface VolumeProfile {
   bins: Map<number, number>; // Price bin -> volume mapping
 }
 
+// ============================================================================
+// SEQUENCE ENGINE TYPES
+// ============================================================================
+
+export type SequenceEvent = 'CLIMAX' | 'TEST' | 'BREAK' | 'ABSORPTION' | 'NO_SUPPLY' | 'NO_DEMAND' | 'STOPPING_VOLUME' | 'SWEEP' | 'CONFIRM' | 'ACCUMULATION' | 'RALLY' | 'REVERSAL' | 'DISTRIBUTION' | 'DECLINE';
+
+export interface SequenceNode {
+  event: SequenceEvent;
+  timestamp: number;
+  strength: number;          // 0-100 confidence in this event
+  price: number;
+  volume: number;
+}
+
+export interface EventSequence {
+  nodes: SequenceNode[];
+  completionScore: number;   // How complete is this sequence? (0-100)
+  predictedNext: SequenceEvent | null;
+  narrative: string;         // Human-readable story
+}
+
+export const BULLISH_SEQUENCES: SequenceEvent[][] = [
+  ['CLIMAX', 'TEST', 'BREAK', 'CONFIRM'],   // Classic reversal
+  ['ACCUMULATION', 'NO_SUPPLY', 'BREAK', 'RALLY'],
+  ['STOPPING_VOLUME', 'NO_SUPPLY', 'BREAK'],
+  ['SWEEP', 'REVERSAL', 'BREAK'],
+];
+
+export const BEARISH_SEQUENCES: SequenceEvent[][] = [
+  ['CLIMAX', 'TEST', 'BREAK', 'CONFIRM'],   // Same structure, opposite direction
+  ['DISTRIBUTION', 'NO_DEMAND', 'BREAK', 'DECLINE'],
+  ['STOPPING_VOLUME', 'NO_DEMAND', 'BREAK'],
+];
+
+// ============================================================================
+// PERSISTENCE TRACKER TYPES
+// ============================================================================
+
+export interface SignalPersistence {
+  eventType: SequenceEvent;
+  consecutive: number;       // How many consecutive candles
+  duration: number;          // Milliseconds
+  startPrice: number;
+  currentPrice: number;
+  strength: number;          // Average strength over duration
+  weakening: boolean;        // Is signal fading?
+}
+
+export interface PersistenceMetrics {
+  activePersistences: Map<SequenceEvent, SignalPersistence>;
+  completedPersistences: SignalPersistence[];
+  strongestActive: SignalPersistence | null;
+}
+
+// ============================================================================
+// LIQUIDITY SWEEP DETECTION TYPES
+// ============================================================================
+
+export type SweepType = 'STOP_HUNT_UP' | 'STOP_HUNT_DOWN' | 'FAILED_BREAKOUT_UP' | 'FAILED_BREAKOUT_DOWN' | 'NONE';
+
+export interface LiquiditySweepSignal {
+  type: SweepType;
+  sweepPrice: number;        // Price of the sweep
+  closePrice: number;        // Price closed after sweep
+  engineeredVolume: number;  // Volume during sweep (excessive = engineered)
+  percentageAboveClose: number;
+  reverseCandles: number;    // How many candles to reverse back
+  trustScore: number;        // 0-100, how certain is this a sweep?
+  institutionalFootprint: boolean;  // Was it high volume? (institutional)
+}
+
 export interface VolumeAnalysisResult {
   convictionScore: number;              // 0-100, effort vs result
   valueZones: ValueZones;
   smartMoneySignal: SmartMoneySignal;
   breakoutValidity: BreakoutValidity;
-  climaxDetected: ClimaticEvent;
+  climaxDetection: ClimaticDetection;  // Enhanced: now includes magnitude & strength
   trueIntent: AggressionDelta;          // From aggression delta
   significantEvent: string;             // 'NONE' | 'VALID_BREAKOUT' | 'FAKEOUT' | 'CLIMAX' | 'DISTRIBUTION' | 'ACCUMULATION'
   detectedPatterns: string[];           // Readable patterns found
@@ -106,6 +190,20 @@ export interface VolumeAnalysisResult {
   stoppingVolumeDetected: boolean;
   testOfLevelDetected: boolean;
   volumeOscillator: number;
+  
+  // Smart Money Flow Integration (NEW)
+  deltaDivergence: DeltaDivergenceSignal;
+  vpvrClusters: VPVRClustering;
+  volumeGradient: number;  // dV/dP approximation
+
+  // UPGRADE 1: Sequence Engine
+  eventSequences: EventSequence[];      // Detected narrative sequences
+  
+  // UPGRADE 2: Persistence Tracker
+  persistenceMetrics: PersistenceMetrics;
+  
+  // UPGRADE 3: Liquidity Sweep Detection
+  liquiditySweep: LiquiditySweepSignal;
 }
 
 // ============================================================================
@@ -122,6 +220,22 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
   private baseConfidence: number = 0.65;
   private tickSize: number = 0.01; // Default for crypto, adjust per asset
   private volumeOscillatorHistory: number[] = []; // For EMA smoothing
+
+  // UPGRADE 1: Sequence Engine
+  private eventHistory: SequenceNode[] = [];
+  private activeSequence: EventSequence | null = null;
+  private sequenceHistory: EventSequence[] = [];
+  
+  // UPGRADE 2: Persistence Tracker
+  private persistenceMap: Map<SequenceEvent, SignalPersistence> = new Map();
+  private priceHistory_: number[] = [];
+  private volumeHistory_: number[] = [];
+  
+  // UPGRADE 3: Liquidity Sweep Detection
+  private previousHigh: number = 0;
+  private previousLow: number = 0;
+  private previousClose: number = 0;
+  private sweepHistory: LiquiditySweepSignal[] = [];
 
   constructor(
     name: string = 'MechanicalVerifier',
@@ -245,12 +359,17 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
    * Multi-faceted volume analysis
    */
   private analyzeVolume(state: VolumeAnalysisInput): VolumeAnalysisResult {
+    const valueZones = this.mapStructuralAnchors(state);
+    
+    // UPGRADE 3: Detect liquidity sweeps EARLY (affects conviction throughout)
+    const liquiditySweep = this.detectLiquiditySweeps(state);
+    
     const result: VolumeAnalysisResult = {
       convictionScore: this.convictionCheck(state),
-      valueZones: this.mapStructuralAnchors(state),
+      valueZones: valueZones,
       smartMoneySignal: this.detectSmartMoney(state),
       breakoutValidity: this.validateBreakout(state),
-      climaxDetected: this.detectClimax(state),
+      climaxDetection: this.detectClimax(state),
       trueIntent: this.revealAggressionDelta(state),
       significantEvent: 'NONE',
       detectedPatterns: [],
@@ -260,6 +379,12 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
       stoppingVolumeDetected: false,
       testOfLevelDetected: false,
       volumeOscillator: 0,
+      deltaDivergence: 'NONE',
+      vpvrClusters: { clusteredHVNs: [], strongestCluster: 0 },
+      volumeGradient: 0,
+      eventSequences: [],
+      persistenceMetrics: { activePersistences: new Map(), completedPersistences: [], strongestActive: null },
+      liquiditySweep: liquiditySweep,
     };
 
     // Advanced VSA techniques
@@ -269,11 +394,79 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
     result.testOfLevelDetected = this.detectTestOfLevel(state);
     result.volumeOscillator = this.calculateVolumeOscillator(state);
 
-    // Determine if there's a meaningful event (priority order)
-    if (result.climaxDetected !== 'NONE') {
-      result.significantEvent = `CLIMAX_${result.climaxDetected}`;
-      result.detectedPatterns.push(result.climaxDetected);
-      result.reasoning.push(`Volume climax detected: ${result.climaxDetected} — high probability reversal`);
+    // === SMART MONEY FLOW INTEGRATION ===
+    result.deltaDivergence = this.detectDeltaDivergence(state);
+    result.vpvrClusters = this.analyzeVPVRClustering(result.valueZones.hvnLevels);
+    result.volumeGradient = this.calculateVolumeGradient(state);
+
+    // UPGRADE 1: Track event sequences
+    result.eventSequences = this.trackEventSequence(state, result);
+    
+    // UPGRADE 2: Track signal persistence
+    result.persistenceMetrics = this.trackSignalPersistence(state, result);
+    
+    // Apply persistence bonus to conviction
+    const persistenceBonus = this.getPersistenceBonus(result.persistenceMetrics);
+    result.convictionScore *= persistenceBonus;
+    
+    // Apply sweep penalty to conviction
+    const sweepAdjustment = this.getSweepAdjustment(liquiditySweep);
+    result.convictionScore *= sweepAdjustment;
+    
+    // Clamp conviction to 0-100
+    result.convictionScore = Math.max(0, Math.min(100, result.convictionScore));
+
+    // Boost / penalize based on smart money signals
+    if (result.deltaDivergence === 'DISTRIBUTION_TRAP') {
+      result.convictionScore -= 30;
+      result.significantEvent = 'DISTRIBUTION_TRAP';
+      result.reasoning.push('Smart money distributing into strength — trap detected');
+    } else if (result.deltaDivergence === 'ACCUMULATION_TRAP') {
+      result.convictionScore += 25;
+      result.significantEvent = 'ACCUMULATION_TRAP';
+      result.reasoning.push('Smart money accumulating at lows — high-conviction reversal');
+    }
+
+    // VPVR clustering bonus
+    if (result.vpvrClusters.strongestCluster >= 3) {
+      result.convictionScore += 15;
+      result.reasoning.push(`Strong VPVR cluster (${result.vpvrClusters.strongestCluster} HVNs) — institutional control`);
+    }
+
+    // Volume gradient bonus (steep = tight control)
+    if (result.volumeGradient > 8000) { // adjust per symbol liquidity
+      result.convictionScore += 10;
+    }
+
+    // Liquidity sweep warnings
+    if (liquiditySweep.type !== 'NONE') {
+      result.reasoning.push(`Liquidity sweep detected: ${liquiditySweep.type} (${liquiditySweep.trustScore.toFixed(0)}% confidence)`);
+      result.detectedPatterns.push(liquiditySweep.type);
+    }
+
+    // Sequence narrative boost
+    if (result.eventSequences.length > 0) {
+      const topSequence = result.eventSequences[0];
+      if (topSequence.completionScore > 75) {
+        result.convictionScore += 20;
+        result.reasoning.push(`Strong narrative: ${topSequence.narrative} (${topSequence.completionScore.toFixed(0)}% complete)`);
+      }
+    }
+
+    // Persistence strength messaging
+    if (result.persistenceMetrics.strongestActive && result.persistenceMetrics.strongestActive.consecutive >= 5) {
+      result.reasoning.push(`EXTENDED SIGNAL: ${result.persistenceMetrics.strongestActive.eventType} for ${result.persistenceMetrics.strongestActive.consecutive} candles`);
+    }
+
+    // Determine if there's a meaningful event (priority order with sequence awareness)
+    if (result.eventSequences.length > 0 && result.eventSequences[0].completionScore > 80) {
+      // Complete sequence is top priority
+      result.significantEvent = `SEQUENCE_${result.eventSequences[0].narrative.replace(/→/g, '_')}`;
+      result.detectedPatterns.push('SEQUENCE_MATCH');
+    } else if (result.climaxDetection.event !== 'NONE') {
+      result.significantEvent = `CLIMAX_${result.climaxDetection.event}_${result.climaxDetection.magnitude}`;
+      result.detectedPatterns.push(result.climaxDetection.event);
+      result.reasoning.push(`Volume climax detected: ${result.climaxDetection.event} (${result.climaxDetection.magnitude}, strength: ${result.climaxDetection.strength.toFixed(0)}) — high probability reversal`);
     } else if (result.stoppingVolumeDetected) {
       result.significantEvent = 'STOPPING_VOLUME';
       result.detectedPatterns.push('INSTITUTIONAL_BUY_SUPPORT');
@@ -306,11 +499,11 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
       result.significantEvent = 'ACCUMULATION';
       result.detectedPatterns.push('SMART_MONEY_ACCUMULATION');
       result.reasoning.push('Smart money accumulating at lows — strong setup for reversal');
-    } else if (result.convictionScore > 75 && result.trueIntent === 'BUYERS_DOMINANT') {
+    } else if (result.convictionScore > 75 && result.trueIntent === 'BUYERS_DOMINANT' && result.climaxDetection.event === 'NONE') {
       result.significantEvent = 'HIGH_CONVICTION_BUY';
       result.detectedPatterns.push('BUYER_DOMINANCE');
       result.reasoning.push(`High conviction buyers: effort vs result = ${result.convictionScore.toFixed(0)}`);
-    } else if (result.convictionScore > 75 && result.trueIntent === 'SELLERS_DOMINANT') {
+    } else if (result.convictionScore > 75 && result.trueIntent === 'SELLERS_DOMINANT' && result.climaxDetection.event === 'NONE') {
       result.significantEvent = 'HIGH_CONVICTION_SELL';
       result.detectedPatterns.push('SELLER_DOMINANCE');
       result.reasoning.push(`High conviction sellers: effort vs result = ${result.convictionScore.toFixed(0)}`);
@@ -497,15 +690,16 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
   }
 
   /**
-   * ABILITY 5: Climax Detection
+   * ABILITY 5: Climax Detection (ENHANCED WITH MAGNITUDE)
    * Identifies buying/selling climaxes (volume + price extremes = exhaustion)
+   * Now includes magnitude (MILD/STRONG/EXTREME) and strength score (0-300+ scale)
    * 
    * BUYING_CLIMAX: High at multi-period high + extreme volume
    * SELLING_CLIMAX: Low at multi-period low + extreme volume
+   * Strength = volumeRatio * 50 + wick rejection bonus
    */
-  private detectClimax(state: VolumeAnalysisInput): ClimaticEvent {
+  private detectClimax(state: VolumeAnalysisInput): ClimaticDetection {
     const volumeRatio = state.volume / state.avgVolume20;
-    const isExtremely = volumeRatio > 2.0; // 2x average is extreme
 
     // Check for multi-candle highs/lows
     let isHighestRecent = true;
@@ -521,17 +715,34 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
       isLowestRecent = state.low <= min * 1.01;
     }
 
-    // Buying climax: Highest + extreme volume
-    if (isHighestRecent && isExtremely && state.close > state.open) {
-      return 'BUYING_CLIMAX';
+    let event: ClimaticEvent = 'NONE';
+    let magnitude: ClimaticMagnitude = 'MILD';
+    let strength = 0;
+
+    // Buying climax: Highest + volume spike, close > open
+    if (isHighestRecent && state.close > state.open && volumeRatio > 2.0) {
+      event = 'BUYING_CLIMAX';
+      strength = volumeRatio * 50; // 100–300+ scale
+
+      // Add wick rejection bonus (upper wick = rejection, strong reversal signal)
+      const wickRatio = (state.high - state.close) / (state.high - state.low);
+      if (wickRatio > 0.6) strength += 30; // strong upper wick rejection
+    }
+    // Selling climax: Lowest + volume spike, close < open
+    else if (isLowestRecent && state.close < state.open && volumeRatio > 2.0) {
+      event = 'SELLING_CLIMAX';
+      strength = volumeRatio * 50;
+
+      // Add wick rejection bonus (lower wick = rejection)
+      const wickRatio = (state.close - state.low) / (state.high - state.low);
+      if (wickRatio > 0.6) strength += 30; // strong lower wick rejection
     }
 
-    // Selling climax: Lowest + extreme volume
-    if (isLowestRecent && isExtremely && state.close < state.open) {
-      return 'SELLING_CLIMAX';
-    }
+    // Classify magnitude
+    if (strength > 150) magnitude = 'EXTREME';
+    else if (strength > 100) magnitude = 'STRONG';
 
-    return 'NONE';
+    return { event, magnitude, strength };
   }
 
   /**
@@ -566,15 +777,82 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
   }
 
   /**
+   * SMART MONEY FLOW 1: Delta-Divergence Detection
+   * Price breaks a key level but cumulative delta / OBV does NOT confirm = distribution/accumulation trap
+   * Reveals institutional positioning divergence from price action
+   */
+  private detectDeltaDivergence(state: VolumeAnalysisInput): DeltaDivergenceSignal {
+    if (!state.cumulativeDelta || !state.deltaMa || !state.obv || !state.obvSignal) return 'NONE';
+
+    const deltaDivergence = state.cumulativeDelta - state.deltaMa;
+    const obvDivergence = state.obv - state.obvSignal;
+
+    // Price at resistance + negative divergence = smart money distributing into strength
+    if (state.priceNearHigh && (deltaDivergence < -50 || obvDivergence < 0)) {
+      return 'DISTRIBUTION_TRAP';
+    }
+    // Price at support + positive divergence = smart money accumulating at lows
+    if (state.priceNearLow && (deltaDivergence > 50 || obvDivergence > 0)) {
+      return 'ACCUMULATION_TRAP';
+    }
+    return 'NONE';
+  }
+
+  /**
+   * SMART MONEY FLOW 2: VPVR Clustering Analysis
+   * Groups nearby HVN levels — stacked HVNs = institutional control zone (stronger S/R)
+   * Multiple HVNs in tight price band indicate strong accumulation/distribution area
+   */
+  private analyzeVPVRClustering(hvnLevels: number[], tolerance: number = 0.008): VPVRClustering {
+    if (hvnLevels.length === 0) {
+      return { clusteredHVNs: [], strongestCluster: 0 };
+    }
+
+    const sorted = [...hvnLevels].sort((a, b) => a - b);
+    const clusters: number[][] = [];
+    let currentCluster: number[] = [sorted[0]];
+
+    for (let i = 1; i < sorted.length; i++) {
+      // Use percentage-based tolerance (0.8% of price level) to account for different price scales
+      if (sorted[i] - sorted[i - 1] <= tolerance * sorted[i]) {
+        currentCluster.push(sorted[i]);
+      } else {
+        clusters.push(currentCluster);
+        currentCluster = [sorted[i]];
+      }
+    }
+    clusters.push(currentCluster);
+
+    // Strongest cluster = most HVNs in one tight zone (indicates institutional control concentration)
+    const strongest = clusters.reduce((max, cluster) => cluster.length > max.length ? cluster : max, []);
+    return { clusteredHVNs: clusters, strongestCluster: strongest.length };
+  }
+
+  /**
+   * SMART MONEY FLOW 3: Volume Profile Gradient (dV/dP)
+   * Calculates volume per unit price move
+   * Steep gradient = tight institutional control (price can't easily pass through)
+   * Flat gradient = weak resistance (price can move through easily)
+   */
+  private calculateVolumeGradient(state: VolumeAnalysisInput): number {
+    if (!state.volumeProfile || !state.priceHistory) return 0;
+    const range = state.high - state.low || 1;
+    // Approximate dV/dP = total volume / price range
+    // Higher values indicate steeper volume profile (stronger S/R boundaries)
+    return state.volumeProfile.totalProfileVolume / range;
+  }
+
+  /**
    * Determine action (BUY/SELL/HOLD) based on analysis
    * Uses VSA patterns more aggressively for stronger signals
+   * Enhanced: Magnitude-aware climax detection
    */
   private determineAction(analysis: VolumeAnalysisResult): 'BUY' | 'SELL' | 'HOLD' {
-    // Climax reversals - highest conviction reversals
-    if (analysis.climaxDetected === 'SELLING_CLIMAX') {
+    // Climax reversals - highest conviction reversals (especially EXTREME magnitude)
+    if (analysis.climaxDetection.event === 'SELLING_CLIMAX') {
       return 'BUY';
     }
-    if (analysis.climaxDetected === 'BUYING_CLIMAX') {
+    if (analysis.climaxDetection.event === 'BUYING_CLIMAX') {
       return 'SELL';
     }
 
@@ -881,9 +1159,328 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
     };
   }
 
+  // ============================================================================
+  // UPGRADE 1: SEQUENCE ENGINE
+  // ============================================================================
+
+  /**
+   * Detect and track event sequences (temporal narratives)
+   * Example: CLIMAX → TEST → BREAK → CONFIRM = very high confidence setup
+   */
+  private trackEventSequence(state: VolumeAnalysisInput, analysis: VolumeAnalysisResult): EventSequence[] {
+    // Create current event node based on detected patterns
+    let currentEvent: SequenceEvent = 'NO_SUPPLY'; // Default
+    let eventStrength = 50;
+
+    if (analysis.climaxDetection.event !== 'NONE') {
+      currentEvent = 'CLIMAX';
+      eventStrength = Math.min(100, analysis.climaxDetection.strength / 3);
+    } else if (analysis.stoppingVolumeDetected) {
+      currentEvent = 'STOPPING_VOLUME';
+      eventStrength = 80;
+    } else if (analysis.noSupplyDetected) {
+      currentEvent = 'NO_SUPPLY';
+      eventStrength = 70;
+    } else if (analysis.noDemandDetected) {
+      currentEvent = 'NO_DEMAND';
+      eventStrength = 70;
+    } else if (analysis.testOfLevelDetected) {
+      currentEvent = 'TEST';
+      eventStrength = 65;
+    } else if (analysis.breakoutValidity === 'VALID') {
+      currentEvent = 'BREAK';
+      eventStrength = 75;
+    } else if (analysis.liquiditySweep.type !== 'NONE') {
+      currentEvent = 'SWEEP';
+      eventStrength = analysis.liquiditySweep.trustScore;
+    }
+
+    const node: SequenceNode = {
+      event: currentEvent,
+      timestamp: state.timestamp,
+      strength: eventStrength,
+      price: state.close,
+      volume: state.volume,
+    };
+
+    // Add to event history (keep last 50 for pattern matching)
+    this.eventHistory.push(node);
+    if (this.eventHistory.length > 50) {
+      this.eventHistory.shift();
+    }
+
+    // Check if we're continuing an existing sequence
+    const possibleSequences = this.matchEventSequences();
+    return possibleSequences;
+  }
+
+  /**
+   * Match current event history against known bullish/bearish sequences
+   */
+  private matchEventSequences(): EventSequence[] {
+    const allSequences = [...BULLISH_SEQUENCES, ...BEARISH_SEQUENCES];
+    const detectedSequences: EventSequence[] = [];
+
+    for (const targetSequence of allSequences) {
+      // Try to find this sequence in our event history (last 20 candles)
+      const recentEvents = this.eventHistory.slice(-Math.min(20, this.eventHistory.length));
+      const recentEventTypes = recentEvents.map(e => e.event);
+
+      let sequenceMatch = true;
+      let matchIndices: number[] = [];
+
+      // Look for subsequences (not necessarily consecutive)
+      let searchStart = 0;
+      for (const targetEvent of targetSequence) {
+        let found = false;
+        for (let i = searchStart; i < recentEventTypes.length; i++) {
+          if (recentEventTypes[i] === targetEvent) {
+            matchIndices.push(i);
+            searchStart = i + 1;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          sequenceMatch = false;
+          break;
+        }
+      }
+
+      if (sequenceMatch && matchIndices.length > 0) {
+        const completionScore = (matchIndices.length / targetSequence.length) * 100;
+        const nodes = matchIndices.map(idx => recentEvents[idx]);
+        
+        // Predict next event in sequence
+        const nextIndex = targetSequence.indexOf(nodes[nodes.length - 1].event) + 1;
+        const predictedNext = nextIndex < targetSequence.length ? targetSequence[nextIndex] : null;
+
+        // Build narrative
+        const narrative = nodes.map(n => `${n.event}@${n.price.toFixed(2)}`).join(' → ');
+
+        detectedSequences.push({
+          nodes,
+          completionScore,
+          predictedNext,
+          narrative,
+        });
+      }
+    }
+
+    // Keep track of most complete sequence
+    if (detectedSequences.length > 0) {
+      detectedSequences.sort((a, b) => b.completionScore - a.completionScore);
+      this.activeSequence = detectedSequences[0];
+      this.sequenceHistory.push(detectedSequences[0]);
+      if (this.sequenceHistory.length > 20) {
+        this.sequenceHistory.shift();
+      }
+    }
+
+    return detectedSequences;
+  }
+
+  // ============================================================================
+  // UPGRADE 2: PERSISTENCE TRACKER
+  // ============================================================================
+
+  /**
+   * Track persistence of signals
+   * 1 no-supply = weak, 5 consecutive no-supply = STRONG
+   * Returns enhanced conviction score based on duration + repetition
+   */
+  private trackSignalPersistence(state: VolumeAnalysisInput, analysis: VolumeAnalysisResult): PersistenceMetrics {
+    // Determine primary event type for this candle
+    let primaryEvent: SequenceEvent = 'BREAK'; // Fallback
+    if (analysis.noSupplyDetected) primaryEvent = 'NO_SUPPLY';
+    else if (analysis.noDemandDetected) primaryEvent = 'NO_DEMAND';
+    else if (analysis.stoppingVolumeDetected) primaryEvent = 'STOPPING_VOLUME';
+    else if (analysis.climaxDetection.event !== 'NONE') primaryEvent = 'CLIMAX';
+
+    // Update or create persistence record
+    if (this.persistenceMap.has(primaryEvent)) {
+      const persistence = this.persistenceMap.get(primaryEvent)!;
+      persistence.consecutive++;
+      persistence.duration = state.timestamp - persistence.startPrice; // Reusing field, actually duration in ms
+      persistence.currentPrice = state.close;
+      persistence.strength = (persistence.strength * (persistence.consecutive - 1) + analysis.convictionScore) / persistence.consecutive;
+      persistence.weakening = analysis.convictionScore < 40;
+    } else {
+      this.persistenceMap.set(primaryEvent, {
+        eventType: primaryEvent,
+        consecutive: 1,
+        duration: 0,
+        startPrice: state.close,
+        currentPrice: state.close,
+        strength: analysis.convictionScore,
+        weakening: false,
+      });
+    }
+
+    // Clear other events (they're not persisting)
+    const otherEvents: SequenceEvent[] = ['CLIMAX', 'TEST', 'BREAK', 'ABSORPTION', 'NO_SUPPLY', 'NO_DEMAND', 'STOPPING_VOLUME', 'SWEEP'];
+    for (const event of otherEvents) {
+      if (event !== primaryEvent && this.persistenceMap.has(event)) {
+        const persistence = this.persistenceMap.get(event)!;
+        if (persistence.consecutive > 1) {
+          // Save to completed list before clearing
+        }
+        this.persistenceMap.delete(event);
+      }
+    }
+
+    // Find strongest active persistence
+    let strongestActive: SignalPersistence | null = null;
+    let maxScore = 0;
+    for (const persistence of this.persistenceMap.values()) {
+      const score = persistence.consecutive * persistence.strength; // persistence * strength combo
+      if (score > maxScore) {
+        maxScore = score;
+        strongestActive = persistence;
+      }
+    }
+
+    const metrics: PersistenceMetrics = {
+      activePersistences: new Map(this.persistenceMap),
+      completedPersistences: [],
+      strongestActive,
+    };
+
+    return metrics;
+  }
+
+  /**
+   * Get persistence bonus for conviction calculation
+   * 5+ consecutive signal = +25% conviction bonus
+   */
+  private getPersistenceBonus(metrics: PersistenceMetrics): number {
+    if (!metrics.strongestActive) return 1.0;
+
+    const { consecutive, strength } = metrics.strongestActive;
+    
+    if (consecutive >= 5) return 1.25; // +25% conviction
+    if (consecutive >= 3) return 1.15; // +15% conviction
+    if (consecutive >= 2) return 1.08; // +8% conviction
+    
+    return 1.0;
+  }
+
+  // ============================================================================
+  // UPGRADE 3: LIQUIDITY SWEEP DETECTION
+  // ============================================================================
+
+  /**
+   * Detect liquidity sweeps (stop hunts, engineered wicks)
+   * If high > previousHigh && close < previousHigh → sweep up
+   * If low < previousLow && close > previousLow → sweep down
+   */
+  private detectLiquiditySweeps(state: VolumeAnalysisInput): LiquiditySweepSignal {
+    const sweep: LiquiditySweepSignal = {
+      type: 'NONE',
+      sweepPrice: 0,
+      closePrice: state.close,
+      engineeredVolume: state.volume,
+      percentageAboveClose: 0,
+      reverseCandles: 0,
+      trustScore: 0,
+      institutionalFootprint: false,
+    };
+
+    // Only detect if we have previous data
+    if (this.previousHigh === 0 || this.previousLow === 0) {
+      this.previousHigh = state.high;
+      this.previousLow = state.low;
+      this.previousClose = state.close;
+      return sweep;
+    }
+
+    const volumeRatio = state.volume / state.avgVolume20;
+    const isExcessiveVolume = volumeRatio > 1.8; // 80%+ above average = institutional
+
+    // STOP HUNT UP: Goes above previous high, closes below previous high
+    // This is a classic stop hunt = buyers trapped, then price drops
+    if (state.high > this.previousHigh && state.close < this.previousHigh && state.close > state.open) {
+      sweep.type = 'STOP_HUNT_UP';
+      sweep.sweepPrice = state.high;
+      sweep.percentageAboveClose = ((state.high - state.close) / state.close) * 100;
+      sweep.reverseCandles = 1;
+      
+      // Trust score higher if high volume (engineered) + good reversal
+      sweep.trustScore = 60 + (isExcessiveVolume ? 25 : 0) + Math.min(15, sweep.percentageAboveClose * 2);
+      sweep.institutionalFootprint = isExcessiveVolume;
+    }
+
+    // STOP HUNT DOWN: Goes below previous low, closes above previous low
+    // Classic reverse stop hunt = sellers stopped out
+    else if (state.low < this.previousLow && state.close > this.previousLow && state.close < state.open) {
+      sweep.type = 'STOP_HUNT_DOWN';
+      sweep.sweepPrice = state.low;
+      sweep.percentageAboveClose = ((state.close - state.low) / state.close) * 100;
+      sweep.reverseCandles = 1;
+      
+      sweep.trustScore = 60 + (isExcessiveVolume ? 25 : 0) + Math.min(15, sweep.percentageAboveClose * 2);
+      sweep.institutionalFootprint = isExcessiveVolume;
+    }
+
+    // FAILED BREAKOUT UP: Closes below previous close after going above it
+    // Suggests breakout was rejected
+    else if (state.high > this.previousHigh && state.close < this.previousClose && state.close > this.previousLow) {
+      sweep.type = 'FAILED_BREAKOUT_UP';
+      sweep.sweepPrice = state.high;
+      sweep.percentageAboveClose = ((state.high - state.close) / state.close) * 100;
+      sweep.trustScore = 50 + (isExcessiveVolume ? 20 : 0);
+      sweep.institutionalFootprint = isExcessiveVolume;
+    }
+
+    // FAILED BREAKOUT DOWN: Closes above previous close after going below it
+    else if (state.low < this.previousLow && state.close > this.previousClose && state.close < this.previousHigh) {
+      sweep.type = 'FAILED_BREAKOUT_DOWN';
+      sweep.sweepPrice = state.low;
+      sweep.percentageAboveClose = ((state.close - state.low) / state.close) * 100;
+      sweep.trustScore = 50 + (isExcessiveVolume ? 20 : 0);
+      sweep.institutionalFootprint = isExcessiveVolume;
+    }
+
+    // Store sweep history (keep last 10)
+    if (sweep.type !== 'NONE') {
+      this.sweepHistory.push(sweep);
+      if (this.sweepHistory.length > 10) {
+        this.sweepHistory.shift();
+      }
+    }
+
+    // Update previous values for next candle
+    this.previousHigh = state.high;
+    this.previousLow = state.low;
+    this.previousClose = state.close;
+
+    return sweep;
+  }
+
+  /**
+   * Get sweep penalty/boost for conviction
+   * STOP_HUNT detected = reduce conviction (trap alert)
+   * FAILED_BREAKOUT = reduce conviction
+   */
+  private getSweepAdjustment(sweep: LiquiditySweepSignal): number {
+    if (sweep.type === 'NONE') return 1.0;
+    
+    // Stop hunts are dangerous = reduce confidence
+    if (sweep.type === 'STOP_HUNT_UP' || sweep.type === 'STOP_HUNT_DOWN') {
+      return 0.7; // -30% conviction penalty
+    }
+    
+    // Failed breakouts = reduce confidence
+    if (sweep.type === 'FAILED_BREAKOUT_UP' || sweep.type === 'FAILED_BREAKOUT_DOWN') {
+      return 0.8; // -20% conviction penalty
+    }
+    
+    return 1.0;
+  }
+
   /**
    * Calculate confidence based on analysis strength
-   * Includes pattern win rate learning and VSA signal confidence
+   * Includes pattern win rate learning, VSA signal confidence, and temporal factors
    */
   private calculateConfidence(analysis: VolumeAnalysisResult): number {
     let confidence = this.baseConfidence;
@@ -892,7 +1489,7 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
     confidence += (analysis.convictionScore / 100) * 0.15;
 
     // Climax is very high confidence (historical win rate)
-    if (analysis.climaxDetected !== 'NONE') {
+    if (analysis.climaxDetection.event !== 'NONE') {
       const climaxWinRate = this.getPatternWinRate('CLIMAX');
       confidence += 0.15 * climaxWinRate;
     }
@@ -933,6 +1530,38 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
     if (analysis.smartMoneySignal !== 'NEUTRAL') {
       const smartMoneyWinRate = this.getPatternWinRate('SMART_MONEY');
       confidence += 0.10 * smartMoneyWinRate;
+    }
+
+    // ========== UPGRADE 1: Sequence Confidence Boost ==========
+    if (analysis.eventSequences.length > 0) {
+      const topSequence = analysis.eventSequences[0];
+      // Strong sequence completion (>80%) = +15% confidence
+      if (topSequence.completionScore > 80) {
+        confidence += 0.15;
+      } else if (topSequence.completionScore > 60) {
+        confidence += 0.08;
+      }
+    }
+
+    // ========== UPGRADE 2: Persistence Confidence Boost ==========
+    if (analysis.persistenceMetrics.strongestActive) {
+      const { consecutive, strength } = analysis.persistenceMetrics.strongestActive;
+      // Extended signals (5+ candles) = +20% confidence
+      if (consecutive >= 5) {
+        confidence += 0.20;
+      } else if (consecutive >= 3) {
+        confidence += 0.12;
+      }
+    }
+
+    // ========== UPGRADE 3: Liquidity Sweep Penalty ==========
+    if (analysis.liquiditySweep.type !== 'NONE') {
+      // Stop hunts are dangerous
+      if (analysis.liquiditySweep.type.includes('STOP_HUNT')) {
+        confidence -= 0.25; // -25% confidence penalty
+      } else if (analysis.liquiditySweep.type.includes('FAILED_BREAKOUT')) {
+        confidence -= 0.15; // -15% confidence penalty
+      }
     }
 
     // Personality adjustment: Conservative gets lower base, Aggressive gets lower but wider range
@@ -977,13 +1606,38 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
 
   /**
    * Priority for consensus voting (1-10, higher = higher priority)
-   * Accounts for pattern win rates and regime state
+   * Accounts for pattern win rates, regime state, climax magnitude, sequences, and persistence
    */
   private getPriority(analysis: VolumeAnalysisResult): number {
-    // Climax detections are top priority
-    if (analysis.climaxDetected !== 'NONE') {
+    // ========== UPGRADE 1: Sequence Priority ==========
+    // Complete sequences get top priority (>80% complete)
+    if (analysis.eventSequences.length > 0 && analysis.eventSequences[0].completionScore > 80) {
+      return 10; // Maximum priority for complete narratives
+    }
+
+    // Climax detections are top priority (scaled by magnitude and strength)
+    if (analysis.climaxDetection.event !== 'NONE') {
       const winRate = this.getPatternWinRate('CLIMAX');
-      return winRate > 0.6 ? 10 : 8; // Scale down if poor historical performance
+      let basePriority = 8; // Default for MILD
+      
+      if (analysis.climaxDetection.magnitude === 'EXTREME') {
+        basePriority = 10; // Maximum priority for extreme magnitude
+      } else if (analysis.climaxDetection.magnitude === 'STRONG') {
+        basePriority = 9; // High priority for strong magnitude
+      }
+      
+      // Adjust by historical win rate
+      return winRate > 0.6 ? basePriority : basePriority - 2;
+    }
+
+    // ========== UPGRADE 2: Persistence Priority ==========
+    // Extended signals (5+ candles) get priority boost
+    if (analysis.persistenceMetrics.strongestActive && analysis.persistenceMetrics.strongestActive.consecutive >= 5) {
+      return 9; // Near-maximum priority for proven extended signals
+    }
+    if (analysis.persistenceMetrics.strongestActive && analysis.persistenceMetrics.strongestActive.consecutive >= 3) {
+      const baseScore = this.getPriority(analysis); // Recursive to get underlying priority
+      return Math.min(10, baseScore + 2); // +2 boost for multiple signals
     }
 
     // Stopping volume (institutional) is very high priority
@@ -997,6 +1651,16 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
       const signalType = analysis.noSupplyDetected ? 'NO_SUPPLY' : 'NO_DEMAND';
       const winRate = this.getPatternWinRate(signalType);
       return winRate > 0.6 ? 8 : 6;
+    }
+
+    // ========== UPGRADE 3: Liquidity Sweep Priority Reduction ==========
+    // Stop hunts are red flags = reduce priority
+    if (analysis.liquiditySweep.type !== 'NONE') {
+      if (analysis.liquiditySweep.type.includes('STOP_HUNT')) {
+        return 2; // Very low priority (potential trap)
+      } else if (analysis.liquiditySweep.type.includes('FAILED_BREAKOUT')) {
+        return 3; // Low priority
+      }
     }
 
     // Validated breakouts are high priority (adjusted by skill + regime)
@@ -1035,7 +1699,7 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
   }
 
   /**
-   * Utility: Format analysis for readable output (includes debug zones)
+   * Utility: Format analysis for readable output (includes debug zones, smart money signals, and temporal data)
    */
   formatAnalysis(): string {
     if (!this.lastAnalysis) return 'No analysis available';
@@ -1047,28 +1711,62 @@ export class VolumeMechanicalVerifierAgent extends TradingAgent {
       analysis.stoppingVolumeDetected ? '✓ Stopping Volume' : '',
       analysis.testOfLevelDetected ? '✓ Test of Level' : '',
     ].filter(x => x).join(' | ');
+    
+    const smartMoney = [
+      analysis.deltaDivergence !== 'NONE' ? `${analysis.deltaDivergence}` : '',
+      analysis.vpvrClusters.strongestCluster >= 3 ? `VPVR Cluster: ${analysis.vpvrClusters.strongestCluster}` : '',
+    ].filter(x => x).join(' | ');
 
     const pocStr = analysis.valueZones.poc.toFixed(2);
     const hvnStr = analysis.valueZones.hvnLevels.map((x: number) => x.toFixed(2)).join(', ');
     const lvnStr = analysis.valueZones.lvnLevels.map((x: number) => x.toFixed(2)).join(', ');
+
+    // ========== UPGRADE 1: Sequence Display ==========
+    const sequenceInfo = analysis.eventSequences.length > 0
+      ? analysis.eventSequences.map(seq => 
+          `Narrative: ${seq.narrative} (${seq.completionScore.toFixed(0)}% complete, expects: ${seq.predictedNext || 'COMPLETION'})`
+        ).join('\n  ')
+      : 'None';
+
+    // ========== UPGRADE 2: Persistence Display ==========
+    const persistenceInfo = analysis.persistenceMetrics.strongestActive
+      ? `${analysis.persistenceMetrics.strongestActive.eventType} × ${analysis.persistenceMetrics.strongestActive.consecutive} candles (strength: ${analysis.persistenceMetrics.strongestActive.strength.toFixed(0)}/100)`
+      : 'None';
+
+    // ========== UPGRADE 3: Liquidity Sweep Display ==========
+    const sweepInfo = analysis.liquiditySweep.type !== 'NONE'
+      ? `${analysis.liquiditySweep.type} (${analysis.liquiditySweep.trustScore.toFixed(0)}% confidence, ${analysis.liquiditySweep.percentageAboveClose.toFixed(2)}% wick)`
+      : 'None';
 
     return `
 Volume Analysis:
   Event: ${analysis.significantEvent}
   Conviction: ${analysis.convictionScore.toFixed(0)}/100
   Volume Oscillator: ${analysis.volumeOscillator.toFixed(1)}
-  Smart Money: ${analysis.smartMoneySignal}
+  Smart Money Signal: ${analysis.smartMoneySignal}
+  Smart Money Flow: ${smartMoney || 'None'}
   Breakout: ${analysis.breakoutValidity}
-  Climax: ${analysis.climaxDetected}
+  Climax: ${analysis.climaxDetection.event} (${analysis.climaxDetection.magnitude}, strength: ${analysis.climaxDetection.strength.toFixed(0)})
   Intent: ${analysis.trueIntent}
   VSA Signals: ${vsa || 'None'}
   Patterns: ${analysis.detectedPatterns.join(', ')}
+  Volume Gradient: ${analysis.volumeGradient.toFixed(0)} (dV/dP)
+  
+  ⏳ TEMPORAL ANALYSIS:
+  Active Persistence: ${persistenceInfo}
+  
+  🧬 EVENT SEQUENCES:
+  ${sequenceInfo}
+  
+  ⚡ LIQUIDITY SWEEPS:
+  ${sweepInfo}
   
   Value Zones (Volume Profile):
     POC: ${pocStr}
     HVN Levels: ${hvnStr || 'None'}
     LVN Levels: ${lvnStr || 'None'}
     Control: ${analysis.valueZones.controlLevel}
+    VPVR Clustering: ${analysis.vpvrClusters.clusteredHVNs.length} clusters (strongest: ${analysis.vpvrClusters.strongestCluster} HVNs)
   
   Thresholds (Personality: ${this.personality}, Regime: ${this.regimeMode}):
     Min Conviction: ${this.minConvictionThreshold}
@@ -1081,6 +1779,99 @@ Volume Analysis:
   
   Reasoning: ${analysis.reasoning.join('; ')}
     `.trim();
+  }
+
+  /**
+   * VOLUME VETO POWER: Validates other agents' signals against volume patterns
+   * Returns a multiplier (0.0-1.0) indicating whether to accept/reject signal
+   * Now includes temporal and liquidity factors
+   * <0.3 triggers hard veto (changed to HOLD)
+   */
+  validateOtherSignal(signal: any, marketData: any): number {
+    if (!signal || !signal.action || signal.action === 'HOLD') return 1.0;
+
+    // No analysis = default acceptance, allow other agents to trade
+    if (!this.lastAnalysis) return 1.0;
+
+    const analysis = this.lastAnalysis;
+    let multiplier = 1.0;
+
+    // ========== UPGRADE 3: Liquidity Sweep Veto ==========
+    // Stop hunts detected = hard veto (potential trap)
+    if (analysis.liquiditySweep.type === 'STOP_HUNT_UP' && signal.action === 'BUY') {
+      multiplier *= 0.2; // 80% reduction - this is a buyers' trap
+    } else if (analysis.liquiditySweep.type === 'STOP_HUNT_DOWN' && signal.action === 'SELL') {
+      multiplier *= 0.2; // 80% reduction - this is a sellers' trap
+    } else if (analysis.liquiditySweep.type !== 'NONE') {
+      multiplier *= 0.5; // 50% reduction for failed breakouts + other sweeps
+    }
+
+    // Reduce confidence if we've detected a fakeout trap
+    if (analysis.breakoutValidity === 'FAKEOUT') {
+      multiplier *= 0.2; // 80% reduction
+    }
+
+    // Reduce confidence on distribution traps (smart money exiting)
+    if (analysis.deltaDivergence === 'DISTRIBUTION_TRAP') {
+      multiplier *= 0.25; // 75% reduction
+    }
+
+    // Allow signals strongly aligned with high conviction volume patterns
+    if (analysis.climaxDetection.event !== 'NONE' && analysis.climaxDetection.magnitude === 'EXTREME') {
+      // If climax matches signal direction, boost it
+      if ((analysis.climaxDetection.event === 'SELLING_CLIMAX' && signal.action === 'BUY') ||
+          (analysis.climaxDetection.event === 'BUYING_CLIMAX' && signal.action === 'SELL')) {
+        multiplier *= 1.4; // 40% boost for confirmed reversals
+      } else {
+        multiplier *= 0.4; // 60% reduction for counter-climax signals
+      }
+    }
+
+    // VSA patterns provide strong conviction
+    if (analysis.noSupplyDetected && signal.action === 'BUY') {
+      multiplier *= 1.3; // 30% boost
+    } else if (analysis.noDemandDetected && signal.action === 'SELL') {
+      multiplier *= 1.3; // 30% boost
+    }
+
+    // High conviction score overall = stronger validation
+    if (analysis.convictionScore > 80) {
+      multiplier *= 1.2; // 20% boost if effort vs result is excellent
+    } else if (analysis.convictionScore < 40) {
+      multiplier *= 0.6; // 40% reduction if conviction is low
+    }
+
+    // ========== UPGRADE 1: Sequence Alignment Boost ==========
+    // If we have a strong sequence that matches the signal direction, boost it
+    if (analysis.eventSequences.length > 0 && analysis.eventSequences[0].completionScore > 80) {
+      const sequence = analysis.eventSequences[0];
+      // Check if predicted next matches signal direction
+      if (sequence.predictedNext === 'BREAK' && signal.action === 'BUY') {
+        multiplier *= 1.35; // 35% boost for sequence-predicted breakout
+      } else if (sequence.predictedNext === 'BREAK' && signal.action === 'SELL') {
+        multiplier *= 1.35;
+      }
+    }
+
+    // ========== UPGRADE 2: Persistence Strength Boost ==========
+    // Extended signals (5+ candles) provide strong conviction
+    if (analysis.persistenceMetrics.strongestActive && analysis.persistenceMetrics.strongestActive.consecutive >= 5) {
+      multiplier *= 1.3; // 30% boost for proven extended signals
+    } else if (analysis.persistenceMetrics.strongestActive && analysis.persistenceMetrics.strongestActive.consecutive >= 3) {
+      multiplier *= 1.15; // 15% boost for moderate persistence
+    }
+
+    // VPVR clustering = institutional control (use as strong filter)
+    if (analysis.vpvrClusters.strongestCluster >= 3) {
+      // Strong cluster present = price likely to respect it
+      if ((signal.action === 'BUY' && analysis.valueZones.controlLevel === 'SUPPORT') ||
+          (signal.action === 'SELL' && analysis.valueZones.controlLevel === 'RESISTANCE')) {
+        multiplier *= 1.25; // 25% boost for directional alignment
+      }
+    }
+
+    // Clamp to 0-1 range
+    return Math.max(0, Math.min(1.0, multiplier));
   }
 }
 

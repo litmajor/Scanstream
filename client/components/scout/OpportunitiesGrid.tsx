@@ -52,7 +52,7 @@ export const OpportunitiesGrid: React.FC<OpportunitiesGridProps> = ({
         sorted.sort((a, b) => b.qualityScore - a.qualityScore);
         break;
       case 'duration':
-        const typeOrder = { SCALP: 0, DAY: 1, SWING: 2 };
+        const typeOrder: Record<TradeType, number> = { SCALP: 0, DAY: 1, SWING: 2, POSITION: 3 };
         sorted.sort((a, b) => typeOrder[a.type] - typeOrder[b.type]);
         break;
     }
@@ -136,7 +136,7 @@ export const OpportunitiesGrid: React.FC<OpportunitiesGridProps> = ({
             <div className="mb-3">
               <p className="text-xs text-gray-600 font-medium mb-1">ENTRY ZONE</p>
               <p className="text-lg font-bold text-gray-800">
-                {opp.entryPrice.min.toFixed(2)} - {opp.entryPrice.max.toFixed(2)}
+                {opp.entryZone.low.toFixed(2)} - {opp.entryZone.high.toFixed(2)}
               </p>
             </div>
 
@@ -147,7 +147,7 @@ export const OpportunitiesGrid: React.FC<OpportunitiesGridProps> = ({
                 {opp.targets.map((target, idx) => (
                   <div key={idx} className="flex justify-between text-sm">
                     <span className="text-gray-700">T{idx + 1}:</span>
-                    <span className="font-semibold text-green-600">{target.toFixed(2)}</span>
+                    <span className="font-semibold text-green-600">{target.level.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -155,7 +155,7 @@ export const OpportunitiesGrid: React.FC<OpportunitiesGridProps> = ({
 
             {/* Risk/Reward - Prominent */}
             <div className="mb-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
-              <RiskRewardLabel risk={opp.stopLoss} reward={opp.targets[0] || 0} size="md" />
+              <RiskRewardLabel risk={opp.stopLoss.price} reward={opp.targets[0]?.level || 0} size="md" />
             </div>
 
             {/* Confidence Bar */}
@@ -177,16 +177,11 @@ export const OpportunitiesGrid: React.FC<OpportunitiesGridProps> = ({
             <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-600 font-medium mb-2">SOURCES</p>
               <div className="flex gap-2">
-                {opp.sources?.map((source, idx) => (
-                  <SourceIcon key={idx} source={source} size="sm" showLabel={false} />
+                {opp.supportingSources?.map((source, idx) => (
+                  <SourceIcon key={idx} source={source.source} size="sm" showLabel={false} />
                 ))}
               </div>
             </div>
-
-            {/* Description */}
-            {opp.description && (
-              <p className="mt-3 text-xs text-gray-600 line-clamp-2">{opp.description}</p>
-            )}
 
             {/* Details Button */}
             {onSelectOpportunity && (

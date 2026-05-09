@@ -103,7 +103,7 @@ export class RateLimiter {
       if (bucket.tokens >= 1) {
         bucket.tokens -= 1;
         this.queue.shift();
-        request.resolve();
+        request.resolve(undefined);
       } else {
         // Wait for next refill
         await this.sleep(100);

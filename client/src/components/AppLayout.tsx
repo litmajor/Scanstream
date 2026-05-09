@@ -60,7 +60,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const hasRole = (roles?: string[]) => {
     if (!roles || roles.length === 0) return true
     if (!user) return false
-    return roles.includes((user.role || '').toString())
+    return roles.includes(((user as any).role || '').toString())
   }
 
   const filteredNav = useMemo(() => {
@@ -78,7 +78,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const mainItems = filteredNav.filter(item => item.section === 'main')
   const tradingItems = filteredNav.filter(item => item.section === 'trading')
-  const advancedItems = filteredNav.filter(item => item.section === 'advanced')
+  const advancedItems = filteredNav.filter(item => (item.section as any) === 'advanced')
   const analysisItems = filteredNav.filter(item => item.section === 'analysis')
   const portfolioItems = filteredNav.filter(item => item.section === 'portfolio')
   const toolsItems = filteredNav.filter(item => item.section === 'tools')

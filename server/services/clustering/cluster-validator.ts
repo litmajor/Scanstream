@@ -4,6 +4,8 @@
  * Converts raw clustering metrics into entry quality signals
  * Implements entry quality scoring formula with confidence levels
  * 
+ * ✅ Now uses RL-adaptive thresholds instead of hardcoded values
+ * 
  * Formula:
  * final_quality = base_quality × 
  *   (0.4 × trend_formation_strength +
@@ -11,6 +13,9 @@
  *    0.2 × candle_consistency +
  *    0.1 × momentum_follow_through)
  */
+
+import { getAdaptiveClusterThreshold, validateClusterGate } from '../../rl-system-integration';
+import { MarketFrame } from '@shared/schema';
 
 export interface ClusterMetrics {
   trend_formation_signal: boolean;
@@ -71,9 +76,32 @@ const DEFAULT_CONFIG: ClusterValidationConfig = {
 
 export class ClusterValidator {
   private config: ClusterValidationConfig;
+  private frames: MarketFrame[] = [];
+  private rlThreshold: any = null;
 
   constructor(config?: Partial<ClusterValidationConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Set market frames for RL adaptive threshold calculation
+   * Call this before validateEntry to enable RL-adaptive thresholds
+   */
+  setMarketContext(
+    frames: MarketFrame[],
+    mlConfidence: number = 0.5,
+    regime: string = 'NEUTRAL',
+    drawdown: number = 0
+  ): void {
+    this.frames = frames;
+    
+    try {
+      // Get RL-adaptive thresholds
+      this.rlThreshold = getAdaptiveClusterThreshold(frames, mlConfidence, regime, drawdown);
+    } catch (error) {
+      console.warn('[ClusterValidator] RL threshold calculation failed, using defaults');
+      this.rlThreshold = null;
+    }
   }
 
   /**
@@ -86,6 +114,45 @@ export class ClusterValidator {
   ): ClusterEnhancedEntry {
     // Validate inputs
     baseSignalQuality = Math.max(0, Math.min(1, baseSignalQuality));
+
+    // ─────────────────────────────────────────────────────────────────────
+    // NEW: Check RL-adaptive cluster gate if thresholds are available
+    // ─────────────────────────────────────────────────────────────────────
+    if (this.rlThreshold && this.rlThreshold.isRLControlled) {
+      const passesRLGate = validateClusterGate(
+        {
+          cluster_strength: clusterMetrics.cluster_strength,
+          follow_through: clusterMetrics.follow_through,
+          directional_ratio: clusterMetrics.directional_ratio
+        },
+        this.rlThreshold
+      );
+      
+      if (!passesRLGate) {
+        // RL gate rejected this signal
+        // Return very low quality (skip signal)
+        const rejectedEntry: ClusterEnhancedEntry = {
+          base_signal_quality: baseSignalQuality,
+          cluster_validation: {
+            trend_forming: clusterMetrics.trend_formation_signal,
+            formation_strength: clusterMetrics.trend_formation_signal ? 1.0 : 0.3,
+            candle_consistency: clusterMetrics.directional_ratio,
+            momentum_follow_through: clusterMetrics.follow_through
+          },
+          final_entry_quality: 0.25, // Below minimum
+          confidence_level: 'low',
+          entry_recommendation: 'skip',
+          size_multiplier: 0.0,
+          reasoning: [
+            `[RL-GATE] Signal rejected by adaptive cluster thresholds`,
+            `Cluster strength: ${(clusterMetrics.cluster_strength * 100).toFixed(0)}% < ${(this.rlThreshold.minClusterStrength * 100).toFixed(0)}% required`,
+            `Follow-through: ${(clusterMetrics.follow_through * 100).toFixed(0)}% < ${(this.rlThreshold.minFollowThrough * 100).toFixed(0)}% required`,
+            `Directional ratio: ${(clusterMetrics.directional_ratio * 100).toFixed(0)}% < ${(this.rlThreshold.minDirectionalRatio * 100).toFixed(0)}% required`
+          ]
+        };
+        return rejectedEntry;
+      }
+    }
 
     // Build cluster validation scores
     const trend_strength = clusterMetrics.trend_formation_signal ? 1.0 : 0.3;

@@ -179,29 +179,37 @@ export async function getUser(userId: string) {
 }
 
 export async function getUserPreferences(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  let preferences = await prisma.userPreference.findUnique({
+    where: { userId },
   });
 
-  if (!user) {
-    throw new Error('User not found');
+  if (!preferences) {
+    // Create default preferences if none exist
+    preferences = await prisma.userPreference.create({
+      data: {
+        userId,
+        theme: 'dark',
+        defaultTimeframe: '1h',
+        defaultExchange: 'binance',
+      },
+    });
   }
 
-  // Return default preferences if none exist
+  // Return as object
   return {
-    theme: 'dark',
-    defaultTimeframe: '1h',
-    defaultExchange: 'binance',
-    notificationsEnabled: true,
-    emailAlerts: false,
-    priceAlerts: true,
-    signalAlerts: true,
-    soundEnabled: true,
-    ...(user.preferences as object || {}),
+    theme: preferences.theme,
+    defaultTimeframe: preferences.defaultTimeframe,
+    defaultExchange: preferences.defaultExchange,
+    notificationsEnabled: preferences.notificationsEnabled,
+    emailAlerts: preferences.emailAlerts,
+    priceAlerts: preferences.priceAlerts,
+    signalAlerts: preferences.signalAlerts,
+    soundEnabled: preferences.soundEnabled,
   };
 }
 
 export async function updateUserPreferences(userId: string, preferences: any) {
+  // Check if user exists
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -210,14 +218,14 @@ export async function updateUserPreferences(userId: string, preferences: any) {
     throw new Error('User not found');
   }
 
-  const updatedPreferences = {
-    ...(user.preferences as object || {}),
-    ...preferences,
-  };
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { preferences: updatedPreferences },
+  // Update or create UserPreference
+  const updatedPreferences = await prisma.userPreference.upsert({
+    where: { userId },
+    update: preferences,
+    create: {
+      userId,
+      ...preferences,
+    },
   });
 
   return updatedPreferences;

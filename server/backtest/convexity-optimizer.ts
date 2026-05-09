@@ -24,6 +24,9 @@ export interface OptimizationConfig {
   convexMaxHoldingBars: number;
   forConfidenceThreshold: number;
   signalGenerationInterval: number;
+  agreementMinCoherence: number;
+  agreementMaxTI: number;
+  agreementMinPEG: number;
   losingStreakBreaker?: boolean;  // Enable anti-streak logic
 }
 

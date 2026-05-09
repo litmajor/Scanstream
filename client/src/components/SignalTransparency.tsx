@@ -179,7 +179,7 @@ const SignalTransparency: React.FC<SignalTransparencyProps> = ({ signal }) => {
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, value }) => `${name}: ${value.toFixed(0)}`}
+              label={({ name, value }: any) => `${name}: ${(value || 0).toFixed(0)}`}
               outerRadius={60}
               fill="#8884d8"
               dataKey="value"

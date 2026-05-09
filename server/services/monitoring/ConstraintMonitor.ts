@@ -110,7 +110,8 @@ export class ConstraintMonitor {
     );
 
     // Signal evaluation
-    const pegSignal = metrics.peg > 300;
+    // Feb 2025: PEG threshold recalibrated from raw scale (300) to normalized (0.09)
+    const pegSignal = metrics.peg > 0.09;
     const triggerSignal = triggerState.trigger > 0.5;
     const masterSignal = pegSignal && triggerSignal;
     const signalStrength = this.evaluateSignalStrength(
@@ -153,7 +154,7 @@ export class ConstraintMonitor {
       // TRIGGER
       trigger: triggerState.trigger,
       trigger_status: triggerState.constraint_status,
-      trigger_components: triggerState.components,
+      trigger_components: triggerState.components as any,
       trigger_dominant_mode: triggerDominantMode,
       trigger_signal: triggerSignal,
 
@@ -199,13 +200,13 @@ export class ConstraintMonitor {
    */
   private getDominantFailureMode(components: {
     liquidity: number;
-    structural: number;
+    structure: number;
     temporal: number;
     fatigue: number;
   }): string {
     const modes = [
       { name: 'Liquidity', score: components.liquidity },
-      { name: 'Structural', score: components.structural },
+      { name: 'Structural', score: components.structure },
       { name: 'Temporal', score: components.temporal },
       { name: 'Fatigue', score: components.fatigue },
     ];

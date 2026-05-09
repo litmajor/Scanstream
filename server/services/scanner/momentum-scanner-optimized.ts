@@ -89,7 +89,7 @@ export class OptimizedMomentumScanner {
     }
 
     if (enabledIndicators.includes('rsi') && !('rsi' in computedIndicators)) {
-      const result = indicators.rsi(closes);
+      const result = indicators.rsi(closes, 14);
       computedIndicators.rsi = result;
       diagnostics.computedIndicators.push('rsi');
       this.cache.set(symbol, timeframe, 'rsi', result);
@@ -113,14 +113,14 @@ export class OptimizedMomentumScanner {
     // ========== OPTIONAL LIGHTWEIGHT INDICATORS ==========
 
     if (enabledIndicators.includes('ema') && !('ema' in computedIndicators)) {
-      const result = indicators.ema(closes);
+      const result = indicators.ema(closes, 12);
       computedIndicators.ema = result;
       diagnostics.computedIndicators.push('ema');
       this.cache.set(symbol, timeframe, 'ema', result);
     }
 
     if (enabledIndicators.includes('sma') && !('sma' in computedIndicators)) {
-      const result = indicators.sma(closes);
+      const result = indicators.sma(closes, 20);
       computedIndicators.sma = result;
       diagnostics.computedIndicators.push('sma');
       this.cache.set(symbol, timeframe, 'sma', result);
@@ -232,7 +232,7 @@ export class OptimizedMomentumScanner {
     }
 
     if (enabledIndicators.includes('vwma') && !('vwma' in computedIndicators)) {
-      const result = indicators.vwma(closes, volumes);
+      const result = indicators.vwma(closes, volumes, 20);
       computedIndicators.vwma = result;
       diagnostics.computedIndicators.push('vwma');
       this.cache.set(symbol, timeframe, 'vwma', result);

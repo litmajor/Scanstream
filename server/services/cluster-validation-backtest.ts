@@ -4,7 +4,7 @@
  * Validates agent clustering assignments and measures their effectiveness
  */
 
-import { Trade, BacktestMetrics } from '../types';
+import { Trade, BacktestMetrics } from '../types/index';
 
 export interface ValidationMetrics {
   assignmentQuality: number; // 0-1, how well assignments match signals
@@ -169,8 +169,8 @@ export class ClusterValidationBacktest {
 
     clusters.forEach((clusterTrades) => {
       const winRates = clusterTrades.map((t) => ((t.exitPrice || 0) > (t.entryPrice || 0) ? 1 : 0));
-      const avgWinRate = winRates.reduce((a, b) => a + b, 0) / winRates.length;
-      const variance = winRates.reduce((sum, w) => sum + Math.pow(w - avgWinRate, 2), 0) / winRates.length;
+      const avgWinRate = (winRates.reduce((a: number, b: number) => a + b, 0) as number) / winRates.length;
+      const variance = (winRates.reduce((sum: number, w: number) => sum + Math.pow(w - avgWinRate, 2), 0) as number) / winRates.length;
       cohesionScore += 1 - Math.min(1, variance);
       clusterCount++;
     });

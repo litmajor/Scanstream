@@ -259,7 +259,7 @@ export const StrategySelector: React.FC<StrategySelectorProps> = ({
               {typeStrategies.map(strategy => {
                 const isSelected = selectedStrategies.includes(strategy.id);
                 const { ranking } = getStrategyStats(strategy.id);
-                const allocation = ensembleMetrics.allocation[strategy.id];
+                const allocation = (ensembleMetrics?.allocation as any)?.[strategy.id] || 0;
                 const isExpanded = expandedStrategy === strategy.id;
 
                 return (
@@ -422,7 +422,7 @@ export const StrategySelector: React.FC<StrategySelectorProps> = ({
           <div className="space-y-1">
             {selectedStrategies.map((id, i) => {
               const strategy = strategies.find(s => s.id === id)!;
-              const allocation = ensembleMetrics.allocation[id];
+              const allocation = (ensembleMetrics?.allocation as any)?.[id] || 0;
               return (
                 <div key={id} className="text-xs text-gray-300 flex justify-between">
                   <span>{i + 1}. {strategy.name}</span>

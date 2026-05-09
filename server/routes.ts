@@ -804,14 +804,15 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   }
 
   // Register CoinGecko chart API
-  if (coinGeckoChartRouter) {
-    try {
-      app.use(coinGeckoChartRouter);
-      console.log('[INIT] CoinGecko chart API registered');
-    } catch (error) {
-      console.warn('CoinGecko chart API could not be registered:', error);
-    }
-  }
+  // COMMENTED OUT - Routes are already registered with full paths at line 1099
+  // if (coinGeckoChartRouter) {
+  //   try {
+  //     app.use(coinGeckoChartRouter);
+  //     console.log('[INIT] CoinGecko chart API registered');
+  //   } catch (error) {
+  //     console.warn('CoinGecko chart API could not be registered:', error);
+  //   }
+  // }
 
     // Initialize engines (conditionally)
     let exchangeDataFeed: any = null;

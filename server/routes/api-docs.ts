@@ -71,7 +71,7 @@ router.get('/endpoints', (req: Request, res: Response) => {
  * GET /api/docs/endpoints/:method/:path
  * Get detailed documentation for a specific endpoint
  */
-router.get('/endpoints/:method/:path(.*)', (req: Request, res: Response) => {
+router.get('/endpoints/:method/:path*', (req: Request, res: Response) => {
   try {
     const method = req.params.method.toUpperCase() as any;
     const path = `/${req.params.path}`;
@@ -134,7 +134,7 @@ router.get('/health', (req: Request, res: Response) => {
  * GET /api/docs/health/:method/:path
  * Get health status of a specific endpoint
  */
-router.get('/health/:method/:path(.*)', (req: Request, res: Response) => {
+router.get('/health/:method/:path*', (req: Request, res: Response) => {
   try {
     const method = req.params.method.toUpperCase() as any;
     const path = `/${req.params.path}`;

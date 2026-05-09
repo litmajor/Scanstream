@@ -43,6 +43,8 @@ export interface AgentSignal {
   // Optional enhancements used by agent integrations
   size_multiplier?: number;
   estimated_duration_hours?: number;
+  // Physics agent metadata (volume, convergence, flow analysis, etc)
+  metadata?: Record<string, any>;
 }
 
 export interface Achievement {

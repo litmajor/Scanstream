@@ -4,7 +4,7 @@
  * Combines multiple features to predict winning entries
  */
 
-import { MarketFrame } from '../types/gateway';
+import { MarketFrame } from '../trading-engine';
 
 export interface CompositeQualityMetrics {
   momentumQuality: number; // 0-1
@@ -105,18 +105,18 @@ export class CompositeEntryQualityEngine {
       ichimokuConfirmation,
       compositeScore,
       breakdown: {
-        momentumStrength: marketData.indicators.momentum_short || 0,
-        volumeConfirmation: marketData.volume / (marketData.indicators.volume_sma_20 || 1),
+        momentumStrength: (marketData as any).indicators?.momentumShort || 0,
+        volumeConfirmation: ((marketData as any).volume || 0) / (((marketData as any).indicators?.volumeSMA20) || 1),
         emaAligned: this.checkEmaAlignment(marketData),
         orderFlowSupport: this.getOrderFlowRatio(marketData, signalDirection),
-        riskRewardRatio: marketData.advanced?.riskRewardRatio || 0,
+        riskRewardRatio: (marketData as any).advanced?.riskRewardRatio || 0,
         volatilityLabel: this.getVolatilityLabel(marketData),
-        dataConfidence: marketData.confidence || 0,
-        dataDeviation: marketData.deviation || 0,
+        dataConfidence: (marketData as any).confidence || 0,
+        dataDeviation: (marketData as any).deviation || 0,
         changeAlignment: this.checkChangeAlignment(marketData, signalDirection),
-        nearestSupport: marketData.supportLevel || 0,
-        nearestResistance: marketData.resistanceLevel || 0,
-        ichimokuBullish: marketData.indicators.ichimoku_bullish || false
+        nearestSupport: (marketData as any).supportLevel || 0,
+        nearestResistance: (marketData as any).resistanceLevel || 0,
+        ichimokuBullish: (marketData as any).indicators?.ichimokuBullish || false
       },
       quality,
       filtered
@@ -127,14 +127,15 @@ export class CompositeEntryQualityEngine {
    * Feature 1: Momentum Quality with Volume Confirmation
    */
   private calculateMomentumQuality(marketData: MarketFrame): number {
-    const momentum = marketData.indicators.momentum_short || 0;
-    const momentumTrend = marketData.indicators.momentum_long || 0;
+    const mData = marketData as any;
+    const momentum = mData.indicators?.momentumShort || 0;
+    const momentumTrend = mData.indicators?.momentumLong || 0;
     
     // Momentum strength (combine short and long-term)
     const momentumStrength = momentum * (momentumTrend > 0 ? 1.0 : 0.5);
     
     // Volume confirmation
-    const volumeRatio = marketData.volume / (marketData.indicators.volume_sma_20 || 1);
+    const volumeRatio = (mData.volume || 0) / (mData.indicators?.volumeSMA20 || 1);
     const volumeConfirmation = Math.min(volumeRatio, 2.0); // Cap at 2x
     
     // Combined momentum quality
@@ -187,7 +188,8 @@ export class CompositeEntryQualityEngine {
    * Feature 4: Risk/Reward Quality
    */
   private calculateRiskRewardQuality(marketData: MarketFrame): number {
-    const riskRewardRatio = marketData.advanced?.riskRewardRatio || 0;
+    const mData = marketData as any;
+    const riskRewardRatio = mData.advanced?.riskRewardRatio || 0;
     
     // 2:1 is ideal, anything above is excellent
     const rrQuality = Math.min(riskRewardRatio / 2.0, 1.0);
@@ -261,9 +263,10 @@ export class CompositeEntryQualityEngine {
    * Filters unreliable data based on confidence and deviation
    */
   private calculateDataQuality(marketData: MarketFrame): number {
-    const confidence = marketData.confidence || 0.5; // Default to neutral
-    const deviation = marketData.deviation || 0;
-    const sources = marketData.sources?.length || 1;
+    const mData = marketData as any;
+    const confidence = mData.confidence || 0.5; // Default to neutral
+    const deviation = mData.deviation || 0;
+    const sources = mData.sources?.length || 1;
     
     // High confidence = good
     let confidenceScore = confidence;
@@ -294,9 +297,10 @@ export class CompositeEntryQualityEngine {
     marketData: MarketFrame,
     signalDirection: 'LONG' | 'SHORT'
   ): number {
-    const change1h = marketData.change1h || 0;
-    const change24h = marketData.change24h || 0;
-    const change7d = marketData.change7d || 0;
+    const mData = marketData as any;
+    const change1h = mData.change1h || 0;
+    const change24h = mData.change24h || 0;
+    const change7d = mData.change7d || 0;
     
     // For LONG: want positive changes across timeframes
     // For SHORT: want negative changes across timeframes
@@ -331,11 +335,12 @@ export class CompositeEntryQualityEngine {
     marketData: MarketFrame,
     signalDirection: 'LONG' | 'SHORT'
   ): number {
-    const currentPrice = marketData.price.close;
-    const support = marketData.supportLevel || 0;
-    const resistance = marketData.resistanceLevel || 0;
+    const mData = marketData as any;
+    const currentPrice = marketData.price?.close || 0;
+    const support = mData.supportLevel || 0;
+    const resistance = mData.resistanceLevel || 0;
     
-    if (support === 0 || resistance === 0) return 0.5; // Neutral if missing
+    if (support === 0 || resistance === 0 || currentPrice === 0) return 0.5; // Neutral if missing
     
     // Calculate distance to key levels
     const distanceToSupport = ((currentPrice - support) / currentPrice) * 100;
@@ -397,8 +402,9 @@ export class CompositeEntryQualityEngine {
     marketData: MarketFrame,
     signalDirection: 'LONG' | 'SHORT'
   ): boolean {
-    const change1h = marketData.change1h || 0;
-    const change24h = marketData.change24h || 0;
+    const mData = marketData as any;
+    const change1h = mData.change1h || 0;
+    const change24h = mData.change24h || 0;
     
     if (signalDirection === 'LONG') {
       return change1h > 0 && change24h > 0;

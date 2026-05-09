@@ -152,7 +152,7 @@ export class ScannerPersistenceService {
               armSignal: (result as any).armSignal,
               armConfidence: (result as any).armConfidence,
               price: result.price,
-              volume24h: result.volume,
+              volume24h: result.volume || 0,
               volumeChange: (result as any).volumeChange,
               change24h: (result as any).change24h,
               marketState: (result as any).marketState,
@@ -260,7 +260,7 @@ export class ScannerPersistenceService {
         compositeScore: r.compositeScore || 0,
         price: r.price,
         volume24h: r.volume24h || 0,
-        change24h: r.change24h,
+        change24h: r.change24h ?? undefined,
         createdAt: r.timestamp,
         updatedAt: r.timestamp
       }));

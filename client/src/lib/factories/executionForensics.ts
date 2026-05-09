@@ -16,7 +16,7 @@ import {
   RiskApproval,
   ExecutionProposal,
   OrderCommit,
-} from '../types/ExecutionCompartments';
+} from '../../types/ExecutionCompartments';
 
 // ============================================================================
 // EXECUTION EVENT RECONSTRUCTION
@@ -30,12 +30,20 @@ import {
 export function reconstructExecutionEvent(
   flow: ExecutionFlow
 ): ExecutionEvent {
+  // Map flow.stage to valid ExecutionEvent finalStage values
+  let finalStage: 'intent' | 'approved' | 'proposed' | 'committed' = 'intent';
+  if (flow.stage === 'rejected') {
+    finalStage = 'intent'; // Rejected means it never progressed past intent
+  } else if (flow.stage === 'approved' || flow.stage === 'proposed' || flow.stage === 'committed') {
+    finalStage = flow.stage as any;
+  }
+
   const event: ExecutionEvent = {
     executionId: flow.id,
     ts: flow.createdAt,
     symbol: flow.intent.symbol,
     side: flow.intent.side,
-    finalStage: flow.stage,
+    finalStage,
     rejectionReason: flow.rejectionReason,
     intentRationale: flow.intent.rationale,
     approvalReason: flow.approval?.reason || 'N/A',

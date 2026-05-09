@@ -427,8 +427,8 @@ export default function OptimizePage() {
               <div key={index} className="border border-slate-700/30 bg-slate-800/30 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium text-white">{result.parameter}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getImpactColor(result.impact)}`}>
-                    {result.impact} impact
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getImpactColor(result.impact || 'low')}`}>
+                    {result.impact || 'low'} impact
                   </span>
                 </div>
 

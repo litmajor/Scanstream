@@ -87,15 +87,15 @@ export class PatternOrderFlowValidator {
     } else if (isConfirmed) {
       recommendation = 'MODERATE_ENTRY';
       reasoning.push('✓ MODERATE: Pattern confirmed by order flow. Normal position.');
-    } else if (patternStrength === 'MODERATE' && flowStrength === 'WEAK') {
-      recommendation = 'WEAK_ENTRY';
-      reasoning.push('⚠️ WEAK: Pattern shows potential but flow is weak. Reduce position or skip.');
-    } else if (flowStrength === 'CONTRADICTORY') {
-      recommendation = 'SKIP';
-      reasoning.push('❌ SKIP: Pattern contradicted by strong order flow. Avoid trade.');
     } else if (patternStrength === 'STRONG' && flowStrength === 'CONTRADICTORY') {
       recommendation = 'COUNTER_POSITION';
       reasoning.push('🔄 COUNTER: Pattern suggests signal but flow is strong opposite. Consider counter trade.');
+    } else if (flowStrength === 'CONTRADICTORY') {
+      recommendation = 'SKIP';
+      reasoning.push('❌ SKIP: Pattern contradicted by strong order flow. Avoid trade.');
+    } else if (patternStrength === 'MODERATE' && flowStrength === 'WEAK') {
+      recommendation = 'WEAK_ENTRY';
+      reasoning.push('⚠️ WEAK: Pattern shows potential but flow is weak. Reduce position or skip.');
     } else {
       recommendation = 'SKIP';
       reasoning.push('❌ SKIP: Insufficient pattern or flow confirmation.');

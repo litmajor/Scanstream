@@ -123,10 +123,10 @@ export function assertLiveTradeAuthority(
 /**
  * INVARIANT 6: UITick mode/source consistency
  * 
- * If tick.mode === 'REPLAY', then tick.source must not be 'WS'
+ * If tick.state.mode === 'REPLAY', then tick.state.source must not be 'WS'
  */
 export function assertUITickValid(tick: UITick): void {
-  if (tick.mode === 'REPLAY' && tick.source === 'WS') {
+  if (tick.state?.mode === 'REPLAY' && tick.state?.source === 'WS') {
     throw new Error(
       `[TIME AUTHORITY VIOLATION] Invalid UITick: mode=REPLAY but source=WS\n` +
       `Symbol: ${tick.symbol}`

@@ -11,9 +11,12 @@
  * - Standardized regime names (TRENDING_UP/DOWN, RANGING, VOLATILE, CONSOLIDATING)
  * - Transition tracking with smooth weight transitions
  * - False flip prevention (<5% false flip rate)
+ * - Unified regime system integration with parallel detection
  */
 
 import type { MarketFrame } from '@shared/schema';
+import { UnifiedRegimeDetector, type UnifiedRegimeType } from './unified-regime-system';
+import { RegimeConsolidationBridge } from './regime-consolidation-bridge';
 
 // Standardized regime types for Phase 2
 export type MarketRegime = 'TRENDING_UP' | 'TRENDING_DOWN' | 'RANGING' | 'VOLATILE' | 'CONSOLIDATING' | 'UNKNOWN';
@@ -71,6 +74,15 @@ export class MarketRegimeDetector {
     confirmationCount: 0,
     lastFlipCandle: 0
   };
+  
+  // PHASE 2: Unified regime system integration
+  private divergenceLog: Array<{
+    timestamp: number;
+    legacy: MarketRegime;
+    unified: UnifiedRegimeType;
+    match: boolean;
+  }> = [];
+  private readonly MAX_DIVERGENCE_LOG = 1000;
   
   // Hysteresis parameters
   private readonly minConfirmations = 2;        // Need 2 confirmations to flip
@@ -312,6 +324,7 @@ export class MarketRegimeDetector {
 
   /**
    * Detect current market regime (Phase 2: with hysteresis)
+   * PHASE 2: Runs both legacy and unified detection in parallel
    */
   detectRegime(frames: MarketFrame[]): {
     regime: MarketRegime;
@@ -322,6 +335,8 @@ export class MarketRegimeDetector {
     trendDirection: TrendDirection;
     isTransitioning: boolean;
     transitionProgress: number;  // 0-1 where 1 = complete transition
+    unifiedRegime?: UnifiedRegimeType;         // PHASE 2
+    unifiedConfidence?: number;                // PHASE 2
   } {
     if (frames.length < 50) {
       return {
@@ -337,7 +352,92 @@ export class MarketRegimeDetector {
     }
     
     const recent = frames.slice(-50);
-    const metrics = this.calculateMetrics(recent);
+    
+    // PHASE 2: Run legacy detection first
+    const legacyResult = this.detectRegimeLegacy(recent);
+    
+    // PHASE 2: Run unified detection in parallel
+    const unifiedResult = this.detectUnified(recent);
+    
+    // PHASE 2: Log divergence
+    const matches = legacyResult.regime === this.mapUnifiedToLegacy(unifiedResult.regime);
+    this.divergenceLog.push({
+      timestamp: Date.now(),
+      legacy: legacyResult.regime,
+      unified: unifiedResult.regime,
+      match: matches
+    });
+    
+    // Maintain max log size
+    if (this.divergenceLog.length > this.MAX_DIVERGENCE_LOG) {
+      this.divergenceLog.shift();
+    }
+    
+    // Return legacy format + unified fields (backward compatible)
+    return {
+      ...legacyResult,
+      unifiedRegime: unifiedResult.regime,
+      unifiedConfidence: unifiedResult.confidence
+    };
+  }
+
+  /**
+   * PHASE 2: Unified regime detection
+   * Maps ML metrics to unified detection parameters
+   */
+  private detectUnified(frames: MarketFrame[]): { regime: UnifiedRegimeType; confidence: number } {
+    const metrics = this.calculateMetrics(frames);
+    const prices = frames.map(f => (f.price as any).close || f.price);
+    
+    // Map ML metrics to unified parameters
+    const unifiedParams = {
+      adx: metrics.adxLevel,                           // Direct: 0-100
+      volatility: metrics.volatility,                  // Direct: volatility level
+      divergence: Math.abs(metrics.momentum - metrics.trendStrength), // Divergence between momentum and trend
+      coherence: this.getMultiTimeframeCoherence(),   // Multi-timeframe agreement
+      momentum: metrics.momentum,                      // Direct: momentum
+      priceVsMA: metrics.trendStrength,               // Direct: price vs moving average alignment
+      rangeWidth: metrics.bbWidthPercent ?? 0,        // Bollinger Bands width as range proxy
+      compression: metrics.consolidating ? 0.2 : 0.8  // Low if consolidating, high if breaking out
+    };
+    
+    return UnifiedRegimeDetector.detectRegime(unifiedParams);
+  }
+
+  /**
+   * PHASE 2: Map unified regime back to ML regimes using bridge
+   */
+  private mapUnifiedToLegacy(unifiedRegime: UnifiedRegimeType): MarketRegime {
+    return RegimeConsolidationBridge.toML(unifiedRegime) as MarketRegime;
+  }
+
+  /**
+   * Legacy detection - original logic preserved
+   */
+  private detectRegimeLegacy(frames: MarketFrame[]): {
+    regime: MarketRegime;
+    confidence: number;
+    metrics: RegimeMetrics;
+    description: string;
+    tradingImplications: string[];
+    trendDirection: TrendDirection;
+    isTransitioning: boolean;
+    transitionProgress: number;
+  } {
+    if (frames.length < 50) {
+      return {
+        regime: 'RANGING',
+        confidence: 0,
+        metrics: { trendStrength: 0, volatility: 0, volume: 0, momentum: 0, trendDirection: 'SIDEWAYS', emaSlope: 0, adxLevel: 0 },
+        description: 'Insufficient data',
+        tradingImplications: ['Wait for more data'],
+        trendDirection: 'SIDEWAYS',
+        isTransitioning: false,
+        transitionProgress: 0
+      };
+    }
+    
+    const metrics = this.calculateMetrics(frames);
     
     // Detect regime based on metrics (no hysteresis yet)
     let detectedRegime = this.classifyRegimeFromMetrics(metrics);
@@ -565,6 +665,62 @@ export class MarketRegimeDetector {
           tradingImplications: ['Insufficient data for regime classification']
         };
     }
+  }
+
+  /**
+   * PHASE 2: Get multi-timeframe coherence score
+   * Indicates agreement between timeframes (for unified system parameter)
+   */
+  private getMultiTimeframeCoherence(): number {
+    if (this.regimeHistory.length < 5) return 0.5;
+    
+    // Check last 5 regime changes - if all same, coherence is high
+    const recent5 = this.regimeHistory.slice(-5);
+    const regimes = recent5.map(r => r.regime);
+    
+    const uniqueRegimes = new Set(regimes).size;
+    
+    // Perfect coherence if all same (1 unique), degrades with more variety
+    return 1 / uniqueRegimes;
+  }
+
+  /**
+   * PHASE 2: Get divergence statistics for validation
+   * Returns match percentage and recent divergences for monitoring
+   */
+  getDivergenceStats(): {
+    totalSamples: number;
+    matchingDetections: number;
+    matchPercentage: number;
+    recentDivergences: Array<{ timestamp: number; legacy: string; unified: string }>;
+  } {
+    if (this.divergenceLog.length === 0) {
+      return {
+        totalSamples: 0,
+        matchingDetections: 0,
+        matchPercentage: 0,
+        recentDivergences: []
+      };
+    }
+    
+    const matchingDetections = this.divergenceLog.filter(d => d.match).length;
+    const matchPercentage = (matchingDetections / this.divergenceLog.length) * 100;
+    
+    const recentDivergences = this.divergenceLog
+      .filter(d => !d.match)
+      .slice(-10)
+      .map(d => ({
+        timestamp: d.timestamp,
+        legacy: d.legacy,
+        unified: d.unified
+      }));
+    
+    return {
+      totalSamples: this.divergenceLog.length,
+      matchingDetections,
+      matchPercentage,
+      recentDivergences
+    };
   }
 
   /**

@@ -25,7 +25,7 @@ async function runScanBackground(symbols: string[], timeframe: string, options: 
     try {
       await aggregator.initialize();
     } catch (initErr) {
-      console.warn('[Scanner] Aggregator initialize warning:', initErr?.message || initErr);
+      console.warn('[Scanner] Aggregator initialize warning:', (initErr as any)?.message || initErr);
     }
 
     const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
@@ -235,7 +235,7 @@ router.post('/scan', async (req: Request, res: Response) => {
     try {
       await aggregator.initialize();
     } catch (initErr) {
-      console.warn('[Scanner] Aggregator initialize warning (sync scan):', initErr?.message || initErr);
+      console.warn('[Scanner] Aggregator initialize warning (sync scan):', (initErr as any)?.message || initErr);
     }
 
     const ccxtScanner = new CCXTScanner(aggregator, cacheManager, rateLimiter);
@@ -315,7 +315,7 @@ router.post('/multi-exchange-scan', async (req: Request, res: Response) => {
           exchanges || ['binance', 'coinbase', 'kucoinfutures', 'okx', 'bybit'],
           symbols.length
         );
-        sessionId = session.id;
+        sessionId = session.id || `session_${Date.now()}`;
       } catch (e) {
         console.warn('[ScannerAPI] Could not create scan session:', (e as Error).message);
       }

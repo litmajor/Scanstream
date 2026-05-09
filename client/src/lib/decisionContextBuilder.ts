@@ -111,13 +111,13 @@ function computeQuality(
   const isStale = ageMs > (cfg.maxAgeMs ?? 5 * 60 * 1000);
 
   // Fallback check
-  const isFallback = frame.meta.source === 'fallback';
+  const isFallback = frame.meta.source === 'FALLBACK';
 
   // Confidence: average signal confidence + source quality
   const signalConfidence = signals.length > 0
     ? signals.reduce((sum, s) => sum + (s.confidence ?? 0.5), 0) / signals.length
     : 0.5;
-  const sourceConfidence = frame.meta.source === 'live' ? 1.0 : (frame.meta.source === 'replay' ? 0.7 : 0.3);
+  const sourceConfidence = frame.meta.source === 'WS' ? 1.0 : (frame.meta.source === 'REPLAY_API' ? 0.7 : 0.3);
   const confidence = (signalConfidence + sourceConfidence) / 2;
 
   return {
@@ -152,6 +152,7 @@ export function buildDecisionContext(
     allowTrade: cfg.allowTrade ?? true,
     maxSizeUsd: cfg.maxSizeUsd ?? 10000,
     maxLeverage: cfg.maxLeverage ?? 1.0,
+    minConfidence: cfg.minConfidence ?? 0.5,
     ...cfg.customConstraints,
   };
 
@@ -162,7 +163,7 @@ export function buildDecisionContext(
   assertDecisionContext(ctx);
 
   // Verify invariants
-  verifyDataLayerInvariants(ctx, { source: 'agent', mode: frame.meta.source === 'replay' ? 'backtest' : 'live' });
+  verifyDataLayerInvariants(ctx, { source: 'agent', mode: frame.meta.source === 'REPLAY_API' ? 'backtest' : 'live' });
 
   // Freeze if requested
   if (cfg.freeze !== false) {
@@ -197,7 +198,7 @@ export function buildDecisionContextStrict(
   }
 
   // Reject fallback data
-  if (frame.meta.source === 'fallback') {
+  if (frame.meta.source === 'FALLBACK') {
     throw new Error(
       `[DecisionContext] Fallback data rejected in strict mode. Symbol: ${frame.symbol}, Reason: ${frame.meta.fallbackReason}`
     );
@@ -226,7 +227,7 @@ export function buildDecisionContextForReplay(
   signals: Signal[] = [],
   config: DecisionContextConfig = {}
 ): DecisionContext {
-  if (frame.meta.source !== 'replay') {
+  if (frame.meta.source !== 'REPLAY_API') {
     console.warn('[DecisionContext] Building replay context from non-replay frame. Consider using frame with source="replay".');
   }
 

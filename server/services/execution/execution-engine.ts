@@ -3,7 +3,7 @@ import type { ArbSignal } from '../../agents/arbitrage-agent';
 import type { CrossExchangeAggregator } from '../aggregator/cross-exchange-aggregator';
 import type { PortfolioAgent } from '../../agents/portfolio-agent';
 import { ExchangeSimulator } from './exchange-sim';
-import { ensureDirSync, writeFileSync, appendFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, appendFileSync, existsSync } from 'fs';
 import path from 'path';
 import { promises as fsPromises } from 'fs';
 import { ExecutionStore } from './execution-store';

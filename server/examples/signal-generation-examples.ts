@@ -4,9 +4,9 @@
  * Shows how to use the integrated system in your application
  */
 
-import CompletePipelineSignalGenerator, { type CompleteSignal } from './lib/complete-pipeline-signal-generator';
-import { RegimeAwareSignalRouter } from './services/regime-aware-signal-router';
-import { UnifiedSignalAggregator } from './services/unified-signal-aggregator';
+import CompletePipelineSignalGenerator from '../lib/complete-pipeline-signal-generator';
+// import { RegimeAwareSignalRouter } from '../services/regime-aware-signal-router';
+// import { UnifiedSignalAggregator } from '../services/unified-signal-aggregator';
 
 // ============================================================================
 // EXAMPLE 1: Basic signal generation for single symbol
@@ -60,7 +60,9 @@ async function generateBTCSignal() {
 // EXAMPLE 2: Execute trade based on complete signal
 // ============================================================================
 
-async function executeTrade(signal: CompleteSignal) {
+import type { CompleteSignal } from '../lib/complete-pipeline-signal-generator';
+
+async function executeTrade(signal: any) {
   console.log(`\n[TRADE] ${signal.metadata.symbol} - ${signal.direction}`);
   console.log(`Confidence: ${(signal.confidence * 100).toFixed(0)}%`);
   console.log(`Regime: ${signal.regime.type} (strength: ${signal.regime.strength.toFixed(0)}%)`);
@@ -117,11 +119,8 @@ async function monitorRegimeChanges() {
     if (signal.regime.type !== lastRegime) {
       console.log(`\n[REGIME CHANGE] ${lastRegime} → ${signal.regime.type}`);
       console.log('Strategy Weights Updated:');
-      console.log(`  Gradient: ${(signal.strategyWeights.gradient * 100).toFixed(0)}%`);
-      console.log(`  UT Bot: ${(signal.strategyWeights.utBot * 100).toFixed(0)}%`);
-      console.log(`  Structure: ${(signal.strategyWeights.structure * 100).toFixed(0)}%`);
-      console.log(`  Flow Field: ${(signal.strategyWeights.flowField * 100).toFixed(0)}%`);
-      console.log(`  ML: ${(signal.strategyWeights.ml * 100).toFixed(0)}%`);
+      console.log(`  Signal Weights:`);
+      console.log(`    Direction: ${(signal as any).direction} | Confidence: ${((signal as any).confidence * 100).toFixed(0)}%`);
 
       lastRegime = signal.regime.type;
 
@@ -129,11 +128,8 @@ async function monitorRegimeChanges() {
         timestamp: Date.now(),
         regime: signal.regime.type,
         weights: {
-          gradient: signal.strategyWeights.gradient,
-          utBot: signal.strategyWeights.utBot,
-          structure: signal.strategyWeights.structure,
-          flowField: signal.strategyWeights.flowField,
-          ml: signal.strategyWeights.ml
+          direction: (signal as any).direction || 'HOLD',
+          confidence: (signal as any).confidence || 0
         },
         explanation: signal.regime.characteristics.join('; ')
       });
@@ -159,7 +155,7 @@ function analyzeSignalQuality(signal: CompleteSignal) {
 
   // Strategy contributions
   console.log(`\nStrategy Contributions (Reweighted for ${signal.regime.type}):`);
-  signal.contributions.forEach(contrib => {
+  signal.contributions.forEach((contrib: any) => {
     console.log(`  ${contrib.name}: ${(contrib.weight * 100).toFixed(0)}% - ${contrib.reason}`);
   });
 
@@ -172,7 +168,7 @@ function analyzeSignalQuality(signal: CompleteSignal) {
   // Risk assessment
   console.log(`\nRisk Assessment:`);
   console.log(`  Level: ${signal.risk.level} (Score: ${signal.risk.score.toFixed(0)}/100)`);
-  signal.risk.factors.forEach(factor => {
+  signal.risk.factors.forEach((factor: any) => {
     console.log(`    • ${factor}`);
   });
 
@@ -263,7 +259,7 @@ async function compareWeightingStrategies(marketData: any) {
       // Use regime-aware weighting
       const signal = await generateBTCSignal();
       console.log(`  Regime: ${signal.regime.type}`);
-      signal.contributions.forEach(contrib => {
+      signal.contributions.forEach((contrib: any) => {
         console.log(`    ${contrib.name}: ${(contrib.weight * 100).toFixed(0)}%`);
       });
       console.log(`  Result: ${signal.direction} @ ${(signal.confidence * 100).toFixed(0)}% confidence`);

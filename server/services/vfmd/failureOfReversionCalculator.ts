@@ -56,6 +56,7 @@ export interface FailureOfReversionState {
   reversionQualities: ReversionQuality[];
   isDecaying: boolean;          // R_{i+1} < R_i consistently?
   decayStrength: number;        // 0-1, how strong is the decay pattern
+  currentRegime?: FlowRegime;    // Market regime context
 
   // Time compression
   timeCompressing: boolean;     // τ_{i+1} < τ_i?
@@ -118,17 +119,23 @@ export class FailureOfReversionCalculator {
   /**
    * Calculate FoR score
    * Called periodically (every 5-10 bars) to evaluate reversion failure
+   * Optionally accepts current market regime for context-aware analysis
    */
-  calculateFoR(currentPrice: number, fairPrice: number, atr: number): FailureOfReversionState {
+  calculateFoR(
+    currentPrice: number,
+    fairPrice: number,
+    atr: number,
+    currentRegime?: FlowRegime
+  ): FailureOfReversionState {
     if (this.deviationHistory.length < 10) {
-      return this.getEmptyFoRState('Insufficient history');
+      return this.getEmptyFoRState('Insufficient history', currentRegime);
     }
 
     // Identify hostile events in recent history
     const hostileEvents = this.identifyHostileEvents();
 
     if (hostileEvents.length < 2) {
-      return this.getEmptyFoRState('Need ≥2 hostile events');
+      return this.getEmptyFoRState('Need ≥2 hostile events', currentRegime);
     }
 
     // Calculate reversion quality for each event
@@ -166,6 +173,7 @@ export class FailureOfReversionCalculator {
       depthCompressionRatio: depthCompressionAnalysis.ratio,
       volatilityParadox: volatilityParadoxAnalysis.paradoxDetected,
       oppositionWeakness: volatilityParadoxAnalysis.weakness,
+      currentRegime,
       forScore,
       forConfidence: forScore * decayAnalysis.strength,
       forReason: this.buildFoRReason(
@@ -421,8 +429,9 @@ export class FailureOfReversionCalculator {
 
   /**
    * INTERNAL: Empty FoR state for insufficient data
+   * Returns neutral FoR state with optional regime context
    */
-  private getEmptyFoRState(reason: string): FailureOfReversionState {
+  private getEmptyFoRState(reason: string, regime?: FlowRegime): FailureOfReversionState {
     return {
       hostileEvents: [],
       reversionQualities: [],
@@ -433,8 +442,7 @@ export class FailureOfReversionCalculator {
       depthCompressing: false,
       depthCompressionRatio: 0,
       volatilityParadox: false,
-      oppositionWeakness: 0,
-      forScore: 0,
+      oppositionWeakness: 0,      currentRegime: regime,      forScore: 0,
       forConfidence: 0,
       forReason: reason
     };

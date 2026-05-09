@@ -122,15 +122,15 @@ export class ConvexityAgent extends TradingAgent {
       reason: 'VFMD Scout'
     };
 
-    const engineStateMap = {
-      'DORMANT': 'IDLE',
-      'WATCHING': 'OBSERVATION',
-      'DEPLOYED': 'POSITION_ACTIVE',
-      'CLOSING': 'CLOSING'
-    } as const;
-
+    const engineStateMap: Record<string, any> = {
+      DORMANT: 'IDLE',
+      WATCHING: 'OBSERVATION',
+      DEPLOYED: 'POSITION_ACTIVE',
+      CLOSING: 'CLOSING',
+      CLOSED: 'IDLE'
+    };
     const currentEngineState = this.engineState.getState().status;
-    const mappedState = engineStateMap[currentEngineState] || 'IDLE';
+    const mappedState = (engineStateMap as any)[currentEngineState] || 'IDLE';
 
     const deduped = this.vfmdDeduplicator.filter(
       vfmdSignalToCheck,
@@ -221,7 +221,7 @@ export class ConvexityAgent extends TradingAgent {
 
     // Phase 1 Fix #1: Calculate R-score and normalize it
     const forState = this.forCalculator.calculateFoR(currentPrice, this.fairPrice, atr);
-    const rScore = forState.failureScore || 0;
+    const rScore = (forState as any).failureScore || 0;
     const rNormalized = this.responseNormalizer.update(rScore);
     
     // Log percentile for diagnostics (every 10 bars)

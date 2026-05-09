@@ -18,7 +18,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { DecisionContext } from '../types/DecisionContext';
+import { DecisionContext } from '../../types/DecisionContext';
+import { UUID } from '../../types/Common';
 import {
   SignalIntent,
   RiskApproval,
@@ -27,7 +28,7 @@ import {
   ExecutionFlow,
   AgentSignalSource,
   EXECUTION_COMPARTMENT_CONSTANTS,
-} from '../types/ExecutionCompartments';
+} from '../../types/ExecutionCompartments';
 import { createSignalIntent } from './signalIntentFactory';
 import { approveSignalIntent, RiskState } from './riskApprovalEngine';
 import { generateExecutionProposal, MarketSnapshot } from './executionProposalGenerator';
@@ -68,7 +69,7 @@ export class ExecutionOrchestrator {
     market: MarketSnapshot
   ): Promise<ExecutionFlow> {
     const flow: ExecutionFlow = {
-      id: uuidv4(),
+      id: uuidv4() as any as UUID,
       createdAt: Date.now(),
       stage: 'intent',
       durationMs: 0,

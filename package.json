@@ -1,11 +1,13 @@
 {
-  "name": "veloscan",
-  "version": "1.0.0",
+  "name": "scanstream",
+  "version": "2.2.0",
   "private": false,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:server": "tsc",
+    "build:client": "vite build",
     "preview": "vite preview",
     "server": "tsx watch server/index.ts",
     "start": "npm run server",
@@ -112,6 +114,7 @@
     "react-icons": "^5.5.0",
     "react-query": "^3.39.3",
     "react-resizable-panels": "^3.0.4",
+    "react-router-dom": "^7.13.2",
     "recharts": "^3.1.2",
     "socket.io": "^4.8.1",
     "tailwind-merge": "^3.3.1",

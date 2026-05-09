@@ -11,7 +11,7 @@
 import { VolumeMechanicalVerifierAgent, type VolumeAnalysisInput } from './rpg-agents/VolumeMechanicalVerifierAgent';
 import { VolumePipeline, type VolumeData } from './volume-data-pipeline';
 import { IntelligentExitManager, type VolumeExitSignal } from './rpg-agents/intelligent-exit-manager';
-import type { AgentSignal } from './rpg-agents/base/trading-agent';
+import type { AgentSignal } from './rpg-agents/TradingAgent';
 
 export interface VolumeAgentIntegrationConfig {
   // Data feeding
@@ -91,7 +91,7 @@ export class VolumeAgentIntegration {
     }
 
     // Step 2: Generate agent signal from volume analysis
-    const agentSignal = this.volumeAgent.generateSignal(volumeData);
+    const agentSignal = this.volumeAgent.generateSignal(volumeData as any as VolumeAnalysisInput);
 
     if (agentSignal) {
       this.lastSignal = agentSignal;
@@ -131,7 +131,7 @@ export class VolumeAgentIntegration {
    * Detect which volume combo should activate based on signal
    */
   private detectComboOpportunity(signal: AgentSignal): string | null {
-    const patterns = signal.patterns_detected || [];
+    const patterns = (signal.metadata?.patterns as string[]) || [];
     const analysis = this.volumeAgent.getLastAnalysis();
 
     if (!analysis) return null;
@@ -179,9 +179,9 @@ export class VolumeAgentIntegration {
     const exitSignals: VolumeExitSignal[] = [];
 
     // Signal 1: Climax exhaustion
-    if (analysis.climaxDetected !== 'NONE') {
+    if (analysis.climaxDetection.event !== 'NONE') {
       const climaxSignal = exitManager.detectClimaxExhaustion(
-        analysis.climaxDetected,
+        analysis.climaxDetection.event,
         analysis.convictionScore
       );
       if (climaxSignal) {

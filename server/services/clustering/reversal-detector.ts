@@ -330,7 +330,7 @@ export class ReversalDetector {
         total_snapshots: 0,
         average_strength: 0,
         strength_range: { min: 0, max: 0 },
-        trend_direction: 'stable' as const
+        trend_direction: 'weakening' as const
       };
     }
 

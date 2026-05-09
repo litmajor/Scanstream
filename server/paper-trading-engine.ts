@@ -7,6 +7,7 @@ import { adaptiveHoldingIntegration } from './services/adaptive-holding-integrat
 import { OrderFlowAnalyzer, orderFlowAnalyzer } from './services/order-flow-analyzer';
 import { microstructureOptimizer } from './services/microstructure-exit-optimizer';
 import { getLearningSystem } from './index';
+import { RLFeedbackCallbacks } from './rl-system-integration';
 
 interface HoldingDecisionMetadata {
   holdingPeriodDays: number;
@@ -395,6 +396,24 @@ export class PaperTradingEngine extends EventEmitter {
       this.activeTrades.set(trade.id, trade);
       this.emit('tradeOpened', trade);
 
+      // ✅ RL CALLBACK: Register trade with RL system for learning
+      try {
+        const frames = await db.getMarketFrames(trade.symbol, 20) || [];
+        RLFeedbackCallbacks.onTradeOpen({
+          tradeId: trade.id,
+          symbol: trade.symbol,
+          side: trade.side,
+          entryPrice: trade.entryPrice,
+          entryTime: trade.entryTime,
+          quantity: trade.quantity,
+          frames: frames as any,
+          mlConfidence: signal.confidence || 0.5,
+          source: trade.source
+        });
+      } catch (rlError) {
+        console.warn(`[Paper Trading] RL onTradeOpen callback error: ${rlError}`);
+      }
+
       const slippageBps = Math.abs((executionPrice - signal.price) / signal.price * 10000);
       console.log(
         `[Paper Trading] Opened ${trade.side} position for ${trade.symbol} ` +
@@ -423,6 +442,13 @@ export class PaperTradingEngine extends EventEmitter {
 
       // Estimate ATR for holding decision (simplified: ~2% of price)
       const atr = currentPrice * 0.02;
+
+      // ✅ RL CALLBACK: Track live position metrics (MFE/MAE on every bar)
+      try {
+        RLFeedbackCallbacks.onTradeTick(trade.id, currentPrice);
+      } catch (rlError) {
+        console.warn(`[Paper Trading] RL onTradeTick callback error: ${rlError}`);
+      }
 
       // Check stop loss
       if (this.config.riskManagement.useStopLoss) {
@@ -736,6 +762,21 @@ export class PaperTradingEngine extends EventEmitter {
     this.emit('tradeClosed', trade);
 
     console.log(`[Paper Trading] Closed ${trade.symbol} ${trade.side} at $${exitPrice.toFixed(2)} (${reason}) - P&L: $${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
+
+    // ✅ RL CALLBACK: Calculate rewards and trigger learning
+    try {
+      RLFeedbackCallbacks.onTradeClose(tradeId, {
+        exitPrice,
+        exitTime: new Date(),
+        exitReason: reason,
+        pnl,
+        pnlPercent,
+        maxProfit: 0,
+        maxLoss: 0
+      });
+    } catch (rlError) {
+      console.warn(`[Paper Trading] RL onTradeClose callback error: ${rlError}`);
+    }
 
     // ✅ NEW: Trigger learning system feedback
     try {

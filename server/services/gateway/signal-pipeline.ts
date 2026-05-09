@@ -50,17 +50,18 @@ export class SignalPipeline {
       // Step 3: Enrich with price confidence from aggregator
       const priceData = await this.aggregator.getAggregatedPrice(symbol);
 
-      return {
+      const enrichedSignal: any = {
         ...signal,
-        id: signal.id || require('crypto').randomUUID(),
-        timestamp: signal.timestamp || new Date(),
+        id: (signal as any).id || crypto.randomUUID(),
+        timestamp: (signal as any).timestamp || new Date(),
         reasoning: [
-          ...signal.reasoning,
+          ...(signal.reasoning || []),
           `Price confidence: ${priceData.confidence.toFixed(1)}% (${priceData.sources.length} sources)`,
           `Price deviation: ${priceData.deviation.toFixed(2)}%`
         ],
         confidence: signal.confidence * (priceData.confidence / 100)
       };
+      return enrichedSignal;
     } catch (error: any) {
       console.error(`[Pipeline] Error generating signal for ${symbol}:`, error.message);
       return null;

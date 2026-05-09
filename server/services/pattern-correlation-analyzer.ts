@@ -284,22 +284,41 @@ export class PatternCorrelationAnalyzer {
     const analysis = await this.analyzePatternCorrelations();
 
     const rationale: Record<SignalClassification, string> = {
-      'FLIP': 'Highly correlated with REVERSAL (r > 0.90)',
-      'LAGGING': 'Redundant with TREND_CONFIRMATION (r > 0.88)',
-      'LEADING': 'Overlaps with TREND_ESTABLISHMENT (r > 0.87)',
+      'BREAKOUT': 'Long-tail pattern, varies by context',
+      'REVERSAL': 'Core pattern, detected by multiple agents',
+      'CONTINUATION': 'Trend continuation signal',
+      'PULLBACK': 'Retracement within trend',
+      'DIVERGENCE': 'Price/indicator divergence signal',
+      'SUPPORT_BOUNCE': 'Support level bounce detection',
+      'RESISTANCE_BREAK': 'Resistance level breakout',
+      'TREND_CONFIRMATION': 'Confirms ongoing trend',
+      'CONSOLIDATION_BREAK': 'Consolidation zone breakout',
+      'MA_CROSSOVER': 'Moving average crossover pattern',
+      'RSI_EXTREME': 'RSI overbought/oversold condition',
+      'MACD_SIGNAL': 'MACD signal line crossover',
+      'CONFLUENCE': 'Multiple indicators align',
+      'ML_PREDICTION': 'ML model prediction',
       'PARABOLIC': 'Specialized subset of BREAKOUT + SPIKE',
+      'BULL_EARLY': 'Early bull signal',
+      'BEAR_EARLY': 'Early bear signal',
+      'ACCUMULATION': 'Accumulation phase detection',
+      'DISTRIBUTION': 'Distribution phase detection',
+      'SPIKE': 'Price spike pattern',
       'TOPPING': 'Correlated with TREND_EXHAUSTION (r > 0.89)',
       'BOTTOMING': 'Correlated with ACCUMULATION (r > 0.86)',
       'RANGING': 'Low signal diversity, often HOLD positions',
+      'LAGGING': 'Redundant with TREND_CONFIRMATION (r > 0.88)',
+      'LEADING': 'Overlaps with TREND_ESTABLISHMENT (r > 0.87)',
       'TREND_EXHAUSTION': 'Overlaps with REVERSAL detection',
       'TREND_ESTABLISHMENT': 'Highly correlated with MA_CROSSOVER (r > 0.92)',
-      'RETEST': 'Subset behavior of SUPPORT_BOUNCE'
+      'RETEST': 'Subset behavior of SUPPORT_BOUNCE',
+      'FLIP': 'Highly correlated with REVERSAL (r > 0.90)'
     };
 
     return {
       summary: `Reduced pattern set from 28 to ${analysis.optimizedPatternSet.length} high-quality patterns. Removed ${analysis.estimatedReduction} redundant patterns.`,
-      patternsToRemove: analysis.redundantPatterns,
-      patternsToKeep: analysis.optimizedPatternSet,
+      patternsToRemove: (analysis.redundantPatterns as string[]) as SignalClassification[],
+      patternsToKeep: (analysis.optimizedPatternSet as string[]) as SignalClassification[],
       rationale
     };
   }

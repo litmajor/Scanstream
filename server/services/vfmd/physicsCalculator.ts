@@ -5,34 +5,18 @@
 
 import type { VectorField, PhysicsMetrics } from './types';
 import { FieldAnalyzer } from './fieldConstructor';
+import TriggerCalculator from './triggerCalculator';
 
 export class PhysicsCalculator {
   /**
    * Compute Potential Energy Gradient (PEG)
-   *
-   * Measures stored energy before directional release
-   * PEG = ∫|∇F| dA over recent region
-   *
+   * Delegates to centralized TriggerCalculator.computeCompressionPEG for consistency
    * @param field Vector field
    * @param regionSize How many recent bars to integrate over
-   * @returns PEG value (higher = more energy accumulated)
+   * @returns PEG value, range [0, 1]
    */
   static computePEG(field: VectorField, regionSize: number = 10): number {
-    const gradientMag = FieldAnalyzer.computeGradientMagnitude(field);
-
-    // Integrate over recent temporal region
-    const recentRegion = gradientMag.map(spatial =>
-      spatial.slice(Math.max(0, field.temporalWindow - regionSize))
-    );
-
-    let sum = 0;
-    for (const spatial of recentRegion) {
-      sum += spatial.reduce((a, b) => a + b, 0);
-    }
-
-    // Normalize by region size
-    const peg = sum / regionSize;
-    return peg;
+    return TriggerCalculator.computeCompressionPEG(field, regionSize);
   }
 
   /**
@@ -80,6 +64,9 @@ export class PhysicsCalculator {
     const meanMagnitude =
       magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length;
 
+    // Guard: pure flat market (zero magnitude) → zero turbulence
+    if (meanMagnitude < 1e-8) return 0;
+
     // Directional coherence: how aligned are vectors?
     let meanVectorX = 0;
     let meanVectorY = 0;
@@ -102,7 +89,9 @@ export class PhysicsCalculator {
     // TI = chaos / alignment
     const ti = angleVariance / (coherence + 1e-8);
 
-    return ti;
+    // Cap TI at 10.0 — extreme TI values (587+) are measurement artifacts
+    // preventing incorrect turbulent-regime classification
+    return Math.min(10.0, Math.max(0, ti));
   }
 
   /**
@@ -200,6 +189,98 @@ export class PhysicsCalculator {
       curlScore: recentCurl,
       recentCurl,
       gradientMagnitude: maxGrad
+    };
+  }
+
+  /**
+   * Compute PEG derivatives for three-tier signal quality gating
+   * 
+   * Returns physics-based signal quality tier:
+   * EXPLOSIVE:  PEG > 0.70× threshold AND ΔPEG > 0.03 AND Δ²PEG > 0
+   *            → True breakout onset (pressure present, building, accelerating)
+   *            → Position multiplier: 1.3x (highest conviction)
+   * 
+   * BUILDING:   PEG > 0.85× threshold AND ΔPEG > 0.03
+   *            → Good entries (compression above floor, still accumulating)
+   *            → Position multiplier: 1.1x (high conviction)
+   * 
+   * BASE:       PEG > threshold AND isBuilding = false
+   *            → Current system default (still valid but lower conviction)
+   *            → Position multiplier: 0.6x (reduced for spent energy)
+   * 
+   * @param pegHistory Rolling buffer of recent PEG values (needs ≥3 points)
+   * @param pegThreshold Current regime's PEG threshold for signal gating
+   * @returns { tier, multiplier, deltaPeg, delta2Peg, isBuilding, isExplosive }
+   */
+  static computePEGDerivatives(
+    pegHistory: number[],
+    pegThreshold: number = 0.20
+  ): {
+    tier: 'EXPLOSIVE' | 'BUILDING' | 'BASE';
+    multiplier: number;
+    deltaPeg: number;
+    delta2Peg: number;
+    pegMomentum: number;
+    isBuilding: boolean;
+    isExplosive: boolean;
+  } {
+    // Need at least 3 points for first and second derivatives
+    if (pegHistory.length < 3) {
+      return {
+        tier: 'BASE',
+        multiplier: 0.6,
+        deltaPeg: 0,
+        delta2Peg: 0,
+        pegMomentum: 0,
+        isBuilding: false,
+        isExplosive: false
+      };
+    }
+
+    // Use last 5 points for noise tolerance, EMA-smooth if available
+    const recent = pegHistory.slice(-5);
+    
+    // First derivative: ΔPEG (jerk — is acceleration changing?)
+    // Use last 3 points for stability
+    const peg2 = recent[recent.length - 2];
+    const peg1 = recent[recent.length - 1];
+    const peg0 = recent[recent.length - 3];
+    
+    const deltaPeg = peg1 - peg0;  // First derivative (momentum)
+    
+    // Second derivative: Δ²PEG (snap — is jerk accelerating?)
+    // Needs 3 consecutive deltas
+    const delta2Peg = (peg1 - peg2) - (peg2 - peg0);
+
+    // Combined momentum scalar: sign(ΔPEG) × √|ΔPEG|
+    const pegMomentum = Math.sign(deltaPeg) * Math.sqrt(Math.abs(deltaPeg));
+
+    // Current PEG (last value)
+    const currentPeg = peg1;
+    const pegNorm = currentPeg / Math.max(pegThreshold, 0.01); // Normalize to threshold
+
+    // Gate thresholds
+    const isExplosive = 
+      pegNorm > 0.70 &&          // PEG > 70% of threshold
+      deltaPeg > 0.03 &&         // Strong upward momentum
+      delta2Peg > 0;             // Acceleration is positive
+
+    const isBuilding = 
+      !isExplosive &&
+      pegNorm > 0.85 &&          // PEG > 85% of threshold
+      deltaPeg > 0.03;           // Building momentum
+
+    const tier = isExplosive ? 'EXPLOSIVE' : isBuilding ? 'BUILDING' : 'BASE';
+    const multiplier = isExplosive ? 1.3 : isBuilding ? 1.1 : 0.6;
+
+    return {
+      tier,
+      multiplier,
+      deltaPeg,
+      delta2Peg,
+      pegMomentum,
+      isBuilding,
+      isExplosive
     };
   }
 }

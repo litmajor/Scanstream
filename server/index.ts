@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { setupConsoleLogging, getLogPath } from "./utils/logger";
+import { setupConsoleLogging, getLogPath, getSessionId, ModuleLogger } from "./utils/logger";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import flowFieldRouter from "./routes/flow-field";
@@ -21,6 +21,8 @@ import physicsValidationRouter from './routes/physics-validation-correct';
 import missingApiEndpointsRouter from './routes/missing-api-endpoints';
 import featureFlagsRouter from './routes/feature-flags';
 import agentAbilitiesRouter from './routes/agent-abilities';
+import gatewayRouter, { getGatewayServices } from './routes/gateway';
+// import logsRouter from './routes/logs'; // TODO: Debug route error
 // Removed fastScanner service import
 
 // API Registry System imports
@@ -49,9 +51,16 @@ process.env.DEBUG = 'express:*,server:*';
 
 // Initialize file logging
 setupConsoleLogging();
-console.log(`\n${'='.repeat(60)}`);
-console.log('SERVER STARTUP - Logs also written to:', getLogPath());
-console.log(`${'='.repeat(60)}\n`);
+const sessionId = getSessionId();
+console.log(`\n${'='.repeat(70)}`);
+console.log('🚀 SERVER STARTUP - Enhanced Logging System Active');
+console.log(`${'='.repeat(70)}`);
+console.log(`📁 Session ID:   ${sessionId}`);
+console.log(`📂 Logs Dir:     ${getLogPath()}`);
+console.log(`📊 API Endpoint: /api/logs/stats - View current session logs`);
+console.log(`🔍 Search:      /api/logs/search?pattern=ERROR - Search logs`);
+console.log(`📖 Features:    Auto-chunking (10MB), Automatic rotation, Full history`);
+console.log(`${'='.repeat(70)}\n`);
 
 // Global learning system instance
 let globalLearningSystem: LearningSystemIntegration | null = null;
@@ -104,10 +113,9 @@ app.use = function (path: any, ...args: any[]): any {
 (["get", "post", "put", "delete", "patch", "all"] as const).forEach((method) => {
   const orig = (app as any)[method];
   (app as any)[method] = function (path: any, ...args: any[]): any {
-    // Disabled to reduce startup noise
-    // if (typeof path === "string") {
-    //   console.log(`[DEBUG] app.${method} path:`, path);
-    // }
+    if (typeof path === "string") {
+      console.log(`[DEBUG] app.${method} path:`, path);
+    }
     return orig.call(this, path, ...args);
   };
 });
@@ -133,6 +141,17 @@ console.log('[express] Dashboard available at /admin/api-docs');
 app.use('/api/feature-flags', featureFlagsRouter);
 console.log('[express] Feature Flags API registered at /api/feature-flags');
 
+// Register Logs Management API (DISABLED - debug route error)
+// app.use('/api/logs', logsRouter);
+// console.log('[express] Logs API registered at /api/logs');
+// console.log('[express]   - GET /api/logs/stats - Log session statistics');
+// console.log('[express]   - GET /api/logs/session - Current session info');
+// console.log('[express]   - GET /api/logs/list - List all log files');
+// console.log('[express]   - GET /api/logs/download/:filename - Download log file');
+// console.log('[express]   - GET /api/logs/read/:filename - Read log file');
+// console.log('[express]   - GET /api/logs/tail/:filename - Tail log file');
+// console.log('[express]   - GET /api/logs/search - Search logs');
+
 // Register Agent Abilities API
 app.use('/api/agents/abilities', agentAbilitiesRouter);
 console.log('[express] Agent Abilities API registered at /api/agents/abilities');
@@ -155,10 +174,10 @@ console.log('[express] Scanner Analysis API registered at /api/scanner');
 
 // Register CoinGecko sentiment & market data routes
 app.use('/api/coingecko', coinGeckoRouter);
-// Register Symbol Universe API
-import symbolUniverseRouter from './routes/api/symbol-universe';
-app.use('/api/symbol-universe', symbolUniverseRouter);
-console.log('[express] Symbol Universe API registered at /api/symbol-universe');
+// Register Symbol Universe API  - TEMPORARILY DISABLED FOR DEBUG
+// import symbolUniverseRouter from './routes/api/symbol-universe';
+// app.use('/api/symbol-universe', symbolUniverseRouter);
+// console.log('[express] Symbol Universe API registered at /api/symbol-universe');
 
 // Register ML Predictions routes
 app.use('/api/ml', mlPredictionsRouter);
@@ -199,9 +218,14 @@ console.log('[express] Missing API endpoints registered at /api');
 app.use('/api/paper-trading', paperTradingRouter);
 console.log('[express] Paper Trading API registered at /api/paper-trading');
 
+// ============================================================================
+// BINARY SEARCH: TEMPORARILY DISABLE ALL ROUTERS AFTER THIS POINT
+// ============================================================================
+/*
 // Register Physics Agents (VFMD and Flow) routes
-app.use('/api/agents/physics', physicsAgentsRouter);
-console.log('[express] Physics Agents API registered at /api/agents/physics');
+// DISABLED FOR DEBUG
+// app.use('/api/agents/physics', physicsAgentsRouter);
+// console.log('[express] Physics Agents API registered at /api/agents/physics');
 
 // Register Physics Validation (CORRECT methodology) routes
 app.use('/api/physics', physicsValidationRouter);
@@ -320,20 +344,21 @@ console.log('[express] User Settings API registered at /api/user');
   });
   
   app.use('/api/learning', learningRouter);
-  console.log('[express] Learning System API registered at /api/learning');// Register Multi-Timeframe Analysis routes
-import multiTimeframeRouter from './routes/multi-timeframe-analysis';
-app.use('/api/analysis/multi-timeframe', multiTimeframeRouter);
-console.log('[express] Multi-Timeframe Analysis API registered at /api/analysis/multi-timeframe');
+  console.log('[express] Learning System API registered at /api/learning');
+  
+  // Register Multi-Timeframe Analysis routes
+  import multiTimeframeRouter from './routes/multi-timeframe-analysis';
+  app.use('/api/analysis/multi-timeframe', multiTimeframeRouter);
+  console.log('[express] Multi-Timeframe Analysis API registered at /api/analysis/multi-timeframe');
 
-// Register Gateway routes
-import gatewayRouter, { getGatewayServices } from './routes/gateway';
-app.use('/api/gateway', gatewayRouter);
-console.log('[express] Gateway API registered at /api/gateway');
+  // Register Gateway routes
+  app.use('/api/gateway', gatewayRouter);
+  console.log('[express] Gateway API registered at /api/gateway');
 
-// ============================================================================
-// PHASE 5: FRONTEND VISUALIZATION & TRANSPARENCY API
-// ============================================================================
-import phase5Routes from './routes/phase5-api';
+  // ============================================================================
+  // PHASE 5: FRONTEND VISUALIZATION & TRANSPARENCY API
+  // ============================================================================
+  import phase5Routes from './routes/phase5-api';
 app.use('/api/phase5', phase5Routes);
 console.log('[express] Phase 5 Frontend Visualization API registered at /api/phase5');
 console.log('[express]   - signal-transparency: Real-time 4-source breakdown');
@@ -401,6 +426,7 @@ console.log('[express] Complete Signal Generation API registered at /api/signal-
 import tradeExecutionRouter from './routes/trade-execution';
 app.use('/api/execution', tradeExecutionRouter);
 console.log('[express] Trade Execution API registered at /api/execution');
+*/
 
 // Initialize WebSocket service for real-time signal streaming
 import { signalWebSocketService } from './services/websocket-signals';
@@ -658,11 +684,11 @@ app.use((req, res, next) => {
   // Initialize Daily Briefing System (will be created after arena is available)
   let briefingSystem: DailyBriefingSystem | null = null;
   
-  // Setup Commander Routes
-  const router = express.Router();
-  setupCommanderRoutes(router, approvalSystem, briefingSystem as any, null as any, null as any);
-  app.use('/api', router);
-  console.log('[Commander] Routes registered at /api/commander');
+  // TEMPORARILY DISABLED: Setup Commander Routes
+  // const router = express.Router();
+  // setupCommanderRoutes(router, approvalSystem, briefingSystem as any, null as any, null as any);
+  // app.use('/api', router);
+  // console.log('[Commander] Routes registered at /api/commander');
 
   // MDL Diagnostics endpoint
   app.get('/api/diagnostics/mdl', (req, res) => {

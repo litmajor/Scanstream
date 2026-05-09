@@ -276,12 +276,20 @@ export async function exampleUsage() {
   );
 
   console.log('\n=== FINAL SIGNAL ===');
-  console.log(`Action: ${signal.recommendation.action}`);
-  console.log(`Regime: ${signal.recommendation.regime}`);
   console.log(`Confidence: ${(signal.confidence * 100).toFixed(0)}%`);
-  console.log(`Position: ${(signal.positionSizing.finalPositionPercent * 100).toFixed(2)}% of account`);
-  console.log(`Entry: ${signal.entryRule}`);
-  console.log(`Exit: ${signal.exitRule}`);
+  if ((signal as any).recommendation) {
+    console.log(`Action: ${(signal as any).recommendation.action}`);
+    console.log(`Regime: ${(signal as any).recommendation.regime}`);
+  }
+  if ((signal as any).positionSizing) {
+    console.log(`Position: ${((signal as any).positionSizing.finalPositionPercent * 100).toFixed(2)}% of account`);
+  }
+  if ((signal as any).entryRule) {
+    console.log(`Entry: ${(signal as any).entryRule}`);
+  }
+  if ((signal as any).exitRule) {
+    console.log(`Exit: ${(signal as any).exitRule}`);
+  }
 }
 
 // =============================================================================

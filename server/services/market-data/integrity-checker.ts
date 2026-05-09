@@ -17,7 +17,7 @@ import type {
   MarketDataIntegrity,
   IntegrityResult,
   IntegrityIssue,
-} from '../types/market-data';
+} from '../../types/market-data';
 
 export class MarketDataIntegrityChecker implements MarketDataIntegrity {
   /**

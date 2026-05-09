@@ -18,8 +18,8 @@ import {
   AgentSignalSource,
   EXECUTION_COMPARTMENT_CONSTANTS,
   isSignalIntent,
-} from '../types/ExecutionCompartments';
-import { DecisionContext } from '../types/DecisionContext';
+} from '../../types/ExecutionCompartments';
+import { DecisionContext } from '../../types/DecisionContext';
 
 // ============================================================================
 // SIGNAL INTENT CREATION

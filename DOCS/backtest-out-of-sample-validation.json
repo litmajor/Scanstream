@@ -1,0 +1,216 @@
+{
+  "training": {
+    "btc": {
+      "period": "2023-2024",
+      "startDate": "2023-01-01",
+      "endDate": "2025-01-09",
+      "candleCount": 18000,
+      "totalTrades": 13274,
+      "winRate": 0.3328310983878258,
+      "profitFactor": 0.4821121191030884,
+      "totalPnL": -998.5640872752647,
+      "grossProfit": 929.5831509761658,
+      "grossLoss": 1928.147238251433,
+      "sharpeRatio": -4.455668590385133,
+      "maxDrawdown": -0.9986684307421474,
+      "avgTradeDuration": 2.649239114057556,
+      "regimeDistribution": {
+        "unknown": {
+          "count": 79,
+          "percentage": 0.43937708565072303
+        },
+        "consolidation": {
+          "count": 11130,
+          "percentage": 61.90211345939933
+        },
+        "turbulent_chop": {
+          "count": 6771,
+          "percentage": 37.65850945494994
+        }
+      },
+      "regimePerformance": {
+        "unknown": {
+          "trades": 11,
+          "winRate": 0.7272727272727273,
+          "profitFactor": 4.40183583025114,
+          "avgDuration": 2.272727272727273
+        },
+        "consolidation": {
+          "trades": 8262,
+          "winRate": 0.3438634713144517,
+          "profitFactor": 0.44686421836757456,
+          "avgDuration": 1.6004599370612442
+        },
+        "turbulent_chop": {
+          "trades": 5001,
+          "winRate": 0.3137372525494901,
+          "profitFactor": 0.49910579787565346,
+          "avgDuration": 4.3827234553089385
+        }
+      }
+    },
+    "eth": {
+      "period": "2023-2024",
+      "startDate": "2023-01-01",
+      "endDate": "2025-01-09",
+      "candleCount": 18000,
+      "totalTrades": 13495,
+      "winRate": 0.33671730270470546,
+      "profitFactor": 0.5443628027572345,
+      "totalPnL": -998.633740662237,
+      "grossProfit": 1193.0963171674298,
+      "grossLoss": 2191.730057829661,
+      "sharpeRatio": -4.14960054519353,
+      "maxDrawdown": -0.9986992371264836,
+      "avgTradeDuration": 2.532789922193405,
+      "regimeDistribution": {
+        "unknown": {
+          "count": 79,
+          "percentage": 0.43937708565072303
+        },
+        "consolidation": {
+          "count": 11080,
+          "percentage": 61.62402669632926
+        },
+        "turbulent_chop": {
+          "count": 6821,
+          "percentage": 37.93659621802002
+        }
+      },
+      "regimePerformance": {
+        "unknown": {
+          "trades": 10,
+          "winRate": 0.5,
+          "profitFactor": 2.8304277583073256,
+          "avgDuration": 1.5
+        },
+        "consolidation": {
+          "trades": 8379,
+          "winRate": 0.3483709273182957,
+          "profitFactor": 0.5004772547965521,
+          "avgDuration": 1.6746628475951784
+        },
+        "turbulent_chop": {
+          "trades": 5106,
+          "winRate": 0.3172737955346651,
+          "profitFactor": 0.5682006860681006,
+          "avgDuration": 3.9430082256169214
+        }
+      }
+    }
+  },
+  "testing": {
+    "btc": {
+      "period": "2025",
+      "startDate": "2025-01-01",
+      "endDate": "2026-01-10",
+      "candleCount": 9000,
+      "totalTrades": 6562,
+      "winRate": 0.3537031392868028,
+      "profitFactor": 0.5845425954292732,
+      "totalPnL": -908.6821616789912,
+      "grossProfit": 1278.5027378605623,
+      "grossLoss": 2187.1848995395494,
+      "sharpeRatio": -3.354879089895326,
+      "maxDrawdown": -0.9145387043301831,
+      "avgTradeDuration": 2.657116732703444,
+      "regimeDistribution": {
+        "unknown": {
+          "count": 79,
+          "percentage": 0.8797327394209353
+        },
+        "turbulent_chop": {
+          "count": 3210,
+          "percentage": 35.74610244988864
+        },
+        "consolidation": {
+          "count": 5691,
+          "percentage": 63.374164810690424
+        }
+      },
+      "regimePerformance": {
+        "unknown": {
+          "trades": 19,
+          "winRate": 0.42105263157894735,
+          "profitFactor": 0.3404203109514007,
+          "avgDuration": 1
+        },
+        "turbulent_chop": {
+          "trades": 2386,
+          "winRate": 0.32984073763621125,
+          "profitFactor": 0.6370698245097643,
+          "avgDuration": 4.5989103101424975
+        },
+        "consolidation": {
+          "trades": 4157,
+          "winRate": 0.36709165263411114,
+          "profitFactor": 0.48048701371786695,
+          "avgDuration": 1.5501563627616068
+        }
+      }
+    },
+    "eth": {
+      "period": "2025",
+      "startDate": "2025-01-01",
+      "endDate": "2026-01-10",
+      "candleCount": 9000,
+      "totalTrades": 6886,
+      "winRate": 0.32791170490851,
+      "profitFactor": 0.5762589696463747,
+      "totalPnL": -974.7518734195232,
+      "grossProfit": 1325.5962250548364,
+      "grossLoss": 2300.348098474368,
+      "sharpeRatio": -4.372828856058179,
+      "maxDrawdown": -0.976242760852008,
+      "avgTradeDuration": 2.209555620098751,
+      "regimeDistribution": {
+        "unknown": {
+          "count": 79,
+          "percentage": 0.8797327394209353
+        },
+        "consolidation": {
+          "count": 5743,
+          "percentage": 63.9532293986637
+        },
+        "turbulent_chop": {
+          "count": 3158,
+          "percentage": 35.16703786191537
+        }
+      },
+      "regimePerformance": {
+        "unknown": {
+          "trades": 19,
+          "winRate": 0.42105263157894735,
+          "profitFactor": 0.3970304720146244,
+          "avgDuration": 1
+        },
+        "consolidation": {
+          "trades": 4411,
+          "winRate": 0.3296304692813421,
+          "profitFactor": 0.5576494955066851,
+          "avgDuration": 1.7068691906597144
+        },
+        "turbulent_chop": {
+          "trades": 2456,
+          "winRate": 0.3241042345276873,
+          "profitFactor": 0.5880590785678771,
+          "avgDuration": 3.121742671009772
+        }
+      }
+    }
+  },
+  "analysis": {
+    "btcOverfittingIndicators": [
+      "⚠️  Trade count dropped 50.6% (suggests overfitting to training period)"
+    ],
+    "ethOverfittingIndicators": [
+      "⚠️  Trade count dropped 49.0% (suggests overfitting to training period)"
+    ],
+    "overallAssessment": "FAIL: System shows overfitting",
+    "recommendations": [
+      "⚠️  System shows mixed robustness - investigate variances",
+      "→ Compare regime transitions between periods",
+      "→ Verify signal quality metrics are consistent"
+    ]
+  }
+}

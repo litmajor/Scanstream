@@ -18,7 +18,7 @@
  * > Money should only move after surviving multiple independent vetoes.
  */
 
-import { UUID } from './Common';
+import { UUID } from './Common.js';
 
 // ============================================================================
 // STAGE 1: SignalIntent — Pure, Immutable

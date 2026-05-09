@@ -8,6 +8,9 @@
 import { computeFlowField, type FlowFieldPoint, type FlowFieldResult } from './flowFieldEngine';
 import { generateFlowSignals, detectFlowReversals } from './flowFieldIntegration';
 
+// Re-export FlowFieldPoint
+export type { FlowFieldPoint, FlowFieldResult };
+
 /**
  * Backtest configuration
  */

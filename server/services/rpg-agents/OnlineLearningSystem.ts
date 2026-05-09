@@ -11,6 +11,7 @@
  */
 
 import { TradingAgent, TradeResult } from './TradingAgent';
+import { VolumeMechanicalVerifierAgent } from './VolumeMechanicalVerifierAgent';
 
 export interface ExperienceMemory {
   state: MarketState;
@@ -313,5 +314,71 @@ export class OnlineLearningSystem {
       this.qTable.set(stateKey, stateActions);
     });
     console.log(`📥 Imported Q-table with ${this.qTable.size} states`);
+  }
+
+  /**
+   * Gradient-Based Agent Threshold Tuning
+   * Adjusts agent parameters based on recent Sharpe ratio performance
+   * Implements adaptive learning: improving performance → reduce learning rate (fine-tune)
+   * Poor performance → increase learning rate (explore more)
+   */
+  tuneAgentThresholds(agent: TradingAgent, recentTrades: TradeResult[], regime: string): void {
+    if (recentTrades.length < 8) return;
+
+    const sharpe = this.calculateSharpe(recentTrades);
+    const agentName = agent.name;
+
+    // Gradient-style adjustment for VolumeMechanicalVerifierAgent
+    if ('volumeThreshold' in agent) {
+      const improvement = sharpe > 1.2 ? 0.03 : (sharpe < 0.8 ? -0.03 : 0);
+      const oldThreshold = (agent as any).volumeThreshold;
+      (agent as any).volumeThreshold = Math.max(1.2, Math.min(2.0, oldThreshold + improvement));
+      
+      const oldConviction = (agent as any).minConvictionThreshold;
+      (agent as any).minConvictionThreshold = Math.max(50, Math.min(80, oldConviction + improvement * 10));
+      
+      console.log(
+        `⚙️ [OnlineLearning] Tuned ${agentName} (${regime}) | Sharpe=${sharpe.toFixed(2)} | ` +
+        `volumeThreshold: ${oldThreshold.toFixed(2)}→${(agent as any).volumeThreshold.toFixed(2)} | ` +
+        `conviction: ${oldConviction.toFixed(0)}→${(agent as any).minConvictionThreshold.toFixed(0)}`
+      );
+    }
+
+    // Auto-skill evolution: boost specialized skills on high Sharpe
+    if (sharpe > 1.5 && agent.skill_levels) {
+      const skillLevels = agent.skill_levels as any;
+      
+      // Domain-specific skill improvements
+      if ('climax_detection' in skillLevels) {
+        skillLevels.climax_detection = Math.min(10, skillLevels.climax_detection + 1);
+        console.log(`🎯 ${agentName}: climax_detection skill → ${skillLevels.climax_detection}`);
+      }
+      if ('conviction_check' in skillLevels && sharpe > 1.8) {
+        skillLevels.conviction_check = Math.min(10, skillLevels.conviction_check + 1);
+        console.log(`🎯 ${agentName}: conviction_check skill → ${skillLevels.conviction_check}`);
+      }
+      if ('breakout_integrity' in skillLevels && sharpe > 1.7) {
+        skillLevels.breakout_integrity = Math.min(10, skillLevels.breakout_integrity + 1);
+        console.log(`🎯 ${agentName}: breakout_integrity skill → ${skillLevels.breakout_integrity}`);
+      }
+    }
+  }
+
+  /**
+   * Helper: Calculate Sharpe ratio from recent trades
+   * Sharpe = (avg_return / std_dev_returns) * sqrt(252) for annual
+   */
+  private calculateSharpe(trades: TradeResult[]): number {
+    if (trades.length === 0) return 0;
+
+    // Use profit_pct from TradeResult (already in decimal 0-1 range)
+    const returns = trades.map(t => t.profit_pct / 100);
+    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    
+    if (stdDev === 0) return 0;
+    return (avgReturn / stdDev) * Math.sqrt(252); // Annualized
   }
 }

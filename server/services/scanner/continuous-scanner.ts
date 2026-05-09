@@ -69,7 +69,7 @@ export class ContinuousMultiTimeframeScanner extends EventEmitter {
           for (const timeframe of Object.keys(tfMap)) {
             try {
               const frames = tfMap[timeframe] ?? [];
-              let result: MomentumScoreResult = { score: 0, reason: 'NO_DATA', indicators: {} };
+              let result: any = { score: 0, reason: 'NO_DATA', indicators: {}, signal: 'HOLD', signalStrength: 0, confidence: 0 };
               if (frames.length > 0) {
                 result = MomentumScanner.computeScore(frames);
               }

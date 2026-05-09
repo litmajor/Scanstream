@@ -269,11 +269,11 @@ export class ExchangeAggregator {
 
           // Convert to candle format
           const candles = frames.map(f => ({
-            ts: f.timestamp || Date.now(),
-            open: (f.price as any)?.open || f.open || 0,
-            high: (f.price as any)?.high || f.high || 0,
-            low: (f.price as any)?.low || f.low || 0,
-            close: (f.price as any)?.close || f.close || 0,
+            ts: Math.floor((f.timestamp || Date.now()) as number),
+            open: (f.price as any)?.open || (f as any).open || 0,
+            high: (f.price as any)?.high || (f as any).high || 0,
+            low: (f.price as any)?.low || (f as any).low || 0,
+            close: (f.price as any)?.close || (f as any).close || 0,
             volume: f.volume || 0,
             isFinal: true,
             source: 'ccxt',
@@ -298,9 +298,11 @@ export class ExchangeAggregator {
           }
 
           // Return validated frames (map back to original format)
-          const validatedFrames = frames.filter(f =>
-            result.stored.some(c => c.ts === f.timestamp)
-          );
+          const validatedFrames = frames.filter(f => {
+            const fTimestamp = typeof f.timestamp === 'string' ? new Date(f.timestamp).getTime() : 
+                             f.timestamp instanceof Date ? f.timestamp.getTime() : f.timestamp;
+            return result.stored.some(c => c.ts === fTimestamp);
+          });
 
           return validatedFrames.length > 0 ? validatedFrames : frames;
         } catch (integrityError) {

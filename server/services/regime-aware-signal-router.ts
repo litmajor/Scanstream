@@ -12,6 +12,8 @@
  */
 
 import { StrategyContribution } from './unified-signal-aggregator';
+import { UnifiedRegimeDetector, UnifiedRegimeType, RegimeDetectionResult } from './unified-regime-system';
+import { RegimeConsolidationBridge } from './regime-consolidation-bridge';
 
 export interface MarketRegime {
   type: 'TRENDING' | 'SIDEWAYS' | 'HIGH_VOLATILITY' | 'BREAKOUT' | 'QUIET';
@@ -20,6 +22,9 @@ export interface MarketRegime {
   volatilityLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
   trendStrength: number; // 0-100, from ADX-like calculation
   rangeWidth: number; // 0-1, how wide is the range
+  // Unified regime fields (Phase 3 wiring)
+  unifiedRegime?: UnifiedRegimeType;
+  unifiedRegimeResult?: RegimeDetectionResult;
 }
 
 export interface RegimeAdjustedWeights {
@@ -52,7 +57,7 @@ export class RegimeAwareSignalRouter {
       const direction = priceVsMA > 0 ? 'uptrend' : 'downtrend';
       characteristics.push(`Strong ${direction} (ADX: ${trendStrength.toFixed(0)})`);
       
-      return {
+      const regime: MarketRegime = {
         type: 'TRENDING',
         strength: Math.min(100, trendStrength + 10),
         characteristics,
@@ -60,6 +65,21 @@ export class RegimeAwareSignalRouter {
         trendStrength,
         rangeWidth
       };
+      
+      // ✅ NEW: Detect unified regime alongside legacy
+      regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+        adx: trendStrength,
+        volatility: volatilityLevel === 'LOW' ? 0.02 : volatilityLevel === 'MEDIUM' ? 0.04 : volatilityLevel === 'HIGH' ? 0.07 : 0.15,
+        priceVsMA,
+        rangeWidth,
+        divergence: priceVsMA,
+        coherence: (trendStrength / 100) * 0.7 + 0.3,
+        momentum: priceVsMA,
+        rsi: 50 + (priceVsMA * 50)
+      });
+      regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+      
+      return regime;
     }
 
     // HIGH_VOLATILITY detection
@@ -67,7 +87,7 @@ export class RegimeAwareSignalRouter {
       characteristics.push(`Extreme volatility (${volatilityLevel})`);
       characteristics.push(volatilityTrend === 'RISING' ? 'Volatility expanding' : 'Volatility extreme');
       
-      return {
+      const regime: MarketRegime = {
         type: 'HIGH_VOLATILITY',
         strength: 85,
         characteristics,
@@ -75,6 +95,21 @@ export class RegimeAwareSignalRouter {
         trendStrength,
         rangeWidth
       };
+      
+      // ✅ NEW: Unified regime detection
+      regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+        adx: Math.max(20, trendStrength - 20),
+        volatility: 0.12,
+        priceVsMA,
+        rangeWidth: 0.15,
+        divergence: 0,
+        coherence: 0.3,
+        momentum: 0,
+        rsi: 50
+      });
+      regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+      
+      return regime;
     }
 
     // BREAKOUT detection (structure breaks + volatility spike)
@@ -82,7 +117,7 @@ export class RegimeAwareSignalRouter {
       characteristics.push('Multiple structure breaks detected');
       characteristics.push('Potential breakout scenario');
       
-      return {
+      const regime: MarketRegime = {
         type: 'BREAKOUT',
         strength: 75,
         characteristics,
@@ -90,15 +125,30 @@ export class RegimeAwareSignalRouter {
         trendStrength,
         rangeWidth
       };
+      
+      // ✅ NEW: Unified regime detection
+      regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+        adx: Math.min(100, trendStrength + 20),
+        volatility: 0.08,
+        priceVsMA,
+        rangeWidth: 0.1,
+        divergence: priceVsMA * 0.5,
+        coherence: 0.4,
+        momentum: priceVsMA,
+        rsi: 50 + (priceVsMA * 50)
+      });
+      regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+      
+      return regime;
     }
 
     // SIDEWAYS/RANGING detection
-    if (trendStrength < 40 && rangeWidth < 0.05 && volatilityLevel !== 'EXTREME') {
+    if (trendStrength < 40 && rangeWidth < 0.05 && volatilityLevel === 'LOW') {
       characteristics.push('Tight range, low trend strength');
       characteristics.push('Mean reversion conditions');
       characteristics.push(`Range width: ${(rangeWidth * 100).toFixed(1)}%`);
       
-      return {
+      const regime: MarketRegime = {
         type: 'SIDEWAYS',
         strength: Math.min(100, 100 - trendStrength),
         characteristics,
@@ -106,6 +156,21 @@ export class RegimeAwareSignalRouter {
         trendStrength,
         rangeWidth
       };
+      
+      // ✅ NEW: Unified regime detection
+      regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+        adx: trendStrength,
+        volatility: volatilityLevel === 'LOW' ? 0.015 : 0.03,
+        priceVsMA: 0,
+        rangeWidth,
+        divergence: 0,
+        coherence: 0.4,
+        momentum: 0,
+        rsi: 50
+      });
+      regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+      
+      return regime;
     }
 
     // QUIET detection (low volatility + weak trend)
@@ -113,7 +178,7 @@ export class RegimeAwareSignalRouter {
       characteristics.push('Low volatility + weak trend');
       characteristics.push('Reduced signal reliability');
       
-      return {
+      const regime: MarketRegime = {
         type: 'QUIET',
         strength: 70,
         characteristics,
@@ -121,11 +186,26 @@ export class RegimeAwareSignalRouter {
         trendStrength,
         rangeWidth
       };
+      
+      // ✅ NEW: Unified regime detection
+      regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+        adx: trendStrength,
+        volatility: 0.01,
+        priceVsMA,
+        rangeWidth,
+        divergence: 0,
+        coherence: 0.7,
+        momentum: 0,
+        rsi: 50
+      });
+      regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+      
+      return regime;
     }
 
     // Default: fallback to trending weak signal
     characteristics.push('Mixed conditions, default weighting');
-    return {
+    const regime: MarketRegime = {
       type: 'TRENDING',
       strength: 50,
       characteristics,
@@ -133,6 +213,21 @@ export class RegimeAwareSignalRouter {
       trendStrength,
       rangeWidth
     };
+    
+    // ✅ NEW: Unified regime detection
+    regime.unifiedRegimeResult = UnifiedRegimeDetector.detectRegime({
+      adx: trendStrength,
+      volatility: 0.04,
+      priceVsMA,
+      rangeWidth,
+      divergence: 0,
+      coherence: 0.5,
+      momentum: 0,
+      rsi: 50
+    });
+    regime.unifiedRegime = regime.unifiedRegimeResult.regime;
+    
+    return regime;
   }
 
   /**

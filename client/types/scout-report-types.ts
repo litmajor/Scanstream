@@ -9,7 +9,7 @@
  */
 
 // Direction & Confidence Types
-export type Direction = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+export type Direction = 'BUY' | 'SELL' | 'HOLD';
 export type TradeType = 'SCALP' | 'DAY' | 'SWING' | 'POSITION';
 export type SourceType = 'ML' | 'SCANNER' | 'AGENTS' | 'PRICE_ACTION';
 export type SignalQuality = 'strong' | 'moderate' | 'weak';
@@ -196,6 +196,17 @@ export interface ConsensusData {
     previous4h: number;
     direction: 'increasing' | 'decreasing' | 'stable';
   };
+  // Additional fields for compatibility with server
+  agreement: number;
+  timestamp: number;
+  // Optional fields for component rendering
+  sourceDetails?: {
+    source: string;
+    direction: Direction;
+    confidence: number;
+    agreesWithConsensus: boolean;
+  }[];
+  dissentingSources?: string[];
 }
 
 export interface AlternativeView {

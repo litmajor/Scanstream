@@ -459,7 +459,7 @@ const ComparisonMode: React.FC<ComparisonModeProps> = ({ results, onClose, onExp
                                   <YAxis stroke="#9ca3af" />
                                   <Tooltip
                                     contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151' }}
-                                    formatter={(value) => `${(value * 100).toFixed(2)}%`}
+                                    formatter={(value: any) => `${((typeof value === 'number' ? value : 0) * 100).toFixed(2)}%`}
                                   />
                                   <Bar dataKey="return" fill={colors[resultIdx]}>
                                     {results[resultIdx].monthlyReturns?.map((entry, i) => (

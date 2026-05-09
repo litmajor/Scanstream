@@ -435,7 +435,7 @@ async function main() {
   console.log(JSON.stringify(btcResult.metrics, null, 2));
   
   console.log('\n📊 BTC Scout Diagnostics:');
-  console.log(JSON.stringify(btcResult.scoutDiagnostics, null, 2));
+  console.log(JSON.stringify(btcResult.diagnostics, null, 2));
 
   // ETH backtest
   const ethBacktester = new ConvexityBacktesterWithVFMD('ConvexBacktest-VFMD-ETH');
@@ -450,7 +450,7 @@ async function main() {
   console.log(JSON.stringify(ethResult.metrics, null, 2));
   
   console.log('\n📊 ETH Scout Diagnostics:');
-  console.log(JSON.stringify(ethResult.scoutDiagnostics, null, 2));
+  console.log(JSON.stringify(ethResult.diagnostics, null, 2));
 
   // Summary
   console.log('\n' + '═'.repeat(60));

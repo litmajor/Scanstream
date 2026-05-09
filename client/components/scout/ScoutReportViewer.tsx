@@ -19,7 +19,7 @@ import RiskAssessmentPanel from './RiskAssessmentPanel';
 import TradeDetailModal from './TradeDetailModal';
 import { useScoutReportTrading } from '../../hooks/useScoutReportTrading';
 import { formatPrice, formatPct, formatMetric } from '../../utils/formatting';
-import type { ScoutReport, TradeOpportunity, TradeType } from '../../types/scout-report-types';
+import type { ScoutReport, TradeOpportunity, TradeType } from '../../types';
 
 interface ScoutReportViewerProps {
   symbol: string;
@@ -207,8 +207,9 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Type Filter */}
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Trade Type</label>
+              <label htmlFor="type-filter" className="text-sm font-medium text-gray-700 block mb-2">Trade Type</label>
               <select
+                id="type-filter"
                 value={filters.type || 'ALL'}
                 onChange={(e) => setFilters({ ...filters, type: (e.target.value as any) || 'ALL' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -222,10 +223,11 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
 
             {/* Confidence Filter */}
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">
+              <label htmlFor="confidence-filter" className="text-sm font-medium text-gray-700 block mb-2">
                 Min Confidence: {Math.round(filters.minConfidence * 100)}%
               </label>
               <input
+                id="confidence-filter"
                 type="range"
                 min="0"
                 max="100"
@@ -237,10 +239,11 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
 
             {/* Risk/Reward Filter */}
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">
+              <label htmlFor="rr-filter" className="text-sm font-medium text-gray-700 block mb-2">
                 Min R:R: {filters.minRiskReward.toFixed(1)}
               </label>
               <input
+                id="rr-filter"
                 type="range"
                 min="0"
                 max="5"
@@ -253,8 +256,9 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
 
             {/* Sort Filter */}
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Sort By</label>
+              <label htmlFor="sort-filter" className="text-sm font-medium text-gray-700 block mb-2">Sort By</label>
               <select
+                id="sort-filter"
                 value={filters.sortBy}
                 onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as any })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -349,7 +353,7 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
           }}
           onExecute={async (opp, strategy) => {
             // Validate trade first
-            const validation = validateTrade(opp, opp.entryPrice.min);
+            const validation = validateTrade(opp, opp.entryZone.low);
             if (!validation.valid) {
               setExecutionMessage(`⚠️ Trade validation failed:\n${validation.errors.join('\n')}`);
               return;
@@ -364,9 +368,9 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
                 symbol,
                 opportunity: opp,
                 entryStrategy: strategy as 'conservative' | 'optimal' | 'aggressive',
-                entryPrice: opp.entryPrice.min,
-                stopLoss: opp.stopLoss,
-                target: opp.targets[0],
+                entryPrice: opp.entryZone.low,
+                stopLoss: opp.stopLoss.price,
+                target: opp.targets[0]?.level || 0,
               },
               (msg) => setExecutionMessage(`📊 ${msg}`)
             );
@@ -374,7 +378,7 @@ export const ScoutReportViewer: React.FC<ScoutReportViewerProps> = ({
             setExecutionInProgress(false);
 
             if (result.success) {
-              setExecutionMessage(`✅ Trade executed!\nOrder ID: ${result.orderId}\nEntry: ${opp.entryPrice.min.toFixed(2)}\nStop: ${opp.stopLoss.toFixed(2)}`);
+              setExecutionMessage(`✅ Trade executed!\nOrder ID: ${result.orderId}\nEntry: ${opp.entryZone.low.toFixed(2)}\nStop: ${opp.stopLoss.price.toFixed(2)}`);
               setLastExecutedOrderId(result.orderId || null);
               // keep modal open so user can view confirmation and optionally navigate to orders
             } else {

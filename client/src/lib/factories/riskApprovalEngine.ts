@@ -23,7 +23,7 @@ import {
   SignalIntent,
   RiskApproval,
   EXECUTION_COMPARTMENT_CONSTANTS,
-} from '../types/ExecutionCompartments';
+} from '../../types/ExecutionCompartments';
 import {
   assertExecutionAllowed,
   assertReplayCannotTrade,

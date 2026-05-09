@@ -11,6 +11,7 @@
 
 import type { MarketTick } from './types';
 import { RegimeClassifier, FlowRegime } from './regimeClassifier.ts';
+import { HTFTrendIndicator } from './HTFTrendIndicator';
 import { VFMDPhysicsAgent } from './VFMDPhysicsAgent';
 
 /**
@@ -99,7 +100,6 @@ export class VFMDBacktester {
   static async backtest(
     symbol: string,
     historicalData: MarketTick[],
-    agent: VFMDPhysicsAgent,
     startIndex: number = 100,
     stopLossPercent: number = 0.02,
     takeProfitPercent: number = 0.04
@@ -122,6 +122,9 @@ export class VFMDBacktester {
     const regimeLog: FlowRegime[] = [];
     const equityLog: number[] = [equity];
     const returnLog: number[] = [0];
+
+    // Create physics agent
+    let agent = new VFMDPhysicsAgent(FlowRegime.LAMINAR_TREND);
 
     // Process each bar
     for (let i = startIndex; i < historicalData.length; i++) {
@@ -203,6 +206,9 @@ export class VFMDBacktester {
               reason: exitReason
             });
 
+            // ✅ NEW: Notify agent that trade closed (resets PEG tracker state)
+            agent.onTradeClosed();
+
             position = null;
           }
         }
@@ -219,6 +225,9 @@ export class VFMDBacktester {
               confidence: signal.confidence,
               reason: signal.reason
             };
+
+            // ✅ NEW: Notify agent that trade opened
+            agent.onTradeOpened(position.direction === 'long' ? 'BUY' : 'SELL');
           }
         }
 
@@ -252,6 +261,9 @@ export class VFMDBacktester {
         bars: historicalData.length - 1 - position.entryBar,
         reason: 'END_OF_DATA'
       });
+
+      // ✅ NEW: Notify agent that final trade closed
+      agent.onTradeClosed();
     }
 
     // Calculate statistics

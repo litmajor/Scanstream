@@ -114,7 +114,8 @@ router.post('/run', async (req: Request, res: Response) => {
     const mockTrades: Trade[] = Array.from({ length: 150 }, (_, i) => ({
       symbol,
       id: `trade-${i}`,
-      signalId: null,
+      signalId: undefined,
+      type: 'LONG' as const,
       side: Math.random() > 0.5 ? 'long' : 'short',
       entryTime: new Date(Date.now() - i * 3600000),
       exitTime: new Date(Date.now() - (i - 1) * 3600000),
@@ -124,7 +125,7 @@ router.post('/run', async (req: Request, res: Response) => {
       pnl: (Math.random() - 0.45) * 1000,
       commission: 10,
       status: 'CLOSED' as const
-    }));
+    })) as any;
 
     // Calculate baseline metrics
     const baselineMetrics = calculateMetricsFromTrades(mockTrades);
@@ -139,7 +140,7 @@ router.post('/run', async (req: Request, res: Response) => {
     const report = velocityService.generateVelocityReport(
       baselineMetrics,
       velocityProfile,
-      mockTrades,
+      mockTrades as any,
       metricsFunc
     );
 
@@ -189,7 +190,8 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
     const mockTrades: Trade[] = Array.from({ length: 150 }, (_, i) => ({
       symbol,
       id: `trade-${i}`,
-      signalId: null,
+      signalId: undefined,
+      type: 'LONG' as const,
       side: 'long',
       entryTime: new Date(),
       exitTime: new Date(),
@@ -199,7 +201,7 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
       pnl: (Math.random() - 0.45) * 1000,
       commission: 10,
       status: 'CLOSED' as const
-    }));
+    })) as any;
 
     const baselineMetrics = calculateMetricsFromTrades(mockTrades);
     const velocityProfile = generateMockVelocityMetrics(symbol, mockTrades.length);
@@ -210,7 +212,7 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
     };
 
     if (strategies.includes('velocity')) {
-      const trades = velocityService.applyVelocityProfileSizing(mockTrades, velocityProfile);
+      const trades = velocityService.applyVelocityProfileSizing(mockTrades.map(t => ({ ...t, type: 'LONG' as const })) as any, velocityProfile);
       const metrics = calculateMetricsFromTrades(trades);
       const impact = velocityService.calculateVelocityImpact(baselineMetrics, trades, metrics);
       results.strategies.velocity = {
@@ -220,7 +222,7 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
     }
 
     if (strategies.includes('adaptive')) {
-      const trades = velocityService.applyAdaptiveVelocitySizing(mockTrades, velocityProfile);
+      const trades = velocityService.applyAdaptiveVelocitySizing(mockTrades.map(t => ({ ...t, type: 'LONG' as const })) as any, velocityProfile);
       const metrics = calculateMetricsFromTrades(trades);
       const impact = velocityService.calculateVelocityImpact(baselineMetrics, trades, metrics);
       results.strategies.adaptive = {
@@ -230,7 +232,7 @@ router.post('/compare-strategies', async (req: Request, res: Response) => {
     }
 
     if (strategies.includes('high-frequency')) {
-      const trades = velocityService.applyHighFrequencyVelocitySizing(mockTrades, velocityProfile);
+      const trades = velocityService.applyHighFrequencyVelocitySizing(mockTrades.map(t => ({ ...t, type: 'LONG' as const })) as any, velocityProfile);
       const metrics = calculateMetricsFromTrades(trades);
       const impact = velocityService.calculateVelocityImpact(baselineMetrics, trades, metrics);
       results.strategies['high-frequency'] = {

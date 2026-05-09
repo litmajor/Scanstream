@@ -207,7 +207,9 @@ export default function FlowFieldPage() {
       <div className="mb-6">
         <label className="block text-sm font-medium text-slate-300 mb-2">Select Symbol</label>
         <div className="flex flex-wrap gap-2">
-          {SYMBOLS.map(symbol => (
+          {(universeSymbols || DEFAULT_SYMBOLS).map((item: any) => {
+            const symbol = typeof item === 'string' ? item : item.symbol;
+            return (
             <button
               key={symbol}
               onClick={() => setSelectedSymbol(symbol)}
@@ -219,7 +221,8 @@ export default function FlowFieldPage() {
             >
               {symbol}
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

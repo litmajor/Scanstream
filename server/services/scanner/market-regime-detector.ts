@@ -6,7 +6,15 @@
  * - Trend strength (ADX-based)
  * - Volatility classification
  * - EMA alignment
+ * 
+ * PHASE 2 UPDATE (March 2026):
+ * - Now includes unified regime detection alongside legacy detection
+ * - Enables side-by-side validation before full migration
+ * - Maintains 100% backward compatibility with existing code
  */
+
+import { UnifiedRegimeDetector, type UnifiedRegimeType } from '../unified-regime-system';
+import { RegimeConsolidationBridge } from '../regime-consolidation-bridge';
 
 export interface RegimeDetectionResult {
   regime: 'bull' | 'bear' | 'ranging';
@@ -26,6 +34,9 @@ export interface RegimeDetectionResult {
     '20d': number;
     '50d': number;
   };
+  // PHASE 2: Track unified regime detection alongside legacy
+  unifiedRegime?: UnifiedRegimeType;
+  unifiedConfidence?: number;
 }
 
 export interface FibonacciLevels {
@@ -42,10 +53,93 @@ export interface FibonacciLevels {
 
 export class MarketRegimeDetector {
   /**
+   * PHASE 2 MIGRATION: Track unified detections for validation
+   */
+  private static divergenceLog: Array<{
+    timestamp: number;
+    legacy: string;
+    unified: UnifiedRegimeType;
+    match: boolean;
+  }> = [];
+
+  private static readonly MAX_DIVERGENCE_LOG = 1000;
+
+  /**
    * Detect current market regime (bull/bear/ranging)
    * Uses EMA alignment, ADX, and volatility analysis
+   * 
+   * PHASE 2: Now runs alongside unified detection for parallel validation
    */
   static detectRegime(
+    closes: number[],
+    highs: number[],
+    lows: number[],
+    volumes?: number[]
+  ): RegimeDetectionResult {
+    // PHASE 2: Run legacy detection
+    const legacyResult = this.detectRegimeLegacy(closes, highs, lows, volumes);
+
+    // PHASE 2: Also detect using unified system (for validation)
+    const unifiedDetection = this.detectUnified(closes, highs, lows);
+
+    // PHASE 2: Track divergence for monitoring
+    const mappedBackToLegacy = this.mapUnifiedToLegacy(unifiedDetection.regime);
+    const matches = legacyResult.regime === mappedBackToLegacy;
+    this.divergenceLog.push({
+      timestamp: Date.now(),
+      legacy: legacyResult.regime,
+      unified: unifiedDetection.regime,
+      match: matches,
+    });
+
+    if (this.divergenceLog.length > this.MAX_DIVERGENCE_LOG) {
+      this.divergenceLog.shift();
+    }
+
+    // Return legacy format with unified tracking (backward compatible)
+    return {
+      ...legacyResult,
+      unifiedRegime: unifiedDetection.regime,
+      unifiedConfidence: unifiedDetection.confidence,
+    };
+  }
+
+  /**
+   * PHASE 2: Get divergence statistics for migration validation
+   */
+  static getDivergenceStats(): {
+    totalSamples: number;
+    matchingDetections: number;
+    matchPercentage: number;
+    recentDivergences: Array<{
+      legacy: string;
+      unified: UnifiedRegimeType;
+    }>;
+  } {
+    const matching = this.divergenceLog.filter((d) => d.match).length;
+    const recentDivergences = this.divergenceLog
+      .filter((d) => !d.match)
+      .slice(-10)
+      .map((d) => ({
+        legacy: d.legacy,
+        unified: d.unified,
+      }));
+
+    return {
+      totalSamples: this.divergenceLog.length,
+      matchingDetections: matching,
+      matchPercentage:
+        this.divergenceLog.length > 0
+          ? (matching / this.divergenceLog.length) * 100
+          : 0,
+      recentDivergences,
+    };
+  }
+
+  /**
+   * PHASE 2 INTERNAL: Legacy detection logic (preserved for validation)
+   */
+  private static detectRegimeLegacy(
     closes: number[],
     highs: number[],
     lows: number[],
@@ -302,7 +396,79 @@ export class MarketRegimeDetector {
     return Math.min(100, confluence);
   }
 
-  // ==================== PRIVATE HELPERS ====================
+  /**
+   * PHASE 2: Map unified regime back to scanner regimes using bridge
+   */
+  private static mapUnifiedToLegacy(
+    unified: UnifiedRegimeType
+  ): 'bull' | 'bear' | 'ranging' {
+    return RegimeConsolidationBridge.toScanner(unified) as 'bull' | 'bear' | 'ranging';
+  }
+
+  /**
+   * PHASE 2 NEW: Map scanner market data to unified regime detection
+   */
+  private static detectUnified(
+    closes: number[],
+    highs: number[],
+    lows: number[]
+  ): {
+    regime: UnifiedRegimeType;
+    confidence: number;
+  } {
+    if (closes.length < 200) {
+      return {
+        regime: 'RANGING',
+        confidence: 0.3,
+      };
+    }
+
+    // Calculate indicators from OHLC data
+    const adx = this.calculateADX(highs, lows, closes);
+    const volatility = this.calculateVolatility(closes, 20) / 100; // Convert to 0-1
+    const atrPct = this.calculateATRPct(highs, lows, closes, 14) / 100; // Convert to 0-1
+
+    // Calculate price position vs EMAs
+    const ema50 = this.calculateEMA(closes, 50);
+    const ema200 = this.calculateEMA(closes, 200);
+    const currentPrice = closes[closes.length - 1];
+    const priceVsMA =
+      (currentPrice - ema200) / ema200;
+
+    // Calculate divergence from EMA alignment
+    const ema20 = this.calculateEMA(closes, 20);
+    const priceAbove20 = currentPrice > ema20 ? 1 : -1;
+    const priceAbove50 = currentPrice > ema50 ? 1 : -1;
+    const priceAbove200 = currentPrice > ema200 ? 1 : -1;
+    const divergence =
+      (priceAbove20 + priceAbove50 + priceAbove200) / 3;
+
+    // Map to unified parameters
+    const unifiedParams = {
+      adx: adx, // Already 0-100
+      volatility: Math.min(0.15, volatility),
+      priceVsMA: Math.min(0.5, Math.max(-0.5, priceVsMA)),
+      rangeWidth: atrPct * 0.1, // Normalize to 0-0.1 range
+      divergence: divergence, // -1 to +1
+      coherence: (5 - Math.abs(divergence * 5)) / 5, // Higher alignment = higher coherence
+      momentum: divergence > 0 ? 0.5 : -0.5,
+    };
+
+    // Call unified detector
+    try {
+      const result = UnifiedRegimeDetector.detectRegime(unifiedParams);
+      return {
+        regime: result.regime,
+        confidence: result.confidence,
+      };
+    } catch (error) {
+      // Fallback on error
+      return {
+        regime: 'RANGING',
+        confidence: 0.5,
+      };
+    }
+  }
 
   private static calculateEMA(values: number[], period: number): number {
     if (values.length < period) {

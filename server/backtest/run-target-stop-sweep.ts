@@ -18,7 +18,7 @@ async function runSweep() {
   ];
 
   const outFile = path.join(base, 'run-target-stop-sweep-results.csv');
-  const header = 'symbol,scoutTargetMultiplier,scoutStopMultiplier,totalScouts,foRTriggers,scoutWinRate,scoutAggregatePnl,scoutStops,scoutTargets,scoutTimeouts\n';
+  const header = 'symbol,scoutTargetMultiplier,scoutStopMultiplier,totalScouts,foRTriggers,scoutWinRate,scoutAggregatePnl,scoutStops,scoutTargets,scoutTimeouts,finalEquity\n';
   fs.writeFileSync(outFile, header);
 
   for (const s of symbols) {
@@ -46,7 +46,8 @@ async function runSweep() {
         const scoutTargets = res.vfmdScoutTrades ? res.vfmdScoutTrades.filter((t: any) => t.exitReason === 'TARGET').length : 0;
         const scoutTimeouts = res.vfmdScoutTrades ? res.vfmdScoutTrades.filter((t: any) => t.exitReason === 'TIMEOUT').length : 0;
 
-        const line = `${s.symbol},${t},${stop},${totalScouts},${foRTriggers},${scoutWinRate},${scoutAggregatePnl},${scoutStops},${scoutTargets},${scoutTimeouts}\n`;
+        const finalEquity = (res as any).finalEquity ?? '';
+        const line = `${s.symbol},${t},${stop},${totalScouts},${foRTriggers},${scoutWinRate},${scoutAggregatePnl},${scoutStops},${scoutTargets},${scoutTimeouts},${finalEquity}\n`;
         fs.appendFileSync(outFile, line);
 
         console.log(` T=${t.toFixed(2)} S=${stop.toFixed(2)} | Scouts:${totalScouts} FoR:${foRTriggers} Stops:${scoutStops} Targets:${scoutTargets} TO:${scoutTimeouts} PnL:${scoutAggregatePnl}`);

@@ -111,8 +111,8 @@ export default function StrategyBacktestingSuite({
   };
 
   const generateEquityCurve = () => {
-    const dates = [];
-    const values = [];
+    const dates: string[] = [];
+    const values: number[] = [];
     let value = 100000;
 
     const start = new Date(config.startDate);
@@ -232,8 +232,9 @@ export default function StrategyBacktestingSuite({
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">Start Date</label>
+                      <label htmlFor="start-date" className="block text-sm text-slate-400 mb-2">Start Date</label>
                       <input
+                        id="start-date"
                         type="date"
                         value={config.startDate}
                         onChange={(e) => setConfig({ ...config, startDate: e.target.value })}
@@ -241,8 +242,9 @@ export default function StrategyBacktestingSuite({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-slate-400 mb-2">End Date</label>
+                      <label htmlFor="end-date" className="block text-sm text-slate-400 mb-2">End Date</label>
                       <input
+                        id="end-date"
                         type="date"
                         value={config.endDate}
                         onChange={(e) => setConfig({ ...config, endDate: e.target.value })}
@@ -252,20 +254,23 @@ export default function StrategyBacktestingSuite({
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Initial Capital ($)</label>
+                    <label htmlFor="initial-capital" className="block text-sm text-slate-400 mb-2">Initial Capital ($)</label>
                     <input
+                      id="initial-capital"
                       type="number"
                       value={config.initialCapital}
                       onChange={(e) => setConfig({ ...config, initialCapital: Number(e.target.value) })}
                       className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white"
+                      placeholder="100000"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">
+                    <label htmlFor="transaction-cost" className="block text-sm text-slate-400 mb-2">
                       Transaction Cost ({config.transactionCost * 100}%)
                     </label>
                     <input
+                      id="transaction-cost"
                       type="range"
                       min="0"
                       max="0.01"
@@ -277,10 +282,11 @@ export default function StrategyBacktestingSuite({
                   </div>
 
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">
+                    <label htmlFor="slippage-input" className="block text-sm text-slate-400 mb-2">
                       Slippage ({config.slippage * 100}%)
                     </label>
                     <input
+                      id="slippage-input"
                       type="range"
                       min="0"
                       max="0.005"

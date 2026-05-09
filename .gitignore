@@ -1,5 +1,6 @@
 /.env
 /.vscode
+.venv/
 /node_modules
 /client/dist
 /dist
@@ -7,3 +8,17 @@
 .DS_Store
 .cache
 /vfmd_system/venv
+/logs
+data/
+results/
+backtests/
+logs/
+cache/
+checkpoints/
+*.csv
+*.parquet
+*.feather
+.replit
+/data
+/.replit
+/data/cache/

@@ -17,7 +17,7 @@
  * This adapter is a **claim translator**, not a truth enforcer.
  */
 
-import type { Candle } from '../../types/market-data';
+import type { Candle } from '../../../types/market-data';
 import { OandaClient } from './oanda-client';
 import type { OandaCandlesRequest } from './oanda-types';
 

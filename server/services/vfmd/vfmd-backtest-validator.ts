@@ -135,13 +135,13 @@ export class VFMDBacktestValidator {
    * Validate assumptions on a dataset
    * Returns: Did the three core assumptions actually hold?
    */
-  validateAssumptions(ticks: MarketTick[]): VFMDValidationReport {
+  validateAssumptions(ticks: MarketTick[], asset?: string): VFMDValidationReport {
     if (ticks.length < 200) {
       throw new Error('Need at least 200 bars for validation');
     }
 
     // Phase 1: Generate signals and outcomes
-    const signals = this.generateSignalsOnHistory(ticks);
+    const signals = this.generateSignalsOnHistory(ticks, asset);
     const outcomes = this.computeOutcomes(ticks, signals);
     this.outcomes = outcomes;
 
@@ -158,7 +158,8 @@ export class VFMDBacktestValidator {
    * Generate signals on historical data (replay agent)
    */
   private generateSignalsOnHistory(
-    ticks: MarketTick[]
+    ticks: MarketTick[],
+    asset?: string
   ): Array<{
     barIndex: number;
     metrics: PhysicsMetrics;
@@ -180,8 +181,8 @@ export class VFMDBacktestValidator {
       try {
         const field = this.fieldConstructor.constructField(prices);
         const metrics = PhysicsCalculator.computeAllMetrics(field);
-        const regime = RegimeClassifier.classify(metrics);
-        const confidence = RegimeClassifier.getRegimeConfidence(metrics);
+        const regime = RegimeClassifier.classify(metrics, asset);
+        const confidence = RegimeClassifier.getRegimeConfidence(metrics, asset);
 
         // Simplified target/stop (using ATR)
         const returns = prices.slice(1).map((p, i) => Math.abs(p - prices[i]) / prices[i]);

@@ -153,6 +153,7 @@ export function createDecisionContext(
   constraints: Partial<DecisionContextConstraints> = {}
 ): DecisionContext {
   const ctx: DecisionContext = {
+    mode: frame.meta.mode,
     symbol: frame.symbol,
     timeframe: frame.timeframe,
     frame: frame,
@@ -160,11 +161,12 @@ export function createDecisionContext(
     quality: {
       confidence: quality.confidence ?? 0.5,
       isStale: quality.isStale ?? false,
-      isFallback: quality.isFallback ?? frame.meta.source !== 'live',
+      isFallback: quality.isFallback ?? frame.meta.source !== 'WS',
       reason: quality.reason,
     },
     constraints: {
       allowTrade: constraints.allowTrade ?? true,
+      minConfidence: constraints.minConfidence ?? 0.6,
       maxSizeUsd: constraints.maxSizeUsd ?? 10000,
       maxLeverage: constraints.maxLeverage ?? 1.0,
       ...constraints,

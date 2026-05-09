@@ -51,6 +51,7 @@ interface DiagnosticReport {
 }
 
 function calculateMetrics(trades: any[]): {
+  total: number;
   wins: number;
   losses: number;
   winRate: number;
@@ -62,6 +63,7 @@ function calculateMetrics(trades: any[]): {
   sharpeRatio: number;
   maxDrawdown: number;
 } {
+  const total = trades.length;
   const wins = trades.filter(t => (t.pnl || 0) > 0).length;
   const losses = trades.filter(t => (t.pnl || 0) < 0).length;
   const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
@@ -95,6 +97,7 @@ function calculateMetrics(trades: any[]): {
   }
   
   return {
+    total,
     wins,
     losses,
     winRate,

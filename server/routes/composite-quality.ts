@@ -20,9 +20,9 @@ router.get('/:symbol', async (req, res) => {
       return res.status(404).json({ error: 'No market data available' });
     }
 
-    const marketData = frames[0];
+    const marketData = frames[0] as any;
     const quality = compositeEntryQualityEngine.calculateEntryQuality(
-      marketData,
+      marketData as any,
       direction as 'LONG' | 'SHORT'
     );
 
@@ -56,7 +56,7 @@ router.post('/batch', async (req, res) => {
         if (frames.length === 0) return null;
 
         const quality = compositeEntryQualityEngine.calculateEntryQuality(
-          frames[0],
+          frames[0] as any,
           signal.direction
         );
 
@@ -113,9 +113,9 @@ router.get('/filter/:minQuality', async (req, res) => {
       })
     );
 
-    const validSignals = allSignals.filter(s => s !== null);
+    const validSignals = allSignals.filter(s => s !== null) as any[];
     const filtered = compositeEntryQualityEngine.filterByQuality(
-      validSignals,
+      validSignals as any,
       minQuality
     );
 
@@ -124,7 +124,7 @@ router.get('/filter/:minQuality', async (req, res) => {
       totalScanned: symbols.length,
       qualifiedSignals: filtered.length,
       signals: filtered.map(item => ({
-        symbol: item.symbol,
+        symbol: item.marketData.symbol || 'UNKNOWN',
         direction: item.direction,
         quality: item.quality,
         price: item.marketData.price.close

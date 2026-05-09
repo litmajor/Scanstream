@@ -10,7 +10,7 @@
  */
 
 import * as ccxt from 'ccxt';
-import type { MarketDataAdapter, Candle, Ticker, AdapterHealth } from '../types/market-data';
+import type { MarketDataAdapter, Candle, Ticker, AdapterHealth } from '../../types/market-data';
 
 /**
  * Single exchange adapter for CCXT
@@ -63,13 +63,13 @@ export class CCXTMarketDataAdapter implements MarketDataAdapter {
 
       // Normalize to our Candle format
       const candles: Candle[] = rawCandles.map((row) => ({
-        ts: row[0],
-        open: row[1],
-        high: row[2],
-        low: row[3],
-        close: row[4],
+        ts: Math.floor((row[0] as any) || 0),
+        open: Math.floor((row[1] as any) || 0),
+        high: Math.floor((row[2] as any) || 0),
+        low: Math.floor((row[3] as any) || 0),
+        close: Math.floor((row[4] as any) || 0),
         volume: row[5] || 0,
-        isFinal: this.isCandleFinal(row[0], timeframe),
+        isFinal: this.isCandleFinal(Math.floor((row[0] as any) || 0), timeframe),
         source: 'ccxt',
         venue: this.venue,
         raw: row,

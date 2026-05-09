@@ -255,7 +255,7 @@ const RegimeDisplay: React.FC<RegimeDisplayProps> = ({
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis label={{ value: 'Weight %', angle: -90, position: 'insideLeft' }} />
-              <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+              <Tooltip formatter={(value: any) => `${typeof value === 'number' ? value.toFixed(1) : value}%`} />
               <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                 {weightData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
@@ -275,7 +275,7 @@ const RegimeDisplay: React.FC<RegimeDisplayProps> = ({
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
+                label={({ name, value }: any) => `${name} ${(value || 0).toFixed(1)}%`}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
@@ -284,7 +284,7 @@ const RegimeDisplay: React.FC<RegimeDisplayProps> = ({
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+              <Tooltip formatter={(value: any) => `${typeof value === 'number' ? value.toFixed(1) : value}%`} />
             </PieChart>
           </ResponsiveContainer>
         </div>
