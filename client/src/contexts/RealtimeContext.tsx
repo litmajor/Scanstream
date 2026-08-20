@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useCallback, useState } from 'react';
 import { WebSocketMessage, useWebSocket } from '@/hooks/useWebSocket';
-import { queryClient } from '@/lib/queryClient';
-import { worldTicksKey, orderbookKey, marketFramesKey, positionsKey } from '@/lib/queryKeys';
 
 interface RealtimeEvent {
   id: string;
@@ -157,43 +155,6 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setEvents((prev) => [event!, ...prev.slice(0, 99)]); // Keep last 100 events
     }
 
-    // Push realtime deltas into react-query caches for interested consumers
-    try {
-      // world tick / small tick updates
-      if (message.type === 'world_tick' || message.type === 'tick' || message.type === 'ui_tick') {
-        const tick = message.data;
-        queryClient.setQueryData(worldTicksKey, (prev: any[] | undefined) => {
-          const next = [tick, ...(prev || [])];
-          return next.slice(0, 500);
-        });
-      }
-
-      // orderbook update per symbol
-      if (message.type === 'orderbook_update' && message.data && message.data.symbol) {
-        const symbol = message.data.symbol as string;
-        queryClient.setQueryData(orderbookKey(symbol), () => message.data);
-      }
-
-      // market frame (OHLCV) updates
-      if (message.type === 'market_frame' && message.data && message.data.symbol) {
-        const exchange = message.data.exchange || 'default';
-        const frame = message.data;
-        queryClient.setQueryData(marketFramesKey(exchange), (prev: any[] | undefined) => {
-          const list = (prev || []).filter((f: any) => f.symbol !== frame.symbol);
-          list.unshift(frame);
-          return list.slice(0, 1000);
-        });
-      }
-
-      // positions update
-      if (message.type === 'positions_update') {
-        queryClient.setQueryData(positionsKey, () => message.data || []);
-      }
-    } catch (e) {
-      // non-fatal
-      // eslint-disable-next-line no-console
-      console.warn('[Realtime] Failed to push delta to queryClient', e);
-    }
   }, []);
 
   const { isConnected: wsConnected } = useWebSocket({

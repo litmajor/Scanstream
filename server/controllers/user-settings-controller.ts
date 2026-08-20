@@ -19,6 +19,26 @@ const securitySettingsCache = new Map<string, any>();
 const loginSessionsCache = new Map<string, any[]>();
 const apiKeysCache = new Map<string, any[]>();
 
+export function getUserSettingsAuditSnapshot(userId: string | undefined) {
+  if (!userId) return undefined;
+  return {
+    tradingSettings: tradingSettingsCache.get(userId) || null,
+    apiKeys: (apiKeysCache.get(userId) || []).map((key: {
+      id?: unknown;
+      exchange?: unknown;
+      name?: unknown;
+      isTestnet?: unknown;
+      isActive?: unknown;
+    }) => ({
+      id: key.id,
+      exchange: key.exchange,
+      name: key.name,
+      isTestnet: key.isTestnet,
+      isActive: key.isActive,
+    })),
+  };
+}
+
 // Types
 interface AuthRequest extends Request {
   user?: { id: string; email: string };
@@ -372,7 +392,23 @@ export async function revokeSession(req: AuthRequest, res: Response) {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { sessionId } = req.params;
+    const dbSessionRes = await db.query('SELECT sid, sess FROM "Session" WHERE sid = $1 LIMIT 1', [sessionId]);
+    const dbSession = dbSessionRes.rows && dbSessionRes.rows[0];
+    if (dbSession) {
+      const session = typeof dbSession.sess === 'string'
+        ? JSON.parse(dbSession.sess)
+        : dbSession.sess;
+      const storedUserId = session?.userId ?? session?.user?.id ?? session?.user?.userId;
+      if (storedUserId !== userId) {
+        return res.status(403).json({ error: 'Forbidden: You do not own this session' });
+      }
+      await db.query('DELETE FROM "Session" WHERE sid = $1', [sessionId]);
+    }
+
     const sessions = loginSessionsCache.get(userId) || [];
+    if (!dbSession && !sessions.some((session: { id?: string }) => session.id === sessionId)) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
     const filtered = sessions.filter((s: any) => s.id !== sessionId);
     loginSessionsCache.set(userId, filtered);
 
@@ -496,13 +532,19 @@ export async function deleteApiKey(req: AuthRequest, res: Response) {
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const { keyId } = req.params;
+    const ownerRes = await db.query('SELECT "userId" FROM "ApiKey" WHERE id = $1 LIMIT 1', [keyId]);
+    const owner = ownerRes.rows && ownerRes.rows[0];
+    if (!owner) return res.status(404).json({ error: 'API key not found' });
+    if (owner.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden: You do not own this API key' });
+    }
     const delRes = await db.query('DELETE FROM "ApiKey" WHERE id = $1 AND "userId" = $2 RETURNING id', [keyId, userId]);
     if (delRes.rows && delRes.rows.length > 0) {
       const keys = apiKeysCache.get(userId) || [];
       apiKeysCache.set(userId, keys.filter((k: any) => k.id !== keyId));
       return res.json({ success: true });
     }
-    res.json({ success: true });
+    res.status(404).json({ error: 'API key not found' });
   } catch (error: any) {
     console.error('Delete API key error:', error);
     res.status(500).json({ error: 'Failed to delete API key' });

@@ -10,7 +10,7 @@
  * Base path: /api/scout
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Logger } from '../services/logger';
 import { ScoutReportService } from '../services/scout-report-service';
 
@@ -132,9 +132,12 @@ router.get('/list', async (req: Request, res: Response) => {
  * GET /api/scout/:symbol
  * Full scout report for single symbol
  */
-router.get('/:symbol', async (req: Request, res: Response) => {
+router.get('/:symbol', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
+    if (['multi', 'compare', 'best', 'watch-list'].includes(symbol)) {
+      return next();
+    }
     const { includeHistorical } = req.query;
 
     logger.info(`Fetching full scout report for ${symbol}`);
@@ -198,7 +201,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/executive', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
 
     logger.info(`Fetching technical summary for ${symbol}`);
 
@@ -238,7 +241,7 @@ router.get('/:symbol/executive', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/sources', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const { source } = req.query as { source?: SourceType };
 
     logger.info(`Fetching sources for ${symbol}`, { source });
@@ -288,7 +291,7 @@ router.get('/:symbol/sources', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/opportunities', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const {
       type,
       minConfidence = 0,
@@ -369,7 +372,7 @@ router.get('/:symbol/opportunities', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/scalp', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const service = getScoutReportService();
     if (!service) {
       return res.status(503).json({
@@ -403,7 +406,7 @@ router.get('/:symbol/scalp', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/day', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const service = getScoutReportService();
     if (!service) {
       return res.status(503).json({
@@ -437,7 +440,7 @@ router.get('/:symbol/day', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/swing', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const service = getScoutReportService();
     if (!service) {
       return res.status(503).json({
@@ -471,7 +474,7 @@ router.get('/:symbol/swing', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/consensus', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const service = getScoutReportService();
     if (!service) {
       return res.status(503).json({
@@ -517,7 +520,7 @@ router.get('/:symbol/consensus', async (req: Request, res: Response) => {
  */
 router.get('/:symbol/risk-assessment', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
     const service = getScoutReportService();
     if (!service) {
       return res.status(503).json({
@@ -575,7 +578,13 @@ router.get('/multi', async (req: Request, res: Response) => {
       });
     }
 
-    const symbolList = symbols.split(',').map((s) => s.trim());
+    const symbolList = symbols.split(',').map((s) => s.trim()).filter(Boolean);
+    if (symbolList.length === 0 || symbolList.length > 20) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbols must contain between 1 and 20 symbols',
+      });
+    }
     logger.info(`Fetching scout reports for multiple symbols`, {
       symbols: symbolList,
       type,

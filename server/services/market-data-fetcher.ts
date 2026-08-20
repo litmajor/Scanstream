@@ -5,7 +5,6 @@ import { SignalPipeline } from './gateway/signal-pipeline';
 import { signalWebSocketService } from './websocket-signals';
 import { signalArchive } from './signal-archive';
 import { calculateClusterMetrics } from './clustering';
-import { getTickerCache } from './ticker-snapshot-cache';
 import { getTimeAnchorManager } from './market-data/time-anchor';
 import { priceCache } from '../../src/core/PriceCache';
 import { symbolRegistry } from '../../src/core/SymbolRegistry';
@@ -591,25 +590,6 @@ export class MarketDataFetcher {
       } catch (pcErr) {
         // If price cache fails for any reason, we fall back to aggregator below
         console.debug('[MarketDataFetcher] priceCache attempt failed:', (pcErr as any)?.message || pcErr);
-      }
-
-      // Check ticker cache for symbol availability across exchanges
-      // This avoids attempting to fetch non-existent symbols
-      // (TickerCache is optional - gracefully degrade if not initialized)
-      try {
-        const tickerCache = getTickerCache();
-        if (tickerCache) {
-          try {
-            // Attempt to get ticker info - if it exists and is cached, we can skip slow fetches
-            await tickerCache.getTicker(symbol);
-          } catch (cacheError) {
-            // Symbol not in cache or fetch failed - will try full OHLCV fetch below
-            console.debug(`[MarketDataFetcher] Ticker cache miss for ${symbol}, proceeding with OHLCV fetch`);
-          }
-        }
-      } catch (tickerInitError: any) {
-        // TickerCache not initialized yet - proceed without it
-        console.debug(`[MarketDataFetcher] TickerCache not available: ${tickerInitError.message}`);
       }
 
       // Prefer Aggregator.getMarketFrames which routes frames through the IntegrityGate

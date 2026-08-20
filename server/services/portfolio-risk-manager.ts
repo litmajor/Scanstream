@@ -15,6 +15,13 @@
 import { assetCorrelationAnalyzer } from './asset-correlation-analyzer';
 import { dynamicPositionSizer } from './dynamic-position-sizer';
 import { systemKillSwitch } from './system-kill-switch';
+import type { FeeTotal } from './execution/fill-accounting';
+
+export interface RealizedPnlRiskInput {
+  dailyPnl: number | null;
+  unknown?: boolean;
+  unconvertedFees?: FeeTotal[];
+}
 
 interface PortfolioPosition {
   symbol: string;
@@ -42,6 +49,10 @@ interface PortfolioRiskMetrics {
   peakValue: number;
   dailyPnl: number;
   dailyPnlPercent: number;
+  realizedDailyPnl: number | null;
+  realizedDailyPnlPercent: number | null;
+  dailyPnlUnknown: boolean;
+  unconvertedFees: FeeTotal[];
   correlatedExposures: Map<string, number>; // Category -> USD exposure
   riskScore: number; // 0-100 (higher = riskier)
   canOpenNewPosition: boolean;
@@ -119,7 +130,8 @@ export class PortfolioRiskManager {
     currentPrice: number,
     atr: number,
     marketRegime: string,
-    primaryPattern: string
+    primaryPattern: string,
+    realizedPnlInput?: RealizedPnlRiskInput
   ): Promise<PositionSizingConsensus> {
     const reasoning: string[] = [];
 
@@ -145,7 +157,7 @@ export class PortfolioRiskManager {
     reasoning.push(`RL: $${rlSize.toFixed(2)} (${kellySizing.rlMultiplier.toFixed(2)}x multiplier)`);
 
     // 3. Portfolio risk limits
-    const portfolioMetrics = this.getPortfolioMetrics(accountBalance);
+    const portfolioMetrics = this.getPortfolioMetrics(accountBalance, realizedPnlInput);
     const maxAllowedSize = accountBalance * (this.limits.maxSinglePositionSize / 100);
     const portfolioSize = Math.min(kellySize, maxAllowedSize);
     reasoning.push(`Portfolio Limit: $${portfolioSize.toFixed(2)} (max ${this.limits.maxSinglePositionSize}% per position)`);
@@ -165,6 +177,20 @@ export class PortfolioRiskManager {
     }
 
     // 6. Daily loss limit check
+    if (portfolioMetrics.dailyPnlUnknown) {
+      reasoning.push('⛔ Daily realized PnL is unknown');
+      return {
+        symbol,
+        signalConfidence,
+        kellySize,
+        rlSize,
+        portfolioSize,
+        correlationSize,
+        finalSize: 0,
+        reasoning,
+        approved: false
+      };
+    }
     if (portfolioMetrics.dailyPnlPercent < -this.limits.maxDailyLoss) {
       reasoning.push(`⛔ Daily loss limit reached (${portfolioMetrics.dailyPnlPercent.toFixed(2)}%)`);
       return {
@@ -270,10 +296,10 @@ export class PortfolioRiskManager {
   /**
    * Get comprehensive portfolio risk metrics
    */
-  getPortfolioMetrics(currentBalance: number): PortfolioRiskMetrics {
-    // Reset daily tracking if new day
+  getPortfolioMetrics(currentBalance: number, realizedPnlInput?: RealizedPnlRiskInput): PortfolioRiskMetrics {
+    // The ledger is bucketed by UTC, so the balance baseline must use UTC too.
     const now = new Date();
-    if (now.getDate() !== this.lastResetTime.getDate()) {
+    if (now.toISOString().slice(0, 10) !== this.lastResetTime.toISOString().slice(0, 10)) {
       this.dailyStartValue = currentBalance;
       this.lastResetTime = now;
     }
@@ -293,8 +319,17 @@ export class PortfolioRiskManager {
     const currentDrawdown = ((this.peakValue - currentBalance) / this.peakValue) * 100;
 
     // Calculate daily P&L
-    const dailyPnl = currentBalance - this.dailyStartValue;
+    const balanceDailyPnl = currentBalance - this.dailyStartValue;
+    const dailyPnlUnknown = realizedPnlInput?.unknown === true || realizedPnlInput?.dailyPnl === null;
+    const realizedDailyPnl = realizedPnlInput?.dailyPnl ?? null;
+    const dailyPnl = realizedDailyPnl === null
+      ? balanceDailyPnl
+      : Math.min(balanceDailyPnl, realizedDailyPnl);
     const dailyPnlPercent = (dailyPnl / this.dailyStartValue) * 100;
+    const realizedDailyPnlPercent = realizedDailyPnl === null
+      ? null
+      : (realizedDailyPnl / this.dailyStartValue) * 100;
+    const unconvertedFees = (realizedPnlInput?.unconvertedFees ?? []).map((fee) => ({ ...fee }));
 
     // Calculate correlated exposures by category
     const correlatedExposures = new Map<string, number>();
@@ -312,11 +347,13 @@ export class PortfolioRiskManager {
     riskScore += Math.min(50, (currentDrawdown / this.limits.maxPortfolioDrawdown) * 50);
     riskScore += Math.min(30, (totalExposure / currentBalance) / (this.limits.maxTotalExposure / 100) * 30);
     riskScore += Math.min(20, Math.abs(dailyPnlPercent) / this.limits.maxDailyLoss * 20);
+    if (dailyPnlUnknown) riskScore = Math.min(100, riskScore + 20);
 
     // Can open new position?
     const canOpenNewPosition =
       currentDrawdown < this.limits.maxPortfolioDrawdown &&
       (totalExposure / currentBalance) < (this.limits.maxTotalExposure / 100) &&
+      !dailyPnlUnknown &&
       dailyPnlPercent > -this.limits.maxDailyLoss;
 
     // Recommended max position size
@@ -330,6 +367,10 @@ export class PortfolioRiskManager {
       peakValue: this.peakValue,
       dailyPnl,
       dailyPnlPercent,
+      realizedDailyPnl,
+      realizedDailyPnlPercent,
+      dailyPnlUnknown,
+      unconvertedFees,
       correlatedExposures,
       riskScore,
       canOpenNewPosition,

@@ -3,7 +3,7 @@
  * Tests that the RTM engine properly calculates all force-decay metrics
  */
 
-import { PhysicsBasedRTMEngine, RTMMetric } from './server/services/physics-based-rtm-engine';
+import { PhysicsBasedRTMEngine, RTMMetric } from '../server/services/physics-based-rtm-engine';
 
 // Mock MarketFrame type for testing
 interface MockFrame {

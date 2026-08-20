@@ -246,9 +246,6 @@ export class OptimizedContinuousMultiTimeframeScanner extends EventEmitter {
       this.diagnosticsTimer = setInterval(reportDiagnostics, this.opts.diagnosticsLogIntervalMs);
     }
 
-    // Kick off immediately
-    void scanLoop();
-
     if (this.opts.debug) console.log(`[Scanner] Started scanning...`);
   }
 

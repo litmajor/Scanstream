@@ -4,6 +4,7 @@ import { coinGeckoService } from '../services/coingecko';
 import { storage } from '../storage';
 import { apiRegistry } from '../services/api-registry';
 import type { MarketFrame } from '@shared/schema';
+import { requireAuth } from '../middleware/auth';
 
 // Simple in-memory cache to avoid recalculating heavy insights for each poll
 const _insightsCache: Map<string, { ts: number; data: any }> = new Map();
@@ -775,7 +776,10 @@ router.get('/asset-insights', async (req: Request, res: Response) => {
  */
 router.get('/asset-insights/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
+    if (symbol.length === 0 || symbol.length > 32) {
+      return res.status(400).json({ success: false, error: 'symbol must be a bounded string' });
+    }
     const baseSymbol = symbol.split('/')[0].toUpperCase();
 
     // Fetch real price
@@ -893,9 +897,29 @@ router.get('/compare', async (req: Request, res: Response) => {
  * POST /api/agents/signals/record-insight
  * Record a single agent's signal insight
  */
-router.post('/record-insight', (req: Request, res: Response) => {
+router.post('/record-insight', requireAuth, (req: Request, res: Response) => {
   try {
     const { symbol, insight } = req.body;
+
+    if (
+      typeof symbol !== 'string' ||
+      symbol.length === 0 ||
+      symbol.length > 32 ||
+      typeof insight !== 'object' ||
+      insight === null ||
+      Array.isArray(insight) ||
+      typeof insight.agentName !== 'string' ||
+      insight.agentName.length === 0 ||
+      insight.agentName.length > 64 ||
+      typeof insight.signal !== 'string' ||
+      insight.signal.length === 0 ||
+      insight.signal.length > 32
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol and a valid insight object are required',
+      });
+    }
 
     // In production, save to database
     console.log(`[Signal Insight] ${insight.agentName} signals ${insight.signal} for ${symbol}`);

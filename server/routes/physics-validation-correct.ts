@@ -26,6 +26,15 @@ import { ExchangeDataFeed } from '../trading-engine';
 const router = Router();
 const vfmdAgent = new VFMDPhysicsAgent('VFMD-Validator', 'balanced');
 
+interface YahooHistoricalCandle {
+  date: Date | string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+}
+
 /**
  * Fetch historical data directly from Yahoo Finance
  * More reliable for long-term historical data
@@ -54,7 +63,7 @@ async function fetchYahooFinanceData(symbol: string, days: number, interval: '1d
       period1: startDate,
       period2: endDate,
       interval: '1d' // Yahoo Finance only supports daily for free tier
-    });
+    }, { validate: false }) as YahooHistoricalCandle[];
     
     if (!result || result.length === 0) {
       throw new Error(`No data returned from Yahoo Finance for ${yahooSymbol}`);
@@ -63,23 +72,33 @@ async function fetchYahooFinanceData(symbol: string, days: number, interval: '1d
     console.log(`[YahooFinance] ✅ Fetched ${result.length} candles for ${yahooSymbol}`);
     
     // Convert to MarketFrame format
-    const frames: MarketFrame[] = result.map((candle: any, idx: number) => ({
+    const frames: MarketFrame[] = result.map((candle: YahooHistoricalCandle, idx: number) => ({
       id: `yf-${yahooSymbol}-${idx}`,
       symbol: symbol,
       timestamp: new Date(candle.date instanceof Date ? candle.date : new Date(candle.date)),
+      timeframe: 86400,
       price: {
         open: candle.open || 0,
         high: candle.high || 0,
         low: candle.low || 0,
         close: candle.close || 0
-      } as any,
+      },
       volume: candle.volume || 0,
       orderFlow: {
         bidVolume: (candle.volume || 0) * 0.5,
         askVolume: (candle.volume || 0) * 0.5
-      } as any,
-      indicators: undefined,
-      marketMicrostructure: undefined
+      },
+      indicators: {
+        rsi: 0,
+        macd: { macd: 0, signal: 0, histogram: 0 },
+        bb: { upper: 0, middle: 0, lower: 0 },
+      },
+      marketMicrostructure: {
+        spread: 0,
+        depth: 0,
+        imbalance: 0,
+        toxicity: 0,
+      }
     }));
     
     return frames;

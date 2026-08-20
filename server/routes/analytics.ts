@@ -6,6 +6,14 @@ import type { MarketFrame } from '@shared/schema';
 
 const router = express.Router();
 
+function timeframeSeconds(timeframe: string): number {
+  const match = /^(\d+)(m|h|d|w)$/.exec(timeframe);
+  if (!match) return 3600;
+  const [, amount, unit] = match;
+  const multipliers = { m: 60, h: 3600, d: 86400, w: 604800 } as const;
+  return Number(amount) * multipliers[unit as keyof typeof multipliers];
+}
+
 /**
  * GET /api/analytics/clusters
  * Candle clustering analysis using K-means
@@ -30,7 +38,8 @@ router.get('/clusters', async (req: Request, res: Response) => {
     const framesWithDateTimestamps = frames.map((f, idx) => ({
       ...f,
       id: f.id || `frame-${idx}`,
-      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp
+      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp,
+      timeframe: timeframeSeconds(String(timeframe)),
     }));
     const clusters = performCandleClustering(framesWithDateTimestamps, 5);
 
@@ -129,7 +138,8 @@ router.get('/patterns', async (req: Request, res: Response) => {
     const framesWithDateTimestamps = frames.map((f, idx) => ({
       ...f,
       id: f.id || `frame-${idx}`,
-      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp
+      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp,
+      timeframe: 3600,
     }));
     const patterns = detectPatterns(framesWithDateTimestamps);
 
@@ -168,7 +178,8 @@ router.get('/regime', async (req: Request, res: Response) => {
     const framesWithDateTimestamps = frames.map((f, idx) => ({
       ...f,
       id: f.id || `frame-${idx}`,
-      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp
+      timestamp: typeof f.timestamp === 'string' ? new Date(f.timestamp) : f.timestamp,
+      timeframe: 3600,
     }));
     const regimeAnalysis = analyzeMarketRegime(framesWithDateTimestamps);
 

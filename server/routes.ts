@@ -12,15 +12,11 @@ import axios from 'axios'; // Import axios for CoinGecko API calls
 import { coinGeckoService } from './services/coingecko';
 import { Router } from 'express'; // Import Router for dynamic route registration
 
-// Import strategy routes and paper trading routes
-import strategyRoutes from './routes/strategies';
+// Import paper trading routes
 import paperTradingRoutes from './routes/paper-trading';
-// Import signal performance routes
-import signalPerformanceRoutes from './routes/signal-performance';
 // Import notification routes
 import notificationRoutes from './routes/notifications';
 // Import user preferences routes
-import userPreferencesRoutes from './routes/user-preferences';
 
 // Import Symbol Universe routes
 import symbolsRouter from './routes/symbols';
@@ -40,12 +36,15 @@ import signalQualityRouter from './routes/signal-quality';
 // Import flow field analytics routes
 import flowFieldRouter from './routes/flow-field';
 // Import velocity profiles routes
-import { registerVelocityProfileRoutes } from './routes/velocity-profiles';
 // Import composite quality routes
 import compositeQualityRouter from './routes/composite-quality';
 
 // Import Live Trading routes
 import liveTradingRouter from './routes/live-trading';
+import { requireTradingOperator } from './middleware/require-trading-operator';
+import { requireAuth } from './middleware/auth';
+import { auditOperatorAction } from './middleware/audit-operator-action';
+import { respondToInvalidRouteParam } from './utils/route-params';
 
 // Import Portfolio Risk and Source Analytics routes
 import portfolioRiskRouter from './routes/portfolio-risk';
@@ -80,7 +79,6 @@ import correlationBoostRouter from './routes/correlation-boost';
 // Import strategy deployment router
 import strategyDeploymentRouter from './routes/strategy-deployment';
 // Import agent signal insights router
-import agentSignalInsightsRouter from './routes/agent-signal-insights';
 import { apiRegistry } from './services/api-registry';
 // Import scanner signal router
 import scannerSignalRouter from './routes/scanner-signal';
@@ -313,7 +311,6 @@ try {
     app.use('/api/signals', signalQualityRouter);
 
     // Register agent signal insights routes
-    app.use('/api/agents/signals', agentSignalInsightsRouter);
 
     // --- Advanced Volume Profile & Composite Analytics API ---
   console.log('Registering POST /api/analytics/volume-profile');
@@ -648,79 +645,6 @@ try {
     }
   });
 
-  // Gateway API - Dataframe endpoint with technical indicators
-  app.get('/api/gateway/dataframe/:symbol', async (req: Request, res: Response) => {
-    try {
-      const { symbol } = req.params;
-      const { timeframe = '1h', limit = 100 } = req.query;
-
-      // Simple technical indicator calculations
-      const calculateRSI = (closes: number[], period = 14) => {
-        if (closes.length < period) return 50;
-        let gains = 0, losses = 0;
-        for (let i = closes.length - period; i < closes.length; i++) {
-          const change = closes[i] - closes[i - 1];
-          if (change > 0) gains += change;
-          else losses -= change;
-        }
-        const avgGain = gains / period;
-        const avgLoss = losses / period;
-        const rs = avgGain / (avgLoss || 1);
-        return 100 - (100 / (1 + rs));
-      };
-
-      const calculateEMA = (closes: number[], period: number) => {
-        if (closes.length === 0) return 0;
-        const k = 2 / (period + 1);
-        let ema = closes[0];
-        for (let i = 1; i < closes.length; i++) {
-          ema = closes[i] * k + ema * (1 - k);
-        }
-        return ema;
-      };
-
-      const calculateMACD = (closes: number[]) => {
-        const ema12 = calculateEMA(closes, 12);
-        const ema26 = calculateEMA(closes, 26);
-        return ema12 - ema26;
-      };
-
-      const calculateATR = (highs: number[], lows: number[], closes: number[], period = 14) => {
-        if (closes.length < 2) return 0;
-        const tr = [];
-        for (let i = 1; i < closes.length; i++) {
-          const h = highs[i];
-          const l = lows[i];
-          const c = closes[i - 1];
-          const value = Math.max(h - l, Math.abs(h - c), Math.abs(l - c));
-          tr.push(value);
-        }
-        return tr.reduce((a, b) => a + b, 0) / tr.length;
-      };
-
-      // Fetch market data or use mock data
-      const mockData = {
-        symbol,
-        signal: Math.random() > 0.5 ? 'BUY' : 'SELL',
-        signalConfidence: Math.floor(Math.random() * 40 + 60),
-        close: Math.random() * 50000 + 10000,
-        rsi: Math.random() * 100,
-        ema20: Math.random() * 50000 + 10000,
-        ema50: Math.random() * 50000 + 10000,
-        macd: Math.random() * 1000 - 500,
-        atr: Math.random() * 500 + 100,
-        trendDirection: Math.random() > 0.5 ? 'UPTREND' : 'DOWNTREND',
-        volume: Math.random() * 10000000 + 1000000,
-        volumeTrend: Math.random() > 0.5 ? 'INCREASING' : 'DECREASING',
-        priceChangePercent: Math.random() * 10 - 5
-      };
-
-      res.json({ dataframe: mockData });
-    } catch (err: any) {
-      res.status(500).json({ error: err?.message || 'Failed to fetch dataframe' });
-    }
-  });
-
   // List all assets and their latest performance/metrics
 app.get('/api/assets/performance', async (req: Request, res: Response) => {
   const prismaLocal: any = prisma;
@@ -827,14 +751,6 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 });
 
 
-
-  // Register velocity profile API
-  try {
-    registerVelocityProfileRoutes(app);
-    console.log('[INIT] Velocity Profile API registered at /api/velocity/*');
-  } catch (error) {
-    console.warn('Velocity Profile API could not be registered:', error);
-  }
 
   // Register chart and advanced indicator APIs (conditionally)
   if (registerChartApi) {
@@ -1299,6 +1215,7 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
 
     // Global error handler middleware
     app.use((err: any, _req: Request, res: Response, _next: any) => {
+      if (respondToInvalidRouteParam(err, res)) return;
       console.error(err);
       res.status(500).json({ error: err.message || 'Internal server error' });
     });
@@ -1314,14 +1231,28 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     }
   } catch (e) { /* ignore */ }
   // Synthesize signals endpoint
-  app.post('/api/strategies/synthesize', async (req: Request, res: Response) => {
+  app.post(
+    '/api/strategies/synthesize',
+    // Analytical only: this returns synthesized output without persisting a signal
+    // or mutating/feeding live or paper engine state.
+    requireAuth,
+    auditOperatorAction('signal_generate', {
+      target: (req) => typeof req.body?.symbol === 'string' ? req.body.symbol.slice(0, 32) : undefined,
+    }),
+    async (req: Request, res: Response) => {
     try {
       const { symbol, timeframe } = req.body;
 
-      if (!symbol || !timeframe) {
+      if (
+        typeof symbol !== 'string' ||
+        symbol.trim().length === 0 ||
+        symbol.length > 32 ||
+        typeof timeframe !== 'string' ||
+        !new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d']).has(timeframe)
+      ) {
         return res.status(400).json({
           success: false,
-          error: 'Missing required parameters: symbol, timeframe'
+          error: 'symbol and timeframe must be bounded and valid'
         });
       }
 
@@ -1360,7 +1291,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
         error: 'Failed to synthesize signals'
       });
     }
-  });
+    },
+  );
 
   // Get strategy weights endpoint
   app.get('/api/strategies/weights', async (req, res) => {
@@ -1516,8 +1448,8 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
     }
   ];
 
-  // Mount strategy routes and paper trading routes
-  app.use('/api/strategies', strategyRoutes);
+  // The legacy strategy router remains disabled until its subprocess work,
+  // signal writes, and consumer relationship have complete route-level review.
   app.use('/api/paper-trading', paperTradingRoutes);
 
   // Mount Symbol Universe routes
@@ -1526,13 +1458,9 @@ app.get('/api/assets/performance', async (req: Request, res: Response) => {
   app.use('/api/assets', assetsRouter);
   console.log('[express] Symbol Universe APIs registered at /api/symbols, /api/watchlists, /api/assets');
 
-  // Mount signal performance routes
-  app.use('/api/gateway/signals/performance', signalPerformanceRoutes);
-
   // Mount notification routes
   app.use('/api/notifications', notificationRoutes);
   console.log('[express] Notifications API registered at /api/notifications');
-  app.use('/api/user', userPreferencesRoutes);
 
   // Mount ML routes
   app.use('/api/ml', mlPredictionsRouter);

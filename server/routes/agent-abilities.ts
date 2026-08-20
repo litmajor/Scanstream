@@ -19,6 +19,7 @@ import {
   getAbilitiesByCategory,
   getAbilityReport,
 } from '../services/agent-abilities-registry';
+import { routeParam, routeParamEnum } from '../utils/route-params';
 
 const router = Router();
 
@@ -47,11 +48,12 @@ router.get('/', (req: Request, res: Response) => {
  * Get single ability details
  */
 router.get('/:id', (req: Request, res: Response) => {
-  const ability = getAbility(req.params.id);
+  const id = routeParam(req.params.id, 'id');
+  const ability = getAbility(id);
 
   if (!ability) {
     return res.status(404).json({
-      error: `Ability '${req.params.id}' not found`,
+      error: `Ability '${id}' not found`,
       available_abilities: Object.keys(AGENT_ABILITIES),
     });
   }
@@ -74,7 +76,7 @@ router.get(
   '/category/:category',
   (req: Request, res: Response) => {
     const validCategories = ['specialist', 'leveled', 'rpg'];
-    const category = req.params.category as any;
+    const category = routeParamEnum(req.params.category, 'category', ['specialist', 'leveled', 'rpg'] as const);
 
     if (!validCategories.includes(category)) {
       return res.status(400).json({
@@ -106,7 +108,7 @@ router.get(
 router.get(
   '/level/:level',
   (req: Request, res: Response) => {
-    const level = parseInt(req.params.level, 10);
+    const level = parseInt(routeParam(req.params.level, 'level', 16), 10);
 
     if (isNaN(level) || level < 1 || level > 100) {
       return res.status(400).json({

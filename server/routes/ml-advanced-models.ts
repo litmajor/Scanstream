@@ -6,20 +6,21 @@ import AnomalyDetector from '../services/ml-anomaly-detector';
 import { storage } from '../storage';
 
 const router = express.Router();
+const attentionModel = new AttentionModel();
 
 /**
  * GET /api/ml-advanced/attention-prediction
  */
 router.get('/attention-prediction/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = Array.isArray(req.params.symbol) ? req.params.symbol[0] : req.params.symbol;
     const frames = await storage.getMarketFrames(symbol, 200);
     
     if (frames.length < 50) {
       return res.status(400).json({ error: 'Insufficient data' });
     }
     
-    const prediction = await AttentionModel.predict(frames);
+    const prediction = await attentionModel.predict(frames);
     
     res.json({
       success: true,
@@ -37,7 +38,7 @@ router.get('/attention-prediction/:symbol', async (req: Request, res: Response) 
  */
 router.get('/regime/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = Array.isArray(req.params.symbol) ? req.params.symbol[0] : req.params.symbol;
     const frames = await storage.getMarketFrames(symbol, 200);
     
     const regimeInfo = RegimeDetector.detectRegime(frames);
@@ -60,7 +61,7 @@ router.get('/regime/:symbol', async (req: Request, res: Response) => {
  */
 router.get('/anomaly/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = Array.isArray(req.params.symbol) ? req.params.symbol[0] : req.params.symbol;
     const frames = await storage.getMarketFrames(symbol, 200);
     
     const anomaly = AnomalyDetector.detectAnomaly(frames);

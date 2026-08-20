@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import fetchJson from './api';
+import { fetchJson } from './api';
 
 const FeatureImportanceSchema = z.object({
   data: z.array(
@@ -19,30 +19,43 @@ const FeatureSetsSchema = z.object({
 });
 
 export function useFeatureImportance() {
-  return useQuery(['/api/feature-engineering/importance'], async () => {
-    return await fetchJson('/api/feature-engineering/importance', { retries: 2 }, FeatureImportanceSchema);
-  }, { retry: 2, staleTime: 1000 * 60 * 5 });
+  return useQuery({
+    queryKey: ['/api/feature-engineering/importance'],
+    queryFn: () => fetchJson('/api/feature-engineering/importance', { retries: 2 }, FeatureImportanceSchema),
+    retry: 2,
+    staleTime: 1000 * 60 * 5,
+  });
 }
 
 export function useFeatureSets() {
-  return useQuery(['/api/feature-engineering/feature-sets'], async () => {
-    return await fetchJson('/api/feature-engineering/feature-sets', { retries: 2 }, FeatureSetsSchema);
-  }, { retry: 1 });
+  return useQuery({
+    queryKey: ['/api/feature-engineering/feature-sets'],
+    queryFn: () => fetchJson('/api/feature-engineering/feature-sets', { retries: 2 }, FeatureSetsSchema),
+    retry: 1,
+  });
 }
 
 const PriceHistorySchema = z.object({ data: z.array(z.object({ time: z.number(), price: z.number() })) });
 export function usePriceHistory(positionId?: string) {
-  return useQuery(['price-history', positionId], async () => {
-    if (!positionId) return { data: [] };
-    return await fetchJson(`/api/positions/${positionId}/price-history`, { retries: 2 }, PriceHistorySchema);
-  }, { enabled: !!positionId, retry: 2 });
+  return useQuery({
+    queryKey: ['price-history', positionId],
+    queryFn: () => {
+      if (!positionId) return Promise.resolve({ data: [] });
+      return fetchJson(`/api/positions/${positionId}/price-history`, { retries: 2 }, PriceHistorySchema);
+    },
+    enabled: !!positionId,
+    retry: 2,
+  });
 }
 
 const RLTrainingSchema = z.object({ data: z.array(z.any()) });
 export function useRLTrainingPerformance() {
-  return useQuery(['/api/rl/training/performance'], async () => {
-    return await fetchJson('/api/rl/training/performance', { retries: 2 }, RLTrainingSchema);
-  }, { retry: 2, staleTime: 1000 * 60 });
+  return useQuery({
+    queryKey: ['/api/rl/training/performance'],
+    queryFn: () => fetchJson('/api/rl/training/performance', { retries: 2 }, RLTrainingSchema),
+    retry: 2,
+    staleTime: 1000 * 60,
+  });
 }
 
 const ActiveCombosSchema = z.object({
@@ -59,9 +72,13 @@ const ActiveCombosSchema = z.object({
 });
 
 export function useActiveCombos() {
-  return useQuery(['active-combos'], async () => {
-    return await fetchJson('/api/agents/combos', { retries: 2 }, ActiveCombosSchema);
-  }, { refetchInterval: 10000, retry: 1, staleTime: 5000 });
+  return useQuery({
+    queryKey: ['active-combos'],
+    queryFn: () => fetchJson('/api/agents/combos', { retries: 2 }, ActiveCombosSchema),
+    refetchInterval: 10000,
+    retry: 1,
+    staleTime: 5000,
+  });
 }
 
 const CorrelationSchema = z.object({
@@ -72,9 +89,12 @@ const CorrelationSchema = z.object({
 });
 
 export function useCorrelationData() {
-  return useQuery(['market-correlations'], async () => {
-    return await fetchJson('/api/market/correlations', { retries: 1 }, CorrelationSchema);
-  }, { retry: 1, staleTime: 1000 * 60 * 2 });
+  return useQuery({
+    queryKey: ['market-correlations'],
+    queryFn: () => fetchJson('/api/market/correlations', { retries: 1 }, CorrelationSchema),
+    retry: 1,
+    staleTime: 1000 * 60 * 2,
+  });
 }
 
 const MarketStatusSchema = z.object({
@@ -90,9 +110,13 @@ const MarketStatusSchema = z.object({
 });
 
 export function useMarketStatus() {
-  return useQuery(['market-status'], async () => {
-    return await fetchJson('/api/market/status', { retries: 1 }, MarketStatusSchema);
-  }, { retry: 1, refetchInterval: 5000, staleTime: 2000 });
+  return useQuery({
+    queryKey: ['market-status'],
+    queryFn: () => fetchJson('/api/market/status', { retries: 1 }, MarketStatusSchema),
+    retry: 1,
+    refetchInterval: 5000,
+    staleTime: 2000,
+  });
 }
 
 const MLConsensusSchema = z.object({
@@ -110,24 +134,34 @@ const MLConsensusSchema = z.object({
     direction: z.string(),
     confidence: z.number(),
     strength: z.number(),
-    probability: z.number().optional(),
-    riskScore: z.number().optional(),
-    volatility: z.number().optional(),
-    weight: z.number().optional(),
+    price: z.number(),
+    pricChangePct: z.number(),
+    riskScore: z.number(),
+    riskLevel: z.string(),
+    volatility: z.string(),
+    regimeDuration: z.string(),
+    weight: z.number(),
   })),
   aggregatedMetrics: z.object({
     avgRiskScore: z.number(),
-    maxVolatility: z.number(),
+    maxVolatility: z.string(),
     shortestRegimeDuration: z.string(),
     velocityConfidenceAvg: z.number(),
-  }).optional()
+  })
 });
 
 export function useMLConsensus(symbol?: string) {
-  return useQuery(['ml-consensus', symbol], async () => {
-    if (!symbol) return null;
-    return await fetchJson(`/api/ml/mtf/predictions/${symbol}`, { retries: 2 }, MLConsensusSchema);
-  }, { enabled: !!symbol, retry: 2, refetchInterval: 60000, staleTime: 1000 * 30 });
+  return useQuery({
+    queryKey: ['ml-consensus', symbol],
+    queryFn: () => {
+      if (!symbol) return Promise.resolve(null);
+      return fetchJson(`/api/ml/mtf/predictions/${symbol}`, { retries: 2 }, MLConsensusSchema);
+    },
+    enabled: !!symbol,
+    retry: 2,
+    refetchInterval: 60000,
+    staleTime: 1000 * 30,
+  });
 }
 
 const BacktestResultsSchema = z.object({
@@ -148,10 +182,17 @@ const BacktestResultsSchema = z.object({
 });
 
 export function useBacktestResults(symbol?: string, timeframe?: string) {
-  return useQuery(['backtest-results', symbol, timeframe], async () => {
-    if (!symbol || !timeframe) return null;
-    return await fetchJson(`/api/ml/mtf/backtest?symbol=${symbol}&timeframe=${timeframe}`, { retries: 2 }, BacktestResultsSchema);
-  }, { enabled: !!symbol && !!timeframe, retry: 1, refetchInterval: 300000, staleTime: 1000 * 60 * 5 });
+  return useQuery({
+    queryKey: ['backtest-results', symbol, timeframe],
+    queryFn: () => {
+      if (!symbol || !timeframe) return Promise.resolve(null);
+      return fetchJson(`/api/ml/mtf/backtest?symbol=${symbol}&timeframe=${timeframe}`, { retries: 2 }, BacktestResultsSchema);
+    },
+    enabled: !!symbol && !!timeframe,
+    retry: 1,
+    refetchInterval: 300000,
+    staleTime: 1000 * 60 * 5,
+  });
 }
 
 const ActiveTradesSchema = z.object({
@@ -173,9 +214,13 @@ const ActiveTradesSchema = z.object({
 });
 
 export function useActiveTrades() {
-  return useQuery(['active-trades'], async () => {
-    return await fetchJson('/api/ml/trades/active', { retries: 1 }, ActiveTradesSchema);
-  }, { retry: 1, refetchInterval: 30000, staleTime: 5000 });
+  return useQuery({
+    queryKey: ['active-trades'],
+    queryFn: () => fetchJson('/api/ml/trades/active', { retries: 1 }, ActiveTradesSchema),
+    retry: 1,
+    refetchInterval: 30000,
+    staleTime: 5000,
+  });
 }
 
 const TradeStatsSchema = z.object({
@@ -194,7 +239,11 @@ const TradeStatsSchema = z.object({
 });
 
 export function useTradeStats() {
-  return useQuery(['trade-stats'], async () => {
-    return await fetchJson('/api/ml/trades/statistics', { retries: 1 }, TradeStatsSchema);
-  }, { retry: 1, refetchInterval: 30000, staleTime: 5000 });
+  return useQuery({
+    queryKey: ['trade-stats'],
+    queryFn: () => fetchJson('/api/ml/trades/statistics', { retries: 1 }, TradeStatsSchema),
+    retry: 1,
+    refetchInterval: 30000,
+    staleTime: 5000,
+  });
 }

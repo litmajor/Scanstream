@@ -29,6 +29,10 @@ export type SafetyEventType =
   | 'kill_switch'
   | 'circuit_breaker'
   | 'durability_failure'
+  | 'funding_unknown'
+  | 'conversion_unknown'
+  | 'funding_baseline_resolved'
+  | 'realized_pnl_resolved'
   | 'operator_action';
 
 export type OperatorAction =
@@ -43,7 +47,19 @@ export type OperatorAction =
   | 'kill_switch_activate'
   | 'kill_switch_clear'
   | 'circuit_breaker_activate'
-  | 'circuit_breaker_clear';
+  | 'circuit_breaker_clear'
+  | 'resolve_realized_pnl'
+  | 'resolve_funding_baseline'
+  | 'execution_decision'
+  | 'record_outcome'
+  | 'reset_execution'
+  | 'prune_model_history'
+  | 'exit_orchestrator'
+  | 'exit_opposition'
+  | 'exit_microstructure'
+  | 'exit_consensus'
+  | 'exit_coordinate'
+  | 'signal_generate';
 
 export interface SafetyEvent {
   type: SafetyEventType;

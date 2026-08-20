@@ -611,7 +611,7 @@ export default function ScannerPage() {
               console.log('✅ Scan complete and results loaded');
             }
           } catch (pollErr) {
-            if (pollErr && (pollErr.name === 'AbortError' || pollErr.name === 'CanceledError')) return;
+            if (pollErr instanceof Error && (pollErr.name === 'AbortError' || pollErr.name === 'CanceledError')) return;
             console.error('Poll error:', pollErr);
           }
         }, 5000);
@@ -1025,7 +1025,7 @@ export default function ScannerPage() {
             {/* Left Section */}
             <div className="flex items-center space-x-6">
               <button
-                onClick={() => setLocation('/')}
+                onClick={() => navigate('/')}
                 className="flex items-center text-slate-400 hover:text-white transition-all hover:translate-x-[-2px]"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />

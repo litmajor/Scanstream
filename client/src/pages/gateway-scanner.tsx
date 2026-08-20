@@ -75,7 +75,7 @@ const SymbolCard = memo(function SymbolCard({ symbol, df, onClick, onOpen }: { s
           </div>
           <div className="flex items-center gap-2">
             {df && (df.trendDirection === 'UPTREND' ? <TrendingUp className="w-4 h-4 text-green-500" /> : <TrendingDown className="w-4 h-4 text-red-500" />)}
-            <Badge className={`${df ? (df.signal === 'BUY' ? 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : df.signal === 'SELL' ? 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-200 dark:border-slate-800') : 'bg-slate-500/10 text-slate-700'} border`}> 
+            <Badge className={`${df ? (df.signal === 'BUY' ? 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : df.signal === 'SELL' ? 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-slate-500/10 text-slate-700 dark:text-slate-400 border-slate-200 dark:border-slate-800') : 'bg-slate-500/10 text-slate-700'} border`}>
               {df?.signal || 'HOLD'}
             </Badge>
           </div>
@@ -102,9 +102,9 @@ const SymbolCard = memo(function SymbolCard({ symbol, df, onClick, onOpen }: { s
             <span className="text-sm font-mono">{df?.signalConfidence?.toFixed(0) || '0'}%</span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
-            <div 
+            <div
               className="bg-blue-500 h-1.5 rounded-full transition-all"
-              style={{ width: getProgressBarWidth(df?.signalConfidence) } as React.CSSProperties} 
+              style={{ width: getProgressBarWidth(df?.signalConfidence ?? 0) }}
             />
           </div>
         </div>

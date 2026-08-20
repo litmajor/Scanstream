@@ -15,7 +15,7 @@
  */
 
 import React, { useState, Suspense } from 'react';
-import AreaChartCore from './charts/AreaChartCore';
+import AreaChartCore from '@/components/charts/AreaChartCore';
 import { useBacktestResults } from '@/lib/hooks';
 const BacktestResultsChartsImpl = React.lazy(() => import('./BacktestResultsChartsImpl'));
 

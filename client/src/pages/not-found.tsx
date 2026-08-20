@@ -30,7 +30,7 @@ export default function NotFound() {
           </p>
 
           <button
-            onClick={() => setLocation('/')}
+            onClick={() => navigate('/')}
             className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg transition-all flex items-center justify-center space-x-2 text-white font-semibold shadow-lg shadow-blue-500/20"
           >
             <ArrowLeft className="w-4 h-4" />

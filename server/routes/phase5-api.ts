@@ -157,6 +157,17 @@ router.get('/agent-leaderboard', async (req: Request, res: Response) => {
 router.get('/signal-history', async (req: Request, res: Response) => {
   try {
     const { source, status, limit = 100, offset = 0 } = req.query;
+    const limitNum = Number(limit);
+    const offsetNum = Number(offset);
+    if (
+      !Number.isInteger(limitNum) ||
+      limitNum < 1 ||
+      limitNum > 1000 ||
+      !Number.isInteger(offsetNum) ||
+      offsetNum < 0
+    ) {
+      return res.status(400).json({ error: 'limit must be 1-1000 and offset must be non-negative' });
+    }
 
     let query = `
       SELECT 
@@ -191,7 +202,7 @@ router.get('/signal-history', async (req: Request, res: Response) => {
     }
 
     query += ` ORDER BY timestamp DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    params.push(limitNum, offsetNum);
 
     const result = await db.query(query, params);
 
@@ -333,6 +344,10 @@ router.get('/regime', async (req: Request, res: Response) => {
 router.get('/regime/history', async (req: Request, res: Response) => {
   try {
     const { hours = 24 } = req.query;
+    const hoursNum = Number(hours);
+    if (!Number.isInteger(hoursNum) || hoursNum < 1 || hoursNum > 720) {
+      return res.status(400).json({ error: 'hours must be an integer between 1 and 720' });
+    }
 
     const result = await db.query(
       `
@@ -347,7 +362,7 @@ router.get('/regime/history', async (req: Request, res: Response) => {
         trend_strength,
         timestamp
       FROM market_regime
-      WHERE timestamp >= NOW() - INTERVAL '${hours} hours'
+      WHERE timestamp >= NOW() - INTERVAL '${hoursNum} hours'
       ORDER BY timestamp ASC
     `
     );

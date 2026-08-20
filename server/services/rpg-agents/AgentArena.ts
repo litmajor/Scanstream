@@ -19,6 +19,11 @@ import FlowPhysicsAgent from './FlowPhysicsAgent';
 import { PythonStrategyAgent } from './PythonStrategyAgent';
 import { MLOracle } from './MLOracle';
 
+function describeInitializationError(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  return JSON.stringify(error);
+}
+
 export interface LeaderboardEntry {
   agent_name: string;
   rank: string;
@@ -1056,28 +1061,28 @@ export class AgentArena {
       const brk = new (require('./BreakoutHunter').BreakoutHunter)('BREAKOUT_HUNTER');
       this.registerAgent(brk);
     } catch (err) {
-      console.warn('Failed to register BreakoutHunter in arena initializeAgents', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register BreakoutHunter in arena initializeAgents', describeInitializationError(err));
     }
 
     try {
       const trend = new TrendRider('TREND_RIDER');
       this.registerAgent(trend);
     } catch (err) {
-      console.warn('Failed to register TrendRider', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register TrendRider', describeInitializationError(err));
     }
 
     try {
       const support = new SupportSniper('SUPPORT_SNIPER');
       this.registerAgent(support);
     } catch (err) {
-      console.warn('Failed to register SupportSniper', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register SupportSniper', describeInitializationError(err));
     }
 
     try {
       const rev = new ReversalMaster('REVERSAL_MASTER');
       this.registerAgent(rev);
     } catch (err) {
-      console.warn('Failed to register ReversalMaster', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register ReversalMaster', describeInitializationError(err));
     }
 
     try {
@@ -1086,7 +1091,7 @@ export class AgentArena {
       this.volumeAgent = new VolumeMechanicalVerifierAgent('VOLUME_VERIFIER', 'balanced', regimeForVolume);
       this.registerAgent(this.volumeAgent);
     } catch (err) {
-      console.warn('Failed to register VolumeMechanicalVerifierAgent', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register VolumeMechanicalVerifierAgent', describeInitializationError(err));
     }
 
     try {
@@ -1094,14 +1099,14 @@ export class AgentArena {
       const vfmd = new VFMDPhysicsAgent('VFMD_PHYSICS');
       this.registerAgent(vfmd);
     } catch (err) {
-      console.warn('Failed to register VFMDPhysicsAgent', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register VFMDPhysicsAgent', describeInitializationError(err));
     }
 
     try {
       const flow = new FlowPhysicsAgent('FLOW_PHYSICS');
       this.registerAgent(flow);
     } catch (err) {
-      console.warn('Failed to register FlowPhysicsAgent', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register FlowPhysicsAgent', describeInitializationError(err));
     }
 
     try {
@@ -1112,14 +1117,14 @@ export class AgentArena {
       this.registerAgent(createAgentFromPythonStrategy('mean_reversion'));
       this.registerAgent(createAgentFromPythonStrategy('volume_profile'));
     } catch (err) {
-      console.warn('Failed to register PythonStrategyAgent(s)', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register PythonStrategyAgent(s)', describeInitializationError(err));
     }
 
     try {
       const ml = new MLOracle('ML_ORACLE');
       this.registerAgent(ml);
     } catch (err) {
-      console.warn('Failed to register MLOracle', (err && err.stack) || JSON.stringify(err));
+      console.warn('Failed to register MLOracle', describeInitializationError(err));
     }
 
     // Keep generic TradingAgent registrations optional elsewhere if needed

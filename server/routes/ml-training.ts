@@ -35,8 +35,8 @@ router.post('/train', async (req: Request, res: Response) => {
     }
 
     const MLModelTrainer = (await import('../services/ml-model-trainer')).default;
-    
-    const result = await MLModelTrainer.trainModels({
+    const trainer = new MLModelTrainer();
+    const result = await trainer.trainModels({
       symbol,
       lookbackDays,
       validationSplit,

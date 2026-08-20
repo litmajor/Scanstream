@@ -3,8 +3,8 @@
  * Run with: npx ts-node test-validation-improvements.ts
  */
 
-import VFMDPhysicsAgent from './server/services/rpg-agents/VFMDPhysicsAgent';
-import type { MarketTick } from './server/services/vfmd/types';
+import VFMDPhysicsAgent from '../server/services/rpg-agents/VFMDPhysicsAgent';
+import type { MarketTick } from '../server/services/vfmd/types';
 
 // Generate simple test data
 function generateTestData(length: number): MarketTick[] {

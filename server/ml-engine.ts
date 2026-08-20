@@ -794,7 +794,7 @@ export class MLPModel implements MLModel {
     // Permutation importance: shuffle each feature and measure accuracy drop
     const baseline = this.evalAccuracy(samples);
     const importance: Record<string, number> = {};
-    const names = FeatureExtractor.getBaseFeatureNames();
+    const names = getBaseFeatureNames();
 
     for (let j = 0; j < Math.min(samples[0].features.length, names.length); j++) {
       const shuffled = samples.map(s => {
@@ -820,7 +820,7 @@ export class MLPModel implements MLModel {
   }
 
   private buildFeatureMap(features: number[]): Record<string, number> {
-    const names = FeatureExtractor.getBaseFeatureNames();
+    const names = getBaseFeatureNames();
     const map: Record<string, number> = {};
     for (let i = 0; i < names.length && i < features.length; i++) {
       map[names[i]] = features[i];
@@ -1066,7 +1066,7 @@ export class RandomForestModel implements MLModel {
 
   private estimateImportance(X: number[][], y: number[]): Record<string, number> {
     const baseline = this.oobAccuracy(X, y);
-    const names    = FeatureExtractor.getBaseFeatureNames();
+    const names    = getBaseFeatureNames();
     const importance: Record<string, number> = {};
     for (let j = 0; j < Math.min(X[0].length, names.length); j++) {
       const permuted = X.map(row => {
@@ -1092,7 +1092,7 @@ export class RandomForestModel implements MLModel {
   }
 
   private buildFeatureMap(features: number[]): Record<string, number> {
-    const names = FeatureExtractor.getBaseFeatureNames();
+    const names = getBaseFeatureNames();
     const map: Record<string, number> = {};
     for (let i = 0; i < names.length && i < features.length; i++) map[names[i]] = features[i];
     return map;
@@ -1333,7 +1333,7 @@ export class MLSignalEnhancer {
  * Fixed: getBaseFeatureNames now matches extractFeatures output exactly.
  * multiEMA features are dynamic and appended after these base names.
  */
-FeatureExtractor.getBaseFeatureNames = function (): string[] {
+export function getBaseFeatureNames(): string[] {
   return [
     // Price (7)
     'close', 'open', 'high', 'low', 'daily_range', 'daily_return', 'range_ratio',
@@ -1358,11 +1358,4 @@ FeatureExtractor.getBaseFeatureNames = function (): string[] {
     // Flags (2)
     'ichimoku_bullish', 'bb_pos',
   ];
-};
-
-// Attach as static so callers can use FeatureExtractor.getBaseFeatureNames()
-declare module './ml-signal-enhancer' {
-  interface FeatureExtractorStatic {
-    getBaseFeatureNames(): string[];
-  }
 }

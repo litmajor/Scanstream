@@ -28,7 +28,7 @@ export default function OrderPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-white">
       <div className="max-w-4xl mx-auto bg-slate-900/60 rounded-lg border border-slate-700 p-6">
-        <button onClick={() => setLocation('/orders')} className="mb-4 inline-flex items-center gap-2 text-slate-300 hover:text-white">
+        <button onClick={() => navigate('/orders')} className="mb-4 inline-flex items-center gap-2 text-slate-300 hover:text-white">
           <ArrowLeft className="w-5 h-5" /> Back
         </button>
 

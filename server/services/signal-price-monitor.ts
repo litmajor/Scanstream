@@ -28,6 +28,8 @@ class SignalPriceMonitor {
 
   private async updateActivePrices(): Promise<void> {
     try {
+      if (!aggregator) return;
+
       const recent = signalPerformanceTracker.getRecentPerformance(50);
       const active = recent.filter(p => p.status === 'active');
 

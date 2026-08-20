@@ -13,6 +13,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 import { multiTimeframeMLService } from '../services/multi-timeframe-ml-service';
 import { lstmBacktestEngine } from '../services/lstm-backtest-engine';
 
@@ -30,7 +31,7 @@ const router = Router();
  */
 router.get('/predictions/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
     const { timeframe, includeReasons } = req.query;
     const includeReasonsFlag = includeReasons !== 'false';
 
@@ -138,6 +139,7 @@ router.get('/predictions/:symbol', async (req: Request, res: Response) => {
 
     return res.json(response);
   } catch (error) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[ML MTF API] Error fetching predictions:', error);
     return res.status(500).json({
       error: 'Failed to fetch predictions',
@@ -404,7 +406,7 @@ router.post('/backtest/run', async (req: Request, res: Response) => {
  */
 router.get('/confidence/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
 
     console.log(`[ML MTF API] Fetching confidence metrics for ${symbol}`);
 
@@ -447,6 +449,7 @@ router.get('/confidence/:symbol', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[ML MTF API] Error fetching confidence metrics:', error);
     return res.status(500).json({
       error: 'Failed to fetch confidence metrics',

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { signalSourceAnalytics } from '../services/signal-source-analytics';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
 
@@ -29,10 +30,11 @@ router.post('/record-trade', (req: Request, res: Response) => {
  */
 router.get('/metrics/:source', (req: Request, res: Response) => {
   try {
-    const { source } = req.params;
+    const source = routeParam(req.params.source, 'source', 64);
     const metrics = signalSourceAnalytics.getSourceMetrics(source.toUpperCase());
     res.json({ success: true, metrics });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -24,6 +24,7 @@ const MAX_HISTORY = 1000;
 setInterval(() => {
   try {
     const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
+    if (!aggregator) return;
     
     const snapshot: MetricsSnapshot = {
       timestamp: new Date(),
@@ -56,6 +57,9 @@ setInterval(() => {
 router.get('/realtime', (req: Request, res: Response) => {
   try {
     const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
+    if (!aggregator) {
+      return res.status(503).json({ success: false, error: 'Gateway unavailable' });
+    }
     
     const metrics = {
       cache: cacheManager.getStats(),

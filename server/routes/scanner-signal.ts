@@ -7,6 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import ScannerSignalService from '../services/scanner/scanner-signal-service';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 import type {
   ComputeScannerSignalRequest,
   ComputeScannerSignalResponse,
@@ -167,7 +168,8 @@ router.post('/signal/compute-batch', async (req: Request, res: Response) => {
  */
 router.get('/signal/cached/:symbol/:timeframe', async (req: Request, res: Response) => {
   try {
-    const { symbol, timeframe } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
+    const timeframe = routeParam(req.params.timeframe, 'timeframe', 16);
 
     if (!symbol || !timeframe) {
       return res.status(400).json({
@@ -191,6 +193,7 @@ router.get('/signal/cached/:symbol/:timeframe', async (req: Request, res: Respon
       cached: true,
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[Scanner Signal] Error retrieving cached signal:', error);
     res.status(500).json({
       success: false,

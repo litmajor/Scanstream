@@ -266,8 +266,9 @@ export class LiveVelocityCalculator {
       // Convert symbol to CCXT format (e.g., "BTC" → "BTC/USDT")
       const ccxtSymbol = symbol.includes('/') ? symbol : `${symbol}/USDT`;
 
-      // Load markets to validate symbol
-      if (!exchange.symbols.includes(ccxtSymbol)) {
+      // CCXT does not populate `symbols` until markets are loaded.
+      await exchange.loadMarkets();
+      if (!(exchange.symbols ?? []).includes(ccxtSymbol)) {
         console.warn(`[LiveVelocity] Symbol ${ccxtSymbol} not available on Binance`);
         return [];
       }

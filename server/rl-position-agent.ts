@@ -17,6 +17,7 @@
 
 import { MarketFrame } from '@shared/schema';
 import RL_DEFAULT_CONFIG, { RLConfig } from './config/rl-config';
+import { getSharedService } from './services/shared-service-registry';
 
 export interface PositionSizingAction {
   sizeMultiplier: number; // 0.5 to 2.0 (50% to 200% of base size)
@@ -576,7 +577,7 @@ export class RLPositionAgent {
     try {
       const latestFrame = frames[frames.length - 1] as any;
       const symbol = latestFrame?.symbol;
-      const truth = (global as any).truthEngine as any;
+      const truth = getSharedService('truthEngine');
       if (symbol && truth && typeof truth.getConsensus === 'function') {
         const cons = truth.getConsensus(symbol);
         if (cons && typeof cons.confidence === 'number') {

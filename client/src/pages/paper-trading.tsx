@@ -298,7 +298,7 @@ export default function PaperTradingPage() {
       <div className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/30">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <button onClick={() => setLocation('/')} className="flex items-center text-slate-400 hover:text-white">
+            <button onClick={() => navigate('/')} className="flex items-center text-slate-400 hover:text-white">
               <ArrowLeft className="w-5 h-5 mr-2" />
               Dashboard
             </button>

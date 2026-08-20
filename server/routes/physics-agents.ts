@@ -12,12 +12,26 @@ import VFMDPhysicsAgent from '../services/rpg-agents/VFMDPhysicsAgent';
 import FlowPhysicsAgent from '../services/rpg-agents/FlowPhysicsAgent';
 import type { MarketTick } from '../services/vfmd/types';
 import { storage } from '../storage';
+import { requireAuth } from '../middleware/auth';
 
 const router = express.Router();
 
 // Singleton agent instances
 const vfmdAgent = new VFMDPhysicsAgent('VFMD-Analyst', 'balanced');
 const flowAgent = new FlowPhysicsAgent('Flow-Analyst', 'balanced');
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMarketTick(value: unknown): value is MarketTick {
+  return (
+    isRecord(value) &&
+    ['timestamp', 'open', 'high', 'low', 'close', 'volume'].every(
+      (key) => typeof value[key] === 'number' && Number.isFinite(value[key]),
+    )
+  );
+}
 
 /**
  * POST /api/agents/physics/vfmd-analyze
@@ -41,9 +55,21 @@ const flowAgent = new FlowPhysicsAgent('Flow-Analyst', 'balanced');
  *   timestamp: ISO string
  * }
  */
-router.post('/vfmd-analyze', async (req: Request, res: Response) => {
+router.post('/vfmd-analyze', requireAuth, async (req: Request, res: Response) => {
   try {
     const { symbol, data } = req.body;
+
+    if (
+      (symbol !== undefined &&
+        (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > 32)) ||
+      (data !== undefined &&
+        (!Array.isArray(data) || data.length > 500 || data.some((tick) => !isMarketTick(tick))))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol must be a bounded string and data must contain at most 500 points',
+      });
+    }
 
     let ticks: MarketTick[] = [];
 
@@ -131,9 +157,21 @@ router.post('/vfmd-analyze', async (req: Request, res: Response) => {
  * 
  * Analyze market data using Flow Field engine
  */
-router.post('/flow-analyze', async (req: Request, res: Response) => {
+router.post('/flow-analyze', requireAuth, async (req: Request, res: Response) => {
   try {
     const { symbol, data } = req.body;
+
+    if (
+      (symbol !== undefined &&
+        (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > 32)) ||
+      (data !== undefined &&
+        (!Array.isArray(data) || data.length > 500 || data.some((tick) => !isMarketTick(tick))))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol must be a bounded string and data must contain at most 500 points',
+      });
+    }
 
     let ticks: MarketTick[] = [];
 
@@ -234,9 +272,21 @@ router.post('/flow-analyze', async (req: Request, res: Response) => {
  * 
  * Run both VFMD and Flow agents on the same data and compare signals
  */
-router.post('/compare', async (req: Request, res: Response) => {
+router.post('/compare', requireAuth, async (req: Request, res: Response) => {
   try {
     const { symbol, data } = req.body;
+
+    if (
+      (symbol !== undefined &&
+        (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > 32)) ||
+      (data !== undefined &&
+        (!Array.isArray(data) || data.length > 500 || data.some((tick) => !isMarketTick(tick))))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol must be a bounded string and data must contain at most 500 points',
+      });
+    }
 
     let ticks: MarketTick[] = [];
 

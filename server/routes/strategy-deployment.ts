@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { strategyDeploymentManager } from '../services/strategy-deployment-manager';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
 
@@ -46,11 +47,12 @@ router.post('/deploy', async (req: Request, res: Response) => {
  */
 router.post('/stop/:strategyId', (req: Request, res: Response) => {
   try {
-    const { strategyId } = req.params;
+    const strategyId = routeParam(req.params.strategyId, 'strategyId');
     const result = strategyDeploymentManager.stopStrategy(strategyId);
 
     res.json(result);
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({
       success: false,
       message: error.message
@@ -64,7 +66,7 @@ router.post('/stop/:strategyId', (req: Request, res: Response) => {
  */
 router.get('/status/:strategyId', (req: Request, res: Response) => {
   try {
-    const { strategyId } = req.params;
+    const strategyId = routeParam(req.params.strategyId, 'strategyId');
     const status = strategyDeploymentManager.getDeploymentStatus(strategyId);
 
     if (!status) {
@@ -75,6 +77,7 @@ router.get('/status/:strategyId', (req: Request, res: Response) => {
 
     res.json({ success: true, deployment: status });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({
       error: error.message
     });
@@ -107,7 +110,7 @@ router.get('/all', (req: Request, res: Response) => {
  */
 router.get('/mode/:mode', (req: Request, res: Response) => {
   try {
-    const { mode } = req.params;
+    const mode = routeParam(req.params.mode, 'mode', 32);
 
     if (!['backtest', 'paper', 'live'].includes(mode)) {
       return res.status(400).json({
@@ -124,6 +127,7 @@ router.get('/mode/:mode', (req: Request, res: Response) => {
       total: deployments.length
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({
       error: error.message
     });

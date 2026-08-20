@@ -10,6 +10,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { routeParam } from '../utils/route-params';
 import {
   isFeatureEnabled,
   getAllFlags,
@@ -20,6 +21,11 @@ import {
 } from '../config/featureFlags';
 
 const router = Router();
+const validCategories = ['strategy', 'service', 'analysis', 'experimental', 'admin'] as const;
+
+function isFeatureCategory(value: string): value is typeof validCategories[number] {
+  return (validCategories as readonly string[]).includes(value);
+}
 
 /**
  * Middleware: Check if running in dev mode (for toggle endpoints)
@@ -53,7 +59,7 @@ router.get('/', (req: Request, res: Response) => {
  * Check if a specific flag is enabled
  */
 router.get('/:flag', (req: Request, res: Response) => {
-  const flagName = req.params.flag;
+  const flagName = routeParam(req.params.flag, 'flag', 128);
   const flags = getAllFlags();
 
   if (!flags[flagName]) {
@@ -78,12 +84,14 @@ router.get('/:flag', (req: Request, res: Response) => {
 router.get(
   '/category/:category',
   (req: Request, res: Response) => {
-    const category = req.params.category as any;
-    const validCategories = ['strategy', 'service', 'analysis', 'experimental', 'admin'];
+    const rawCategory = req.params.category;
+    const category = typeof rawCategory === 'string' && rawCategory.length <= 32
+      ? rawCategory
+      : '';
 
-    if (!validCategories.includes(category)) {
+    if (!isFeatureCategory(category)) {
       return res.status(400).json({
-        error: `Invalid category: ${category}`,
+        error: `Invalid category: ${typeof rawCategory === 'string' ? rawCategory : 'category'}`,
         valid_categories: validCategories,
       });
     }
@@ -102,7 +110,7 @@ router.get(
  * Toggle a feature flag on/off (dev-only)
  */
 router.post('/:flag/toggle', devOnly, (req: Request, res: Response) => {
-  const flagName = req.params.flag;
+  const flagName = routeParam(req.params.flag, 'flag', 128);
   const flags = getAllFlags();
 
   if (!flags[flagName]) {
@@ -129,7 +137,7 @@ router.post('/:flag/toggle', devOnly, (req: Request, res: Response) => {
  * Set a feature flag to a specific state (dev-only)
  */
 router.post('/:flag/set', devOnly, (req: Request, res: Response) => {
-  const flagName = req.params.flag;
+  const flagName = routeParam(req.params.flag, 'flag', 128);
   const { enabled } = req.body;
 
   if (typeof enabled !== 'boolean') {

@@ -3,6 +3,7 @@ import express, { type Request, type Response } from 'express';
 import AdvancedMLService from '../services/ml-advanced-models';
 
 const router = express.Router();
+const advancedMLService = new AdvancedMLService();
 
 /**
  * POST /api/ml/advanced/predictions
@@ -27,7 +28,7 @@ router.post('/predictions', async (req: Request, res: Response) => {
       });
     }
     
-    const predictions = await AdvancedMLService.generateAdvancedPredictions(chartData);
+    const predictions = await advancedMLService.generateAdvancedPredictions(chartData);
     
     res.json({
       success: true,

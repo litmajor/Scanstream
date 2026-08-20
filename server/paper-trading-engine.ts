@@ -15,6 +15,7 @@ import { PartialFillSimulator } from './services/partial-fill-simulator';
 import MockNetwork from './services/mock-network';
 import VenueRouter from './services/venue-router';
 import OrderRetryPolicy from './services/order-retry-policy';
+import { getSharedService } from './services/shared-service-registry';
 
 interface HoldingDecisionMetadata {
   holdingPeriodDays: number;
@@ -267,7 +268,7 @@ export class PaperTradingEngine extends EventEmitter {
 
         // Check TruthEngine tradeability before executing paper trades
         try {
-          const truth = (global as any).truthEngine as any;
+          const truth = getSharedService('truthEngine');
           if (truth && typeof truth.isTradeable === 'function') {
             const t = truth.isTradeable(signal.symbol, { minSources: 2, minConfidence: 50 });
             if (!t.ok) {

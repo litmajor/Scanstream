@@ -16,6 +16,7 @@
 
 import { getAdaptiveClusterThreshold, validateClusterGate } from '../../rl-system-integration';
 import { getConfidenceScorer } from '../market-data/confidence-scorer';
+import { getSharedService } from '../shared-service-registry';
 import { MarketFrame } from '@shared/schema';
 import type { Candle } from '../../types/market-data';
 
@@ -345,7 +346,7 @@ export class ClusterValidator {
     // If clusterMetrics contains a symbol hint, consult TruthEngine consensus to further adjust quality
     try {
       const symbol = (clusterMetrics as any)._symbol as string | undefined;
-      const truth = (global as any).truthEngine as any;
+      const truth = getSharedService('truthEngine');
       if (symbol && truth && typeof truth.getConsensus === 'function') {
         const cons = truth.getConsensus(symbol);
         if (cons && typeof cons.confidence === 'number') {

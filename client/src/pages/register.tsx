@@ -21,7 +21,7 @@ export default function RegisterPage() {
     // TODO: Implement actual registration logic
     console.log("Registration attempt:", formData);
     // For now, just redirect to terminal
-    setLocation("/");
+    navigate("/");
   };
 
   const updateField = (field: string, value: string) => {

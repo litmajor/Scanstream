@@ -21,8 +21,29 @@ import {
   getAllEnabledAgentFeatures,
 } from '../services/agent-services-registry';
 import { isFeatureEnabled, FLAGS } from '../config/featureFlags';
+import { requireAuth } from '../middleware/auth';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
+const ABILITY_NAMES = [
+  'breakout_hunter',
+  'reversal_master',
+  'trend_rider',
+  'support_sniper',
+  'physics_flow',
+  'physics_vfmd',
+  'ml_oracle',
+  'market_oracle',
+  'volume_verifier',
+  'exit_orchestrator',
+  'opposition_reader',
+  'microstructure_specialist',
+  'feature_engineer',
+] as const;
+
+function isKnownAbilityName(value: string): value is typeof ABILITY_NAMES[number] {
+  return ABILITY_NAMES.some((name) => name === value);
+}
 
 /**
  * GET /api/agents/services
@@ -202,18 +223,18 @@ router.get(
  * Use an agent ability (experimental endpoint)
  * This simulates calling an ability with test parameters
  */
-router.post('/ability/:ability/use', (req: Request, res: Response) => {
-  const abilityName = req.params.ability as any;
-  const available = isAgentAbilityAvailable(abilityName);
-
-  if (!available) {
-    return res.status(403).json({
-      error: `Ability '${abilityName}' is disabled or not available`,
-      enable_instructions: `POST /api/feature-flags/agent_ability_${abilityName}/set with body {"enabled": true}`,
-    });
-  }
-
+router.post('/ability/:ability/use', requireAuth, (req: Request, res: Response) => {
   try {
+    const abilityName = routeParam(req.params.ability, 'ability', 128);
+    const available = isKnownAbilityName(abilityName) && isAgentAbilityAvailable(abilityName);
+
+    if (!available) {
+      return res.status(403).json({
+        error: `Ability '${abilityName}' is disabled or not available`,
+        enable_instructions: `POST /api/feature-flags/agent_ability_${abilityName}/set with body {"enabled": true}`,
+      });
+    }
+
     const { market_data, parameters } = req.body;
 
     // Placeholder: In real implementation, this would invoke the actual ability
@@ -236,10 +257,11 @@ router.post('/ability/:ability/use', (req: Request, res: Response) => {
       success: true,
       result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({
       error: 'Failed to use ability',
-      details: error.message,
+      details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

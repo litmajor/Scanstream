@@ -16,7 +16,7 @@ export default function LoginPage() {
     // TODO: Implement actual login logic
     console.log("Login attempt:", { email, password });
     // For now, just redirect to terminal
-    setLocation("/");
+    navigate("/");
   };
 
   return (
@@ -67,7 +67,7 @@ export default function LoginPage() {
               type="button"
               variant="outline"
               className="w-full"
-              onClick={() => setLocation("/")}
+              onClick={() => navigate("/")}
             >
               Continue as Guest
             </Button>

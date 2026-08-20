@@ -3,7 +3,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { ChartDataPoint } from '../components/TradingChart';
+import type { ChartDataPoint } from '../types/chart';
 
 interface CoinGeckoChartData {
   success: boolean;
@@ -135,4 +135,3 @@ function symbolToCoinId(symbol: string): string | null {
   const cleanSymbol = symbol.toUpperCase().trim();
   return symbolMap[cleanSymbol] || null;
 }
-

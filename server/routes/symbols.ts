@@ -146,7 +146,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol);
 
     // Try to get from cache first
     const cacheKey = `symbol-${symbol.toUpperCase()}`;

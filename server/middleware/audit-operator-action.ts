@@ -17,7 +17,7 @@ import { safetyEventLog, type OperatorAction } from '../services/observability/s
 
 export interface AuditOptions {
   /** Snapshot of the state this action mutates, taken before and after. */
-  snapshot?: () => unknown;
+  snapshot?: (req?: Request) => unknown;
   /** What the action was aimed at (position id, symbol, config keys). */
   target?: (req: Request) => string | undefined;
 }
@@ -28,7 +28,7 @@ export function auditOperatorAction(action: OperatorAction, options: AuditOption
       (req.headers['x-request-id'] as string | undefined) || crypto.randomUUID();
     let previousState: unknown;
     try {
-      previousState = options.snapshot?.();
+      previousState = options.snapshot?.(req);
     } catch {
       previousState = undefined;
     }
@@ -44,7 +44,7 @@ export function auditOperatorAction(action: OperatorAction, options: AuditOption
     res.on('finish', () => {
       let resultingState: unknown;
       try {
-        resultingState = options.snapshot?.();
+        resultingState = options.snapshot?.(req);
       } catch {
         resultingState = undefined;
       }

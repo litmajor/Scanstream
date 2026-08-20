@@ -16,6 +16,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 import { MLAutomatedTradingService, TradeExecutionRequest, RiskManagementConfig } from '../services/ml-automated-trading-service';
 import { Logger } from '../services/logger';
 
@@ -105,7 +106,7 @@ router.get('/active', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const trade = await tradingService.getTrade(req.params.id);
+    const trade = await tradingService.getTrade(routeParam(req.params.id, 'id'));
 
     if (!trade) {
       return res.status(404).json({ error: 'Trade not found' });
@@ -113,6 +114,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json(trade);
   } catch (error) {
+    if (respondToInvalidRouteParam(error, res)) return;
     logger.error(`Error fetching trade: ${error}`);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -136,7 +138,7 @@ router.post('/:id/close', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'exitPrice is required' });
     }
 
-    const trade = await tradingService.closeTrade(req.params.id, exitPrice, reason);
+    const trade = await tradingService.closeTrade(routeParam(req.params.id, 'id'), exitPrice, reason);
 
     if (!trade) {
       return res.status(400).json({ error: 'Failed to close trade' });
@@ -148,6 +150,7 @@ router.post('/:id/close', async (req: Request, res: Response) => {
       message: `Trade closed: P&L $${trade.profitLoss?.toFixed(2)} (${trade.profitLossPercent?.toFixed(2)}%)`,
     });
   } catch (error) {
+    if (respondToInvalidRouteParam(error, res)) return;
     logger.error(`Error closing trade: ${error}`);
     res.status(500).json({ error: 'Internal server error' });
   }

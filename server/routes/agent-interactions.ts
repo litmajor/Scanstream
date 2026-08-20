@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -31,6 +32,37 @@ interface ActivityItem {
 // Store for consensus history
 const consensusHistory: ConsensusVote[] = [];
 const activityLog: ActivityItem[] = [];
+const MAX_ACTIVITY_ITEMS = 1000;
+
+export function getActivityLogSize(): number {
+  return activityLog.length;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isFiniteConfidence(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
+function isVoteData(value: unknown): value is VoteData {
+  return (
+    isRecord(value) &&
+    typeof value.agentName === 'string' &&
+    value.agentName.length > 0 &&
+    value.agentName.length <= 64 &&
+    typeof value.agentType === 'string' &&
+    value.agentType.length > 0 &&
+    value.agentType.length <= 64 &&
+    (value.vote === 'EXIT' || value.vote === 'HOLD') &&
+    isFiniteConfidence(value.confidence) &&
+    typeof value.reasoning === 'string' &&
+    value.reasoning.length <= 500 &&
+    typeof value.timestamp === 'string' &&
+    value.timestamp.length <= 64
+  );
+}
 
 /**
  * GET /api/agents/interactions/consensus-history
@@ -108,9 +140,27 @@ router.get('/activity-log', (req: Request, res: Response) => {
  * POST /api/agents/interactions/record-vote
  * Record an agent vote for visualization
  */
-router.post('/record-vote', (req: Request, res: Response) => {
+router.post('/record-vote', requireAuth, (req: Request, res: Response) => {
   try {
     const { symbol, votes, consensus, confidence, exitUrgency } = req.body;
+
+    if (
+      typeof symbol !== 'string' ||
+      symbol.length === 0 ||
+      symbol.length > 32 ||
+      !Array.isArray(votes) ||
+      votes.length > 20 ||
+      votes.some((vote) => !isVoteData(vote)) ||
+      !['EXIT', 'HOLD'].includes(consensus) ||
+      !isFiniteConfidence(confidence) ||
+      (exitUrgency !== undefined &&
+        !['HOLD', 'TIGHTEN_STOP', 'EXIT_STANDARD', 'EXIT_URGENT'].includes(exitUrgency))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol, bounded votes, consensus, and confidence are required',
+      });
+    }
 
     const consensusVote: ConsensusVote = {
       symbol,
@@ -122,6 +172,9 @@ router.post('/record-vote', (req: Request, res: Response) => {
     };
 
     consensusHistory.push(consensusVote);
+    if (consensusHistory.length > MAX_ACTIVITY_ITEMS) {
+      consensusHistory.shift();
+    }
 
     // Add activity log entry
     activityLog.push({
@@ -130,6 +183,9 @@ router.post('/record-vote', (req: Request, res: Response) => {
       message: `Consensus reached for ${symbol}`,
       details: `${consensus === 'EXIT' ? 'Exit' : 'Hold'} decision with ${(confidence * 100).toFixed(0)}% confidence`
     });
+    if (activityLog.length > MAX_ACTIVITY_ITEMS) {
+      activityLog.shift();
+    }
 
     res.json({
       success: true,
@@ -147,9 +203,22 @@ router.post('/record-vote', (req: Request, res: Response) => {
  * POST /api/agents/interactions/record-activity
  * Record any agent activity
  */
-router.post('/record-activity', (req: Request, res: Response) => {
+router.post('/record-activity', requireAuth, (req: Request, res: Response) => {
   try {
     const { type, message, details } = req.body;
+
+    if (
+      (type !== undefined && !['vote', 'consensus', 'trade', 'error'].includes(type)) ||
+      typeof message !== 'string' ||
+      message.length === 0 ||
+      message.length > 500 ||
+      (details !== undefined && (typeof details !== 'string' || details.length > 2000))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'activity type, message, and bounded details are required',
+      });
+    }
 
     const activity: ActivityItem = {
       timestamp: new Date().toISOString(),
@@ -377,16 +446,40 @@ router.get('/interaction-graph', (req: Request, res: Response) => {
  * POST /api/agents/interactions/agent-event
  * Record any agent event for visualization
  */
-router.post('/agent-event', (req: Request, res: Response) => {
+router.post('/agent-event', requireAuth, (req: Request, res: Response) => {
   try {
     const { agentName, eventType, data } = req.body;
+
+    if (
+      typeof agentName !== 'string' ||
+      agentName.length === 0 ||
+      agentName.length > 64 ||
+      !['vote', 'consensus', 'trade', 'error'].includes(eventType) ||
+      !isRecord(data)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'agentName, supported eventType, and object data are required',
+      });
+    }
+
+    const serializedData = JSON.stringify(data);
+    if (serializedData.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        error: 'event data must serialize to at most 5000 characters',
+      });
+    }
 
     activityLog.push({
       timestamp: new Date().toISOString(),
       type: eventType || 'trade',
       message: `${agentName}: ${eventType}`,
-      details: JSON.stringify(data)
+      details: serializedData
     });
+    if (activityLog.length > MAX_ACTIVITY_ITEMS) {
+      activityLog.shift();
+    }
 
     res.json({
       success: true,

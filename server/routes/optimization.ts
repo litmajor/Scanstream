@@ -3,6 +3,7 @@ import express, { type Request, type Response } from 'express';
 import { MirrorOptimizer } from '../bayesian-optimizer';
 import { ScannerAgent, MLAgent } from '../bayesian-optimizer';
 import { ExchangeDataFeed } from '../trading-engine';
+import { requireAuth } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ let optimizer: MirrorOptimizer | null = null;
  * POST /api/optimize/run
  * Run comprehensive optimization
  */
-router.post('/run', async (req: Request, res: Response) => {
+router.post('/run', requireAuth, async (req: Request, res: Response) => {
   try {
     const {
       optimizeScanner = true,
@@ -26,6 +27,32 @@ router.post('/run', async (req: Request, res: Response) => {
       timeframe = '1h',
       dataPoints = 500
     } = req.body;
+
+    if (
+      typeof iterations !== 'number' ||
+      !Number.isInteger(iterations) ||
+      iterations < 1 ||
+      iterations > 50 ||
+      typeof dataPoints !== 'number' ||
+      !Number.isInteger(dataPoints) ||
+      dataPoints < 100 ||
+      dataPoints > 1000 ||
+      typeof symbol !== 'string' ||
+      symbol.trim().length === 0 ||
+      symbol.length > 32 ||
+      typeof timeframe !== 'string' ||
+      !['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(timeframe) ||
+      typeof parallelOptimization !== 'boolean' ||
+      typeof optimizeScanner !== 'boolean' ||
+      typeof optimizeML !== 'boolean' ||
+      typeof optimizeRL !== 'boolean' ||
+      typeof optimizeStrategies !== 'boolean'
+    ) {
+      return res.status(400).json({
+        error: 'Invalid optimization bounds',
+        message: 'iterations must be 1-50, dataPoints must be 100-1000, and strategy options must be valid',
+      });
+    }
     
     // Initialize optimizer
     if (!optimizer) {

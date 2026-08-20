@@ -1,8 +1,11 @@
 // chart-api.ts
-// API endpoint for chart data and server-side chart image generation
+// API endpoint for chart data and the intentionally unavailable server-side image route
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
-import { ChartJSNodeCanvas } from "chartjs-node-canvas";
+import { routeParam } from "./utils/route-params";
+
+export const CHART_IMAGE_UNAVAILABLE_MESSAGE =
+  'Server-side chart image rendering is not available in this build';
 
 // Helper to get chart data for a symbol
 export async function getChartData(symbol: string, limit: number = 100) {
@@ -25,7 +28,7 @@ export function registerChartApi(app: Express) {
   // Raw chart data endpoint
   console.log('Registering GET /api/chart-data/:symbol');
   app.get("/api/chart-data/:symbol", async (req: Request, res: Response) => {
-    const symbol = req.params.symbol;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
     const limit = parseInt(req.query.limit as string) || 100;
     const data = await getChartData(symbol, limit);
     res.json(data);
@@ -34,35 +37,7 @@ export function registerChartApi(app: Express) {
   // Chart image endpoint (PNG)
   console.log('Registering GET /api/chart-image/:symbol');
   app.get("/api/chart-image/:symbol", async (req: Request, res: Response) => {
-    const symbol = req.params.symbol;
-    const limit = parseInt(req.query.limit as string) || 100;
-    const data = await getChartData(symbol, limit);
-    const width = parseInt(req.query.width as string) || 800;
-    const height = parseInt(req.query.height as string) || 400;
-    const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height });
-    // Import ChartConfiguration type from chart.js
-    // import type { ChartConfiguration } from 'chart.js'; // Add this import at the top if not already present
-
-    const configuration: import('chart.js').ChartConfiguration<'line', number[], unknown> = {
-      type: 'line',
-      data: {
-        labels: data.map(d => new Date(d.timestamp).toLocaleDateString()),
-        datasets: [
-          { label: 'Close', data: data.map(d => d.close), borderColor: '#8884d8', fill: false },
-          { label: 'EMA', data: data.map(d => d.ema), borderColor: '#ff7300', fill: false },
-          { label: 'RSI', data: data.map(d => d.rsi), borderColor: '#0088FE', fill: false, yAxisID: 'y1' },
-          { label: 'MACD', data: data.map(d => d.macd), borderColor: '#00C49F', fill: false, yAxisID: 'y1' },
-        ],
-      },
-      options: {
-        scales: {
-          y: { beginAtZero: false, position: 'left' },
-          y1: { beginAtZero: false, position: 'right', grid: { drawOnChartArea: false } },
-        },
-      },
-    };
-    const image = await chartJSNodeCanvas.renderToBuffer(configuration);
-    res.set('Content-Type', 'image/png');
-    res.send(image);
+    routeParam(req.params.symbol, 'symbol', 64);
+    res.status(501).json({ error: CHART_IMAGE_UNAVAILABLE_MESSAGE });
   });
 }

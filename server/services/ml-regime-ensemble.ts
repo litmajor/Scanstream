@@ -65,7 +65,9 @@ export class RegimeSpecificMLEnsemble implements MLModel {
         features: {}
       }),
       train: async (data: MarketFrame[]) => {},
-      getFeatureImportance: () => ({})
+      getFeatureImportance: () => ({}),
+      serialize: () => ({}),
+      deserialize: (_data: object) => {}
     };
   }
 
@@ -300,6 +302,28 @@ export class RegimeSpecificMLEnsemble implements MLModel {
     }
 
     return combined;
+  }
+
+  serialize(): object {
+    return {
+      isTrained: this.isTrained,
+      trendingModel: this.trendingModel.serialize(),
+      choppyModel: this.choppyModel.serialize(),
+      volatileModel: this.volatileModel.serialize(),
+    };
+  }
+
+  deserialize(data: object): void {
+    const state = data as {
+      isTrained?: boolean;
+      trendingModel?: object;
+      choppyModel?: object;
+      volatileModel?: object;
+    };
+    this.isTrained = state.isTrained === true;
+    if (state.trendingModel) this.trendingModel.deserialize(state.trendingModel);
+    if (state.choppyModel) this.choppyModel.deserialize(state.choppyModel);
+    if (state.volatileModel) this.volatileModel.deserialize(state.volatileModel);
   }
 
   /**

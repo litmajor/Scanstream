@@ -6,9 +6,45 @@
  */
 
 import express, { Request, Response } from 'express';
-import CompletePipelineSignalGenerator, { type CompleteSignal } from '../../lib/complete-pipeline-signal-generator';
+import CompletePipelineSignalGenerator from '../../lib/complete-pipeline-signal-generator';
+import { requireTradingOperator } from '../../middleware/require-trading-operator';
+import { auditOperatorAction } from '../../middleware/audit-operator-action';
 
 const router = express.Router();
+
+const signalGenerationAudit = auditOperatorAction('signal_generate', {
+  target: (req) => typeof req.body?.symbol === 'string' ? req.body.symbol.slice(0, 32) : undefined,
+});
+
+const validTimeframes = new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d']);
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isBoundedSignalRequest(value: unknown): value is {
+  symbol: string;
+  currentPrice: number;
+  timeframe: string;
+  accountBalance: number;
+  chartData?: unknown[];
+} {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const request = value as Record<string, unknown>;
+  return (
+    typeof request.symbol === 'string' &&
+    request.symbol.trim().length > 0 &&
+    request.symbol.length <= 32 &&
+    isFiniteNumber(request.currentPrice) &&
+    request.currentPrice > 0 &&
+    typeof request.timeframe === 'string' &&
+    validTimeframes.has(request.timeframe) &&
+    isFiniteNumber(request.accountBalance) &&
+    request.accountBalance > 0 &&
+    (request.chartData === undefined ||
+      (Array.isArray(request.chartData) && request.chartData.length <= 500))
+  );
+}
 
 /**
  * POST /api/signal-generation/generate
@@ -58,7 +94,7 @@ const router = express.Router();
  * 
  * Response: CompleteSignal object with full transparency
  */
-router.post('/generate', async (req: Request, res: Response) => {
+router.post('/generate', requireTradingOperator, signalGenerationAudit, async (req: Request, res: Response) => {
   try {
     const {
       symbol,
@@ -95,9 +131,9 @@ router.post('/generate', async (req: Request, res: Response) => {
     } = req.body;
 
     // Validate required fields
-    if (!symbol || !currentPrice || !timeframe || !accountBalance) {
+    if (!isBoundedSignalRequest(req.body)) {
       return res.status(400).json({
-        error: 'Missing required fields: symbol, currentPrice, timeframe, accountBalance'
+        error: 'Invalid signal request: bounded symbol, timeframe, price, balance, and chartData are required'
       });
     }
 
@@ -145,7 +181,6 @@ router.post('/generate', async (req: Request, res: Response) => {
     console.error('[Signal API] Generation failed:', error);
     res.status(500).json({
       error: 'Signal generation failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -155,13 +190,18 @@ router.post('/generate', async (req: Request, res: Response) => {
  * 
  * Generate signals for multiple symbols at once
  */
-router.post('/generate-batch', async (req: Request, res: Response) => {
+router.post('/generate-batch', requireTradingOperator, signalGenerationAudit, async (req: Request, res: Response) => {
   try {
     const { signals: signalRequests } = req.body;
 
-    if (!Array.isArray(signalRequests) || signalRequests.length === 0) {
+    if (
+      !Array.isArray(signalRequests) ||
+      signalRequests.length === 0 ||
+      signalRequests.length > 20 ||
+      signalRequests.some((request: unknown) => !isBoundedSignalRequest(request))
+    ) {
       return res.status(400).json({
-        error: 'Expected array of signal requests in "signals" field'
+        error: 'Expected 1-20 bounded signal requests in "signals" field'
       });
     }
 
@@ -214,7 +254,6 @@ router.post('/generate-batch', async (req: Request, res: Response) => {
     console.error('[Signal API] Batch generation failed:', error);
     res.status(500).json({
       error: 'Batch signal generation failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -230,10 +269,16 @@ router.post('/validate', (req: Request, res: Response) => {
 
     const errors: string[] = [];
 
-    if (!symbol || typeof symbol !== 'string') errors.push('symbol: required string');
-    if (!currentPrice || typeof currentPrice !== 'number' || currentPrice <= 0) errors.push('currentPrice: required positive number');
-    if (!timeframe || typeof timeframe !== 'string') errors.push('timeframe: required string');
-    if (!accountBalance || typeof accountBalance !== 'number' || accountBalance <= 0) errors.push('accountBalance: required positive number');
+    if (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > 32) {
+      errors.push('symbol: required string of at most 32 characters');
+    }
+    if (!isFiniteNumber(currentPrice) || currentPrice <= 0) errors.push('currentPrice: required positive number');
+    if (typeof timeframe !== 'string' || !validTimeframes.has(timeframe)) {
+      errors.push('timeframe: must be one of 1m, 5m, 15m, 30m, 1h, 4h, 1d');
+    }
+    if (!isFiniteNumber(accountBalance) || accountBalance <= 0) {
+      errors.push('accountBalance: required positive number');
+    }
 
     if (errors.length > 0) {
       return res.status(400).json({
@@ -249,7 +294,6 @@ router.post('/validate', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       error: 'Validation failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

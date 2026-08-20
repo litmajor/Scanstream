@@ -91,7 +91,8 @@ export class OandaAdapter {
       close: Number(oc.mid.c),
       volume: oc.volume,                         // Tick volume (not standard)
       isFinal: oc.complete === true,
-      source: 'oanda',
+      source: 'historical',
+      origin: 'oanda',
       venue: 'OANDA',
       raw: oc,                                   // Store raw for debugging
     }));

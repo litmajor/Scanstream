@@ -59,16 +59,16 @@ describe('live trading engine safety controls', () => {
     expect(refused).toHaveBeenCalledOnce();
   });
 
-  it('refuses to resume while the kill switch is active', () => {
+  it('refuses to resume while the kill switch is active', async () => {
     vi.spyOn(systemKillSwitch, 'isKilled').mockReturnValue(true);
     vi.spyOn(systemKillSwitch, 'getState').mockReturnValue({ killed: true, reason: 'manual' });
-    expect(engine.resume()).toBe(false);
+    await expect(engine.resume()).resolves.toBe(false);
   });
 
-  it('refuses to resume while the circuit breaker is active', () => {
+  it('refuses to resume while the circuit breaker is active', async () => {
     vi.spyOn(liveCircuitBreaker, 'isActive').mockReturnValue(true);
     vi.spyOn(liveCircuitBreaker, 'getState').mockReturnValue({ active: true, reason: 'loss_streak' });
-    expect(engine.resume()).toBe(false);
+    await expect(engine.resume()).resolves.toBe(false);
   });
 
   it('does not re-enable trading when the circuit breaker clears', () => {
@@ -302,12 +302,12 @@ describe('live trading requires durable persistence', () => {
     expect(order).toBeNull();
   });
 
-  it('resume cannot bypass the durability requirement', async () => {
+  it('resume awaits startup and reports the actual startup result', async () => {
     const refused = vi.fn();
     engine.on('startRefused', refused);
 
-    expect(engine.resume()).toBe(true); // kill switch/breaker are clear
-    await vi.waitFor(() => expect(refused).toHaveBeenCalled());
+    await expect(engine.resume()).resolves.toBe(false);
+    expect(refused).toHaveBeenCalled();
     expect(engine.getStatus().isRunning).toBe(false);
   });
 

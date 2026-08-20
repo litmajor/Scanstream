@@ -3,8 +3,21 @@ import { Router } from 'express';
 import { compositeEntryQualityEngine } from '../services/composite-entry-quality';
 import { storage } from '../storage';
 import type { MarketFrame } from '@shared/schema';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
+
+interface CompositeSignal {
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+}
+
+interface CompositeResult {
+  symbol: string;
+  direction: 'LONG' | 'SHORT';
+  quality: { quality: 'excellent' | 'good' | 'fair' | 'poor' };
+  recommendation: 'ENTER' | 'CAUTION' | 'AVOID';
+}
 
 /**
  * GET /api/composite-quality/:symbol
@@ -12,7 +25,7 @@ const router = Router();
  */
 router.get('/:symbol', async (req, res) => {
   try {
-    const { symbol } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
     const { direction = 'LONG' } = req.query;
 
     // Get latest market data
@@ -39,6 +52,7 @@ router.get('/:symbol', async (req, res) => {
         : 'AVOID'
     });
   } catch (err: any) {
+    if (respondToInvalidRouteParam(err, res)) return;
     res.status(500).json({ error: err.message });
   }
 });
@@ -49,15 +63,15 @@ router.get('/:symbol', async (req, res) => {
  */
 router.post('/batch', async (req, res) => {
   try {
-    const { signals } = req.body; // Array of { symbol, direction }
+    const signals = req.body.signals as CompositeSignal[]; // Array of { symbol, direction }
     
     // Batch fetch market frames for all requested signals to avoid N+1
-    const uniqueSymbols = Array.from(new Set(signals.map((s: any) => s.symbol)));
+    const uniqueSymbols: string[] = Array.from(new Set(signals.map((s) => s.symbol)));
     const framesMap = (storage.getMarketFramesForSymbols
       ? await storage.getMarketFramesForSymbols(uniqueSymbols, 1)
       : await Promise.all(uniqueSymbols.map(async (sym: string) => ({ [sym]: await storage.getMarketFrames(sym, 1) })))) as Record<string, MarketFrame[]>;
 
-    const results = signals.map((signal: any) => {
+    const results: Array<CompositeResult | null> = signals.map((signal) => {
       const frames = framesMap[signal.symbol] || [];
       if (frames.length === 0) return null;
 
@@ -78,7 +92,7 @@ router.post('/batch', async (req, res) => {
       };
     });
 
-    const filtered = results.filter(r => r !== null);
+    const filtered = results.filter((r): r is CompositeResult => r !== null);
 
     res.json({
       total: signals.length,
@@ -102,7 +116,7 @@ router.post('/batch', async (req, res) => {
  */
 router.get('/filter/:minQuality', async (req, res) => {
   try {
-    const minQuality = parseFloat(req.params.minQuality);
+    const minQuality = parseFloat(routeParam(req.params.minQuality, 'minQuality', 16));
     const symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']; // Example symbols
 
     // Batch fetch frames for symbols
@@ -138,6 +152,7 @@ router.get('/filter/:minQuality', async (req, res) => {
       }))
     });
   } catch (err: any) {
+    if (respondToInvalidRouteParam(err, res)) return;
     res.status(500).json({ error: err.message });
   }
 });

@@ -322,7 +322,7 @@ export function LearningCenter() {
                     borderRadius: '8px'
                   }}
                   labelStyle={{ color: '#94a3b8' }}
-                  formatter={(value: number) => `${(value as number).toFixed(2)}%`}
+                  formatter={(value) => `${typeof value === 'number' ? value.toFixed(2) : '0.00'}%`}
                 />
                 <Bar dataKey="improvement" fill="#10b981" name="Improvement %" />
               </BarChart>

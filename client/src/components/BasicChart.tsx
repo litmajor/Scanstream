@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChartCore, BarChartCore } from './charts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ChartDataPoint } from '@/types/chart';
+import { Bar } from 'recharts';
 
 interface BasicChartProps {
   symbol: string;
@@ -43,8 +44,8 @@ export function BasicChart({
     );
   }
 
-  const minPrice = Math.min(...data.map(d => d.price));
-  const maxPrice = Math.max(...data.map(d => d.price));
+  const minPrice = Math.min(...data.map(d => d.close));
+  const maxPrice = Math.max(...data.map(d => d.close));
   const priceRange = maxPrice - minPrice;
   const yAxisDomain = [
     Math.max(0, minPrice - priceRange * 0.1),

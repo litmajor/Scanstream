@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { HistoricalBacktester } from './server/services/historical-backtester.js';
+import { HistoricalBacktester } from '../server/services/historical-backtester.js';
 
 async function testBacktest() {
   const backtester = new HistoricalBacktester();

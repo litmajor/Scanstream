@@ -3,7 +3,7 @@
  * Can run without full server using ts-node
  */
 
-import type { MarketTick } from './server/services/vfmd/types';
+import type { MarketTick } from '../server/services/vfmd/types';
 
 // Simple mock data generator
 function generateMockMarketData(days: number, startPrice: number = 40000): MarketTick[] {

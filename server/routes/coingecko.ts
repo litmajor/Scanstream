@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { coinGeckoService } from '../services/coingecko';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
 
@@ -146,8 +147,9 @@ router.get('/global', async (req: Request, res: Response) => {
  * Get sentiment score for a specific symbol
  */
 router.get('/sentiment/:symbol', async (req: Request, res: Response) => {
+  const rawSymbol = req.params.symbol;
   try {
-    const symbol = req.params.symbol.toUpperCase();
+    const symbol = routeParam(rawSymbol, 'symbol', 64).toUpperCase();
     const score = await coinGeckoService.getSentimentScore(symbol);
 
     res.json({
@@ -159,7 +161,8 @@ router.get('/sentiment/:symbol', async (req: Request, res: Response) => {
       attribution: 'Data provided by CoinGecko (coingecko.com)'
     });
   } catch (error: any) {
-    console.error(`[CoinGecko] Sentiment error for ${req.params.symbol}:`, error);
+    if (respondToInvalidRouteParam(error, res)) return;
+    console.error(`[CoinGecko] Sentiment error for ${rawSymbol}:`, error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch sentiment data'
@@ -253,7 +256,7 @@ router.get('/alternative-fear-greed', async (req: Request, res: Response) => {
  */
 router.get('/ohlc/:coinId', async (req: Request, res: Response) => {
   try {
-    const coinId = req.params.coinId;
+    const coinId = routeParam(req.params.coinId, 'coinId');
     const days = parseInt(req.query.days as string) || 1;
     const vsCurrency = (req.query.vs_currency as string) || 'usd';
 
@@ -268,6 +271,7 @@ router.get('/ohlc/:coinId', async (req: Request, res: Response) => {
       attribution: 'Data provided by CoinGecko (coingecko.com)'
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error(`[CoinGecko] OHLC error for ${req.params.coinId}:`, error);
     res.status(500).json({
       success: false,
@@ -282,7 +286,7 @@ router.get('/ohlc/:coinId', async (req: Request, res: Response) => {
  */
 router.get('/coin/:coinId', async (req: Request, res: Response) => {
   try {
-    const coinId = req.params.coinId;
+    const coinId = routeParam(req.params.coinId, 'coinId');
     const data = await coinGeckoService.getCoinDetails(coinId);
 
     res.json({
@@ -292,6 +296,7 @@ router.get('/coin/:coinId', async (req: Request, res: Response) => {
       attribution: 'Data provided by CoinGecko (coingecko.com)'
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error(`[CoinGecko] Coin details error for ${req.params.coinId}:`, error);
     res.status(500).json({
       success: false,
@@ -330,7 +335,7 @@ router.get('/top-movers', async (req: Request, res: Response) => {
  */
 router.get('/metrics/:coinId', async (req: Request, res: Response) => {
   try {
-    const coinId = req.params.coinId;
+    const coinId = routeParam(req.params.coinId, 'coinId');
     const metrics = await coinGeckoService.getCoinMetrics(coinId);
 
     res.json({
@@ -340,6 +345,7 @@ router.get('/metrics/:coinId', async (req: Request, res: Response) => {
       attribution: 'Data provided by CoinGecko (coingecko.com)'
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error(`[CoinGecko] Metrics error for ${req.params.coinId}:`, error);
     res.status(500).json({
       success: false,
@@ -583,4 +589,3 @@ function calculateFearGreedIndex(globalData: any, marketData: any[]): {
 }
 
 export default router;
-

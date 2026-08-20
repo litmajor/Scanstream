@@ -232,7 +232,18 @@ export const ComboNotificationContainer: React.FC<ComboNotificationContainerProp
     // append any new combos not already in toasts
     setToasts(prev => {
       const existing = new Set(prev.map((t) => t.id));
-      const incoming = combosData.filter((c: any) => !existing.has(c.id));
+      const incoming: ComboNotification[] = combosData
+        .filter((c) => !existing.has(c.id))
+        .map((c) => ({
+          id: c.id,
+          timestamp: c.timestamp,
+          comboName: c.comboName,
+          agents: c.agents,
+          bonusMultiplier: c.bonusMultiplier ?? 1,
+          description: c.description ?? '',
+          impact: c.impact ?? 0,
+          duration: c.duration ?? 0,
+        }));
       return [...prev, ...incoming];
     });
   }, [combosData]);

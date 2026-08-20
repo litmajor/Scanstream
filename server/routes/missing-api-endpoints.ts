@@ -2,7 +2,6 @@ import express, { Router, Request, Response } from 'express';
 import { apiRegistry } from '../services/api-registry';
 import { AgentArena } from '../services/rpg-agents/AgentArena';
 import { priceCache } from '../../src/core/PriceCache';
-import { getGatewayServices } from './gateway';
 import { storage } from '../storage';
 import { MLSignalEnhancer } from '../ml-engine';
 
@@ -109,36 +108,6 @@ router.get('/portfolio-summary', async (req: Request, res: Response) => {
 
 try { apiRegistry.registerEndpoint({ method: 'GET', path: '/api/portfolio-summary', category: 'TRADING', name: 'Portfolio Summary', description: 'Current portfolio summary (storage-backed)', version: '1.0.0', tags: ['portfolio'], isDeprecated: false, authentication: 'NONE', cacheable: true, cacheTTLSeconds: 15, isActive: true }); } catch (e) { console.warn('[APIRegistry] Failed to register /api/portfolio-summary', e); }
 
-// GET /api/exchange/status - Exchange connectivity status
-router.get('/exchange/status', (req: Request, res: Response) => {
-  try {
-    const { aggregator, cacheManager, rateLimiter } = getGatewayServices();
-    const exchanges: any = {};
-
-    if (aggregator) {
-      const health = aggregator.getHealthStatus();
-      Object.entries(health).forEach(([k, v]: any) => {
-        exchanges[k] = { status: v.healthy ? 'connected' : 'disconnected', latency_ms: v.latency || 0 };
-      });
-    }
-
-    const cacheStats = cacheManager ? cacheManager.getStats() : null;
-    const rateStats = rateLimiter ? {
-      binance: rateLimiter.getStats('binance'),
-      coinbase: rateLimiter.getStats('coinbase'),
-      kraken: rateLimiter.getStats('kraken'),
-      okx: rateLimiter.getStats('okx'),
-      kucoin: rateLimiter.getStats('kucoin')
-    } : {};
-
-    res.json({ status: 'ok', exchanges, rateLimits: rateStats, cache: cacheStats, timestamp: new Date().toISOString() });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-try { apiRegistry.registerEndpoint({ method: 'GET', path: '/api/exchange/status', category: 'CORE', name: 'Exchange Status', description: 'Exchange connectivity and latency status', version: '1.0.0', tags: ['exchange'], isDeprecated: false, authentication: 'NONE', cacheable: true, cacheTTLSeconds: 5, isActive: true }); } catch (e) { console.warn('[APIRegistry] Failed to register /api/exchange/status', e); }
-
 // GET /api/ml/insights - ML model insights and predictions
 router.get('/ml/insights', async (req: Request, res: Response) => {
   try {
@@ -164,30 +133,11 @@ router.get('/ml/insights', async (req: Request, res: Response) => {
 
 try { apiRegistry.registerEndpoint({ method: 'GET', path: '/api/ml/insights', category: 'ANALYTICS', name: 'ML Insights', description: 'ML ensemble insights (cache+ml-enhancer)', version: '1.0.0', tags: ['ml','insights'], isDeprecated: false, authentication: 'NONE', cacheable: true, cacheTTLSeconds: 30, isActive: true }); } catch (e) { console.warn('[APIRegistry] Failed to register /api/ml/insights', e); }
 
-// GET /api/gateway/price/:base/:quote - Price endpoint (base route for multiple pairs)
-router.get('/gateway/price/:base/:quote', (req: Request, res: Response) => {
-  const { base, quote } = req.params;
-  try {
-    const pair = `${base.toUpperCase()}/${quote.toUpperCase()}`;
-    const cached = priceCache.get(pair) || priceCache.get(pair.replace('/USDT','/USD'));
-    if (cached) {
-      return res.json({ symbol: pair, price: cached.price || cached.last || null, source: cached.exchange || cached.source || 'cache', timestamp: new Date().toISOString() });
-    }
-
-    // Fallback to a 404 rather than a mocked price
-    return res.status(404).json({ error: 'Price not available in cache' });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-try { apiRegistry.registerEndpoint({ method: 'GET', path: '/api/gateway/price/:base/:quote', category: 'CORE', name: 'Gateway Price', description: 'Gateway price for base/quote (cache-backed)', version: '1.0.0', tags: ['gateway','price'], isDeprecated: false, authentication: 'NONE', cacheable: true, cacheTTLSeconds: 5, isActive: true }); } catch (e) { console.warn('[APIRegistry] Failed to register /api/gateway/price/:base/:quote', e); }
-
 // GET /api/orders - Current open orders
 router.get('/orders', async (req: Request, res: Response) => {
   try {
     const trades = await storage.getTrades('OPEN');
-    const open = trades.map(t => ({ id: t.id, symbol: t.symbol, side: t.side, price: t.entryPrice || t.price || null, quantity: t.quantity, status: t.status, created_at: t.entryTime || t.createdAt || new Date().toISOString() }));
+    const open = trades.map(t => ({ id: t.id, symbol: t.symbol, side: t.side, price: t.entryPrice, quantity: t.quantity, status: t.status, created_at: t.entryTime }));
     res.json({ open_orders: open, total_orders: open.length, timestamp: new Date().toISOString() });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

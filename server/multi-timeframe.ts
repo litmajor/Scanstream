@@ -252,9 +252,9 @@ export class EnhancedMultiTimeframeAnalyzer {
     const macdArr = Array.isArray(macdRaw) ? macdRaw : [macdRaw];
 
     const rsiArr = TechnicalIndicators.calculateRSI(prices, 14);
-    const stochArr = TechnicalIndicators.calculateStochastic(highs, lows, prices, 14, 3);
+    const stochastic = TechnicalIndicators.calculateStochastic(prices, highs, lows, 14, 3);
 
-    const computed = { ema, rsi: rsiArr, macd: macdArr, stochastic: stochArr };
+    const computed = { ema, rsi: rsiArr, macd: macdArr, stochastic: [stochastic] };
     try { this.indicatorCache.set(key, computed); } catch (e) { /* ignore cache failures */ }
     return computed;
   }

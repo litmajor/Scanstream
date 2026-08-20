@@ -13,6 +13,7 @@
 
 import { getRLAgent } from '../src/agents/rl-agent.singleton';
 import { TradeLifecycleManager, TradeOpenSnapshot } from './rl-feedback-loop';
+import type { RLPositionAgent } from './rl-position-agent';
 
 // ─── Singleton setup (wire into your DI / service layer) ─────────────────────
 

@@ -24,6 +24,15 @@ interface Candle {
   volume: number;
 }
 
+interface YahooHistoricalCandle {
+  date: Date;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  volume?: number;
+}
+
 interface HistoricalDataResult {
   candles: any[];
   gapReport: {
@@ -63,12 +72,12 @@ async function fetchHistoricalData(
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Yahoo Finance timeout')), 30000)
         )
-      ]);
+      ]) as YahooHistoricalCandle[];
 
       if (Array.isArray(result) && result.length > 0) {
         console.log(`[CapabilityMeasurement] ✓ Fetched ${result.length} real candles for ${asset}`);
         
-        const candles = result.map(candle => ({
+        const candles = result.map((candle: YahooHistoricalCandle) => ({
           timestamp: candle.date.getTime(),
           open: candle.open || 0,
           high: candle.high || 0,

@@ -190,4 +190,19 @@ describe('live order accounting', () => {
 
     expect(getOrder(engine, 'o2').avgPrice).toBe(60_000);
   });
+
+  it('does not fabricate an average when a restart discovers additional unpriced fills', async () => {
+    attach(engine, async () => ({ status: 'open', filled: 1, cost: 60_000 }));
+    await poll(engine);
+    expect(getOrder(engine, 'o1').avgPrice).toBe(60_000);
+
+    attach(engine, async () => ({ status: 'open', filled: 2 }));
+    await poll(engine);
+
+    const order = getOrder(engine, 'o1');
+    expect(order.filled).toBe(2);
+    expect(order.cost).toBe(0);
+    expect(order.avgPrice).toBeNull();
+    expect(order.slippagePct).toBeNull();
+  });
 });

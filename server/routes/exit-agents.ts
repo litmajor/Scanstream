@@ -8,6 +8,7 @@
  */
 
 import express from 'express';
+import type { Request } from 'express';
 import {
   ExitOrchestratorAgent,
   OppositionResistanceAgent,
@@ -16,6 +17,8 @@ import {
   type OppositionAnalysis,
   type MicrostructureSignal
 } from '../services/rpg-agents/SpecializedExitAgents';
+import { requireTradingOperator } from '../middleware/require-trading-operator';
+import { auditOperatorAction } from '../middleware/audit-operator-action';
 
 const router = express.Router();
 
@@ -23,6 +26,27 @@ const router = express.Router();
 const exitOrchestrator = new ExitOrchestratorAgent('ExitMaster', 'balanced');
 const oppositionReader = new OppositionResistanceAgent('OppositionReader', 'balanced');
 const microstructureSpecialist = new MicrostructureSpecialistAgent('MicrostructureMonitor', 'conservative');
+
+function exitSnapshot() {
+  return {
+    orchestrator: exitOrchestrator.getStatus(),
+    opposition: oppositionReader.getStatus(),
+    microstructure: microstructureSpecialist.getStatus(),
+  };
+}
+
+const audit = (
+  action: Parameters<typeof auditOperatorAction>[0],
+  target?: (req: Request) => string | undefined,
+) => auditOperatorAction(action, { snapshot: exitSnapshot, target });
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 // ============================================================================
 // ENDPOINT 1: Exit Orchestrator - Profit Stage Management
@@ -42,14 +66,30 @@ const microstructureSpecialist = new MicrostructureSpecialistAgent('Microstructu
  *   microstructure?: { spread, bidVolume, askVolume, netFlow, depth, volumeSpike }
  * }
  */
-router.post('/orchestrator', (req, res) => {
+router.post(
+  '/orchestrator',
+  requireTradingOperator,
+  audit('exit_orchestrator', (req) => String(req.body?.symbol ?? '')),
+  (req, res) => {
   try {
     const { entryPrice, currentPrice, atr, signalType, profitPercent, timeHeldHours, microstructure } = req.body;
 
-    if (!entryPrice || currentPrice === undefined || !atr) {
+    if (
+      !isFiniteNumber(entryPrice) ||
+      entryPrice <= 0 ||
+      !isFiniteNumber(currentPrice) ||
+      currentPrice <= 0 ||
+      !isFiniteNumber(atr) ||
+      atr <= 0 ||
+      (signalType !== undefined && !['BUY', 'SELL'].includes(signalType)) ||
+      (profitPercent !== undefined && !isFiniteNumber(profitPercent)) ||
+      (timeHeldHours !== undefined && (!isFiniteNumber(timeHeldHours) || timeHeldHours < 0)) ||
+      (microstructure !== undefined && !isRecord(microstructure)) ||
+      (req.body.actualOutcome !== undefined && !isRecord(req.body.actualOutcome))
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: entryPrice, currentPrice, atr'
+        error: 'entryPrice, currentPrice, and positive atr are required',
       });
     }
 
@@ -65,12 +105,28 @@ router.post('/orchestrator', (req, res) => {
 
     // Update agent performance if we have outcome data
     if (req.body.actualOutcome) {
+      const actualOutcome = req.body.actualOutcome;
+      if (
+        (actualOutcome.profit !== undefined && !isFiniteNumber(actualOutcome.profit)) ||
+        (actualOutcome.profit_pct !== undefined && !isFiniteNumber(actualOutcome.profit_pct)) ||
+        (actualOutcome.market_difficulty !== undefined &&
+          !isFiniteNumber(actualOutcome.market_difficulty)) ||
+        (actualOutcome.execution_quality !== undefined &&
+          !isFiniteNumber(actualOutcome.execution_quality)) ||
+        (actualOutcome.regime !== undefined &&
+          (typeof actualOutcome.regime !== 'string' || actualOutcome.regime.length > 64))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'actualOutcome contains invalid numeric or regime values',
+        });
+      }
       exitOrchestrator.updatePerformance({
-        profit: req.body.actualOutcome.profit,
-        profit_pct: req.body.actualOutcome.profit_pct,
-        market_difficulty: req.body.actualOutcome.market_difficulty || 1.0,
-        execution_quality: req.body.actualOutcome.execution_quality || 0.8,
-        regime: req.body.actualOutcome.regime || 'normal',
+        profit: actualOutcome.profit,
+        profit_pct: actualOutcome.profit_pct,
+        market_difficulty: actualOutcome.market_difficulty || 1.0,
+        execution_quality: actualOutcome.execution_quality || 0.8,
+        regime: actualOutcome.regime || 'normal',
         duration_hours: timeHeldHours || 1
       });
     }
@@ -90,7 +146,8 @@ router.post('/orchestrator', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 // ============================================================================
 // ENDPOINT 2: Opposition Reader - Support/Resistance Level Analysis
@@ -110,14 +167,27 @@ router.post('/orchestrator', (req, res) => {
  *   timeToSupport: number
  * }
  */
-router.post('/opposition', (req, res) => {
+router.post(
+  '/opposition',
+  requireTradingOperator,
+  audit('exit_opposition'),
+  (req, res) => {
   try {
     const { currentPrice, supportLevels, resistanceLevels, volume, priceVelocity, volatility, timeToSupport } = req.body;
 
-    if (!currentPrice || !supportLevels || !resistanceLevels) {
+    if (
+      !isFiniteNumber(currentPrice) ||
+      currentPrice <= 0 ||
+      !Array.isArray(supportLevels) ||
+      supportLevels.length > 100 ||
+      supportLevels.some((level: unknown) => !isFiniteNumber(level) || level <= 0) ||
+      !Array.isArray(resistanceLevels) ||
+      resistanceLevels.length > 100 ||
+      resistanceLevels.some((level: unknown) => !isFiniteNumber(level) || level <= 0)
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: currentPrice, supportLevels, resistanceLevels'
+        error: 'currentPrice and bounded numeric supportLevels/resistanceLevels are required',
       });
     }
 
@@ -146,7 +216,8 @@ router.post('/opposition', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 // ============================================================================
 // ENDPOINT 3: Microstructure Specialist - Order Flow & Liquidity Monitoring
@@ -167,11 +238,22 @@ router.post('/opposition', (req, res) => {
  *   momentum: number
  * }
  */
-router.post('/microstructure', (req, res) => {
+router.post(
+  '/microstructure',
+  requireTradingOperator,
+  audit('exit_microstructure'),
+  (req, res) => {
   try {
     const { bidVolume, askVolume, spread, normalSpread, netFlow, depth, volumeSpike, momentum } = req.body;
 
-    if (bidVolume === undefined || askVolume === undefined || spread === undefined) {
+    if (
+      !isFiniteNumber(bidVolume) ||
+      bidVolume < 0 ||
+      !isFiniteNumber(askVolume) ||
+      askVolume < 0 ||
+      !isFiniteNumber(spread) ||
+      spread < 0
+    ) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: bidVolume, askVolume, spread'
@@ -204,7 +286,8 @@ router.post('/microstructure', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 // ============================================================================
 // ENDPOINT 4: Consensus Exit Voting (All 3 Agents)
@@ -221,19 +304,47 @@ router.post('/microstructure', (req, res) => {
  *   microstructure: { bidVolume, askVolume, spread, normalSpread, netFlow, depth, volumeSpike, momentum }
  * }
  */
-router.post('/consensus', (req, res) => {
+router.post(
+  '/consensus',
+  requireTradingOperator,
+  audit('exit_consensus'),
+  (req, res) => {
   try {
     const { tradeState, opposition, microstructure } = req.body;
 
-    if (!tradeState) {
+    if (!isRecord(tradeState)) {
       return res.status(400).json({
         success: false,
         error: 'Missing required field: tradeState'
       });
     }
 
+    const entryPrice = tradeState.entryPrice;
+    const currentPrice = tradeState.currentPrice;
+    const atr = tradeState.atr;
+    if (
+      !isFiniteNumber(entryPrice) ||
+      entryPrice <= 0 ||
+      !isFiniteNumber(currentPrice) ||
+      currentPrice <= 0 ||
+      !isFiniteNumber(atr) ||
+      atr <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'tradeState requires positive entryPrice, currentPrice, and atr',
+      });
+    }
+
     // Get individual votes
-    const exitVote = exitOrchestrator.analyzeExit(tradeState);
+    const exitVote = exitOrchestrator.analyzeExit({
+      entryPrice,
+      currentPrice,
+      atr,
+      signalType: tradeState.signalType === 'SELL' ? 'SELL' : 'BUY',
+      profitPercent: isFiniteNumber(tradeState.profitPercent) ? tradeState.profitPercent : 0,
+      timeHeldHours: isFiniteNumber(tradeState.timeHeldHours) ? tradeState.timeHeldHours : 0,
+    });
     
     let oppVote = 'HOLD';
     if (opposition) {
@@ -287,7 +398,8 @@ router.post('/consensus', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 // ============================================================================
 // ENDPOINT 5: Multi-Position Exit Coordination
@@ -308,14 +420,29 @@ router.post('/consensus', (req, res) => {
  *   }]
  * }
  */
-router.post('/coordinate', (req, res) => {
+router.post(
+  '/coordinate',
+  requireTradingOperator,
+  audit('exit_coordinate'),
+  (req, res) => {
   try {
     const { positions } = req.body;
 
-    if (!positions || !Array.isArray(positions)) {
+    if (
+      !Array.isArray(positions) ||
+      positions.length > 100 ||
+      positions.some(
+        (position: unknown) =>
+          !isRecord(position) ||
+          typeof position.symbol !== 'string' ||
+          position.symbol.length === 0 ||
+          position.symbol.length > 32 ||
+          !isFiniteNumber(position.profitPercent),
+      )
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required field: positions (array)'
+        error: 'positions must be a bounded array of valid position records',
       });
     }
 
@@ -375,7 +502,8 @@ router.post('/coordinate', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 // ============================================================================
 // ENDPOINT 6: Agent Status & Leaderboard
@@ -425,14 +553,26 @@ router.get('/status', (req, res) => {
  *   reason: string
  * }
  */
-router.post('/outcome', (req, res) => {
+router.post(
+  '/outcome',
+  requireTradingOperator,
+  audit('record_outcome', (req) => String(req.body?.agentName ?? '')),
+  (req, res) => {
   try {
     const { agentName, profit, profitPercent, market_difficulty, execution_quality, regime, duration_hours } = req.body;
 
-    if (!agentName) {
+    if (
+      typeof agentName !== 'string' ||
+      !['ExitOrchestrator', 'OppositionReader', 'MicrostructureSpecialist'].includes(agentName) ||
+      (profit !== undefined && !isFiniteNumber(profit)) ||
+      (profitPercent !== undefined && !isFiniteNumber(profitPercent)) ||
+      (market_difficulty !== undefined && !isFiniteNumber(market_difficulty)) ||
+      (execution_quality !== undefined && !isFiniteNumber(execution_quality)) ||
+      (duration_hours !== undefined && (!isFiniteNumber(duration_hours) || duration_hours < 0))
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required field: agentName'
+        error: 'valid agentName and numeric outcome fields are required',
       });
     }
 
@@ -479,6 +619,7 @@ router.post('/outcome', (req, res) => {
       error: error.message
     });
   }
-});
+  },
+);
 
 export default router;

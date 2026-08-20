@@ -4,6 +4,7 @@ import { CacheManager } from './cache-manager';
 import { RateLimiter } from './rate-limiter';
 import type { PriceData, OHLCVData, ExchangeHealth } from '../../types/gateway';
 import { recordIntegrityBypassBlocked } from '../observability/safety-metrics';
+import { getSharedService } from '../shared-service-registry';
 
 /**
  * Exchange Aggregator
@@ -85,7 +86,7 @@ export class ExchangeAggregator {
 
     // Prefer canonical consensus from TruthEngine when available and fresh
     try {
-      const truth = (global as any).truthEngine as any;
+      const truth = getSharedService('truthEngine');
       if (truth && typeof truth.getConsensus === 'function') {
         const c = truth.getConsensus(symbol);
         if (c && typeof c.price === 'number' && c.price > 0) {

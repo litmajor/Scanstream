@@ -7,9 +7,24 @@
 import express, { type Request, type Response } from 'express';
 import { getPerformanceTracker } from '../services/model-performance-tracker';
 import EnsemblePredictor from '../services/ensemble-predictor';
+import { requireAuth } from '../middleware/auth';
+import { requireTradingOperator } from '../middleware/require-trading-operator';
+import { auditOperatorAction } from '../middleware/audit-operator-action';
 
 const router = express.Router();
 const tracker = getPerformanceTracker();
+const MAX_SYMBOL_LENGTH = 64;
+const MAX_DIRECTION_LENGTH = 32;
+const MAX_ENSEMBLE_POINTS = 1000;
+const MAX_PRUNE_DAYS = 3650;
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function predictionDirection(value: unknown): value is 'UP' | 'DOWN' | 'NEUTRAL' {
+  return value === 'UP' || value === 'DOWN' || value === 'NEUTRAL';
+}
 
 /**
  * GET /api/model-performance/metrics
@@ -63,7 +78,7 @@ router.get('/history', (req: Request, res: Response) => {
  * POST /api/model-performance/validate
  * Validate prediction against actual market movement
  */
-router.post('/validate', (req: Request, res: Response) => {
+router.post('/validate', requireAuth, (req: Request, res: Response) => {
   try {
     const { 
       symbol, 
@@ -73,9 +88,18 @@ router.post('/validate', (req: Request, res: Response) => {
       actualPrice 
     } = req.body;
 
-    if (!symbol || !predictedDirection || actualChange === undefined) {
+    if (
+      typeof symbol !== 'string'
+      || symbol.length === 0
+      || symbol.length > MAX_SYMBOL_LENGTH
+      || !predictionDirection(predictedDirection)
+      || predictedDirection.length > MAX_DIRECTION_LENGTH
+      || !finiteNumber(actualChange)
+      || (predictedPrice !== undefined && !finiteNumber(predictedPrice))
+      || (actualPrice !== undefined && !finiteNumber(actualPrice))
+    ) {
       return res.status(400).json({
-        error: 'Missing required fields',
+        error: 'Invalid validation input',
         required: ['symbol', 'predictedDirection', 'actualChange']
       });
     }
@@ -138,7 +162,7 @@ router.get('/ensemble-status', (_req: Request, res: Response) => {
  * POST /api/model-performance/ensemble-predict
  * Generate ensemble prediction
  */
-router.post('/ensemble-predict', async (req: Request, res: Response) => {
+router.post('/ensemble-predict', requireAuth, async (req: Request, res: Response) => {
   try {
     const { chartData } = req.body;
 
@@ -149,10 +173,10 @@ router.post('/ensemble-predict', async (req: Request, res: Response) => {
       });
     }
 
-    if (chartData.length < 20) {
+    if (chartData.length < 20 || chartData.length > MAX_ENSEMBLE_POINTS) {
       return res.status(400).json({
         error: 'Insufficient data',
-        message: 'At least 20 data points required for ensemble prediction'
+        message: `Chart data must contain between 20 and ${MAX_ENSEMBLE_POINTS} data points`
       });
     }
 
@@ -174,24 +198,38 @@ router.post('/ensemble-predict', async (req: Request, res: Response) => {
 
 /**
  * POST /api/model-performance/prune
- * Clean up old predictions
+ * Clean up old predictions. This is operator-gated because it destroys
+ * process-global history without an ownership model.
  */
-router.post('/prune', (req: Request, res: Response) => {
-  try {
-    const { daysToKeep = 30 } = req.body;
-    tracker.pruneOldPredictions(daysToKeep);
+router.post(
+  '/prune',
+  requireTradingOperator,
+  auditOperatorAction('prune_model_history', {
+    target: (req) => String(req.body?.daysToKeep ?? 30),
+  }),
+  (req: Request, res: Response) => {
+    try {
+      const { daysToKeep = 30 } = req.body;
+      if (!finiteNumber(daysToKeep) || !Number.isInteger(daysToKeep) || daysToKeep < 1 || daysToKeep > MAX_PRUNE_DAYS) {
+        return res.status(400).json({
+          error: 'Invalid daysToKeep',
+          message: `daysToKeep must be an integer between 1 and ${MAX_PRUNE_DAYS}`,
+        });
+      }
+      tracker.pruneOldPredictions(daysToKeep);
 
-    res.json({
-      success: true,
-      message: `Pruned predictions older than ${daysToKeep} days`,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      error: error.message || 'Prune operation failed',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+      res.json({
+        success: true,
+        message: `Pruned predictions older than ${daysToKeep} days`,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: error.message || 'Prune operation failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  },
+);
 
 export default router;

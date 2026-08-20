@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { coinGeckoService } from '../services/coingecko';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ const chartCache = new Map<string, { data: any; timestamp: number }>();
  */
 router.get('/api/coingecko/chart/:coinId', async (req: Request, res: Response) => {
   try {
-    const { coinId } = req.params;
+    const coinId = routeParam(req.params.coinId, 'coinId');
     const days = req.query.days || '90'; // Default to 90 days for 500+ points
     const vsCurrency = req.query.vs_currency || 'usd';
     const extended = req.query.extended === 'true';
@@ -43,7 +44,7 @@ router.get('/api/coingecko/chart/:coinId', async (req: Request, res: Response) =
     console.log(`[CoinGecko Chart] Fetching chart data for ${coinId} (${days} days, extended: ${extended})`);
     
     // Fetch OHLC data via centralized service (queued)
-    const ohlcData = await coinGeckoService.getOHLC(coinId, String(vsCurrency), String(days));
+    const ohlcData = await coinGeckoService.getOHLC(coinId, String(vsCurrency), Number(days));
     
     // Fetch market chart for volume and additional data if extended
     let volumeData: any[] = [];
@@ -51,7 +52,7 @@ router.get('/api/coingecko/chart/:coinId', async (req: Request, res: Response) =
     
     if (extended) {
       try {
-        const marketChart = await coinGeckoService.getMarketChart(coinId, String(vsCurrency), String(days));
+        const marketChart = await coinGeckoService.getMarketChart(coinId, String(vsCurrency), Number(days));
         volumeData = marketChart.total_volumes || [];
         marketCapData = marketChart.market_caps || [];
       } catch (volError) {
@@ -119,6 +120,7 @@ router.get('/api/coingecko/chart/:coinId', async (req: Request, res: Response) =
     res.json(result);
     
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[CoinGecko Chart] Error fetching chart data:', error.message);
     
     if (error.response?.status === 429) {
@@ -144,7 +146,7 @@ router.get('/api/coingecko/chart/:coinId', async (req: Request, res: Response) =
  */
 router.get('/api/coingecko/coin-from-symbol/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
     
     // Common symbol to CoinGecko ID mappings
     const symbolMap: Record<string, string> = {
@@ -181,6 +183,7 @@ router.get('/api/coingecko/coin-from-symbol/:symbol', async (req: Request, res: 
       res.json({ success: false, error: 'Symbol not found', symbol: cleanSymbol });
     }
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     res.status(500).json({
       success: false,
       error: 'Failed to map symbol',
@@ -196,7 +199,7 @@ router.get('/api/coingecko/coin-from-symbol/:symbol', async (req: Request, res: 
  */
 router.get('/api/coingecko/chart/:coinId/multi-timeframe', async (req: Request, res: Response) => {
   try {
-    const { coinId } = req.params;
+    const coinId = routeParam(req.params.coinId, 'coinId');
     const vsCurrency = req.query.vs_currency || 'usd';
     
     const cacheKey = `multi-${coinId}-${vsCurrency}`;
@@ -220,7 +223,7 @@ router.get('/api/coingecko/chart/:coinId/multi-timeframe', async (req: Request, 
     
     const promises = timeframes.map(async (tf) => {
       try {
-        const ohlc = await coinGeckoService.getOHLC(coinId, String(vsCurrency), String(tf.days));
+        const ohlc = await coinGeckoService.getOHLC(coinId, String(vsCurrency), Number(tf.days));
         const chartData = (ohlc || []).map((candle: number[]) => ({
           timestamp: candle[0],
           open: candle[1],
@@ -271,6 +274,7 @@ router.get('/api/coingecko/chart/:coinId/multi-timeframe', async (req: Request, 
     res.json(result);
     
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[CoinGecko Chart] Multi-timeframe error:', error.message);
     res.status(500).json({
       success: false,

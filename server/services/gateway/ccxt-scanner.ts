@@ -3,6 +3,7 @@ import { CacheManager } from './cache-manager';
 import { RateLimiter } from './rate-limiter';
 import type { PriceData, OHLCVData } from '../../types/gateway';
 import { recordIntegrityBypassBlocked } from '../observability/safety-metrics';
+import { priceCache } from '../../../src/core/PriceCache';
 
 /**
  * CCXT Scanner - Orchestrated by Gateway
@@ -232,7 +233,15 @@ export class CCXTScanner {
         // Convert to candle format
         // Preserve enriched frame fields (price snapshot, indicators, orderFlow, microstructure)
         // so they survive integrity checks and can be persisted by the storage layer.
-        const candles = frames.map(f => ({
+        const candles = frames.map((f: {
+          timestamp: Date | number;
+          price: { open: number; high: number; low: number; close: number };
+          volume: number;
+          indicators?: object;
+          orderFlow?: object;
+          marketMicrostructure?: object;
+          raw?: object;
+        }) => ({
           ts: (f.timestamp instanceof Date ? f.timestamp.getTime() : Number(f.timestamp)) || Date.now(),
           open: (f.price as any)?.open ?? 0,
           high: (f.price as any)?.high ?? 0,
@@ -246,10 +255,10 @@ export class CCXTScanner {
           venue: 'scanner',
           // Enrichment payloads (optional)
           price: f.price ?? undefined,
-          indicators: (f as any).indicators ?? undefined,
-          orderFlow: (f as any).orderFlow ?? undefined,
-          marketMicrostructure: (f as any).marketMicrostructure ?? undefined,
-          raw: (f as any).raw ?? undefined,
+          indicators: f.indicators ?? undefined,
+          orderFlow: f.orderFlow ?? undefined,
+          marketMicrostructure: f.marketMicrostructure ?? undefined,
+          raw: f.raw ?? undefined,
         }));
 
         // Get timeframe in seconds

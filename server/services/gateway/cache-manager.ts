@@ -24,7 +24,7 @@ export class CacheManager {
    * Get value from cache
    * @param allowStale If true, return expired cache entries (for fallback scenarios)
    */
-  get<T>(key: string, allowStale: boolean = false): T | null {
+  get<T>(key: string, allowStale: boolean = false, maxAgeMs?: number): T | null {
     const entry = this.cache.get(key);
 
     if (!entry) {
@@ -32,15 +32,23 @@ export class CacheManager {
       return null;
     }
 
-    // Check if expired
-    if (Date.now() > entry.ttl) {
+    // A caller's freshness requirement is an absolute bound. It must not
+    // evict an entry that remains valid for callers with looser requirements.
+    const age = Date.now() - entry.timestamp;
+    if (maxAgeMs !== undefined && age > maxAgeMs) {
+      this.missCount++;
+      return null;
+    }
+
+    // Check if expired according to the entry's own TTL.
+    if (age > entry.ttl) {
       if (!allowStale) {
         this.cache.delete(key);
         this.missCount++;
         return null;
       }
       // Return stale data with warning
-      console.warn(`[Cache] Returning stale data for ${key} (expired ${Math.round((Date.now() - entry.ttl) / 1000)}s ago)`);
+      console.warn(`[Cache] Returning stale data for ${key} (age ${Math.round(age / 1000)}s)`);
     }
 
     // Move to end (LRU)
@@ -66,7 +74,7 @@ export class CacheManager {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
-      ttl
+      ttl: Math.max(0, ttl)
     });
   }
 

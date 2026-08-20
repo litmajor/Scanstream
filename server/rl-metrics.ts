@@ -11,6 +11,23 @@ let decisionCounter: any = null;
 let fallbackCounter: any = null;
 export let rlMetricsRegister: any = null;
 
+interface CounterMetric {
+  inc(labels?: Record<string, string>, value?: number): void;
+}
+
+interface ObservationMetric {
+  observe(value: number): void;
+}
+
+interface GaugeMetric {
+  set(labels: Record<string, string>, value: number): void;
+}
+
+let episodeCounter: CounterMetric | null = null;
+let episodeRewardHistogram: ObservationMetric | null = null;
+let episodeLengthSummary: ObservationMetric | null = null;
+let domainRewardGauge: GaugeMetric | null = null;
+
 try {
   // Lazy-load prom-client if installed
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -35,25 +52,25 @@ try {
   });
 
   // Episode-level metrics
-  const episodeCounter = new Counter({
+  episodeCounter = new Counter({
     name: 'rl_episodes_total',
     help: 'Number of RL episodes (closed trades) processed',
     labelNames: ['outcome']
   });
 
-  const episodeRewardHistogram = new prom.Histogram({
+  episodeRewardHistogram = new prom.Histogram({
     name: 'rl_episode_reward',
     help: 'Distribution of episode (trade) rewards',
     buckets: [-10, -5, -2, -1, -0.5, 0, 0.5, 1, 2, 5, 10]
   });
 
-  const episodeLengthSummary = new prom.Summary({
+  episodeLengthSummary = new prom.Summary({
     name: 'rl_episode_length',
     help: 'Distribution of episode lengths in bars',
     percentiles: [0.5, 0.9, 0.99]
   });
 
-  const domainRewardGauge = new prom.Gauge({
+  domainRewardGauge = new prom.Gauge({
     name: 'rl_domain_reward',
     help: 'Most recent reward observed per RL domain',
     labelNames: ['domain']
@@ -99,9 +116,9 @@ export function metricsEnabled(): boolean {
 export function recordEpisode(outcome: 'win' | 'loss' | 'neutral', reward: number, lengthBars: number): void {
   if (!enabled || !rlMetricsRegister) return;
   try {
-    (episodeCounter as any)?.inc({ outcome }, 1);
-    (episodeRewardHistogram as any)?.observe(reward);
-    (episodeLengthSummary as any)?.observe(lengthBars);
+    episodeCounter?.inc({ outcome }, 1);
+    episodeRewardHistogram?.observe(reward);
+    episodeLengthSummary?.observe(lengthBars);
   } catch (e) {
     // swallow metric errors
   }
@@ -110,7 +127,7 @@ export function recordEpisode(outcome: 'win' | 'loss' | 'neutral', reward: numbe
 export function recordDomainReward(domain: string, reward: number): void {
   if (!enabled || !rlMetricsRegister) return;
   try {
-    (domainRewardGauge as any)?.set({ domain: domain }, reward);
+    domainRewardGauge?.set({ domain }, reward);
   } catch (e) {
     // swallow metric errors
   }

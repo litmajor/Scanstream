@@ -103,7 +103,7 @@ export default function StrategySynthesisPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <button
-              onClick={() => setLocation('/')}
+            onClick={() => navigate('/')}
               className="flex items-center text-slate-400 hover:text-white transition-all"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />

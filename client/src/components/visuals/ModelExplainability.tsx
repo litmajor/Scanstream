@@ -24,7 +24,7 @@ export default function ModelExplainability({ confidence = 0.5, shap = [] }: { c
               <BarChart data={top} layout="vertical" margin={{ left: 0, right: 10 }}>
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="feature" width={120} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v:number)=>v.toFixed(3)} />
+                <Tooltip formatter={(v) => typeof v === 'number' ? v.toFixed(3) : String(v ?? '')} />
                 <Bar dataKey="value" isAnimationActive={false}>
                   {top.map((entry, idx) => (
                     <Cell key={`c-${idx}`} fill={entry.value >= 0 ? '#06b6d4' : '#ef4444'} />

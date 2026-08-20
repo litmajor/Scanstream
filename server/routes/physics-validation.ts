@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { runPhysicsValidation } from '../services/physics-validation';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -19,9 +20,15 @@ const router = Router();
  * 
  * Response: Detailed validation metrics and test results
  */
-router.post('/validate', async (req: Request, res: Response) => {
+router.post('/validate', requireAuth, async (req: Request, res: Response) => {
   try {
     const { symbol = 'BTC/USDT' } = req.body;
+    if (typeof symbol !== 'string' || symbol.trim().length === 0 || symbol.length > 32) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol must be a non-empty string of at most 32 characters',
+      });
+    }
 
     console.log(`[Physics Validation] Starting for ${symbol}`);
 

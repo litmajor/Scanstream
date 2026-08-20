@@ -3,6 +3,7 @@ import React, { useState, Suspense, lazy } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Brain, TrendingUp, Activity, Zap, Target, BarChart3, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ResponsiveContainer, ScatterChart, CartesianGrid, XAxis, YAxis, Tooltip, Scatter, Cell } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 const AdvancedAnalyticsCharts = lazy(() => import('@/components/AdvancedAnalyticsCharts'));
 
@@ -100,7 +101,7 @@ export default function AdvancedAnalytics() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <button
-              onClick={() => setLocation('/')}
+              onClick={() => navigate('/')}
               className="flex items-center transition-all hover:translate-x-[-2px]"
               style={{ color: colors.textSecondary }}
             >

@@ -195,7 +195,7 @@ export class SignalClassifier {
   // ── Static proxies ───────────────────────────────────────
 
   // Fixed: sharedInstance declared before the static methods that reference it
-  private static readonly sharedInstance = new SignalClassifier();
+  static readonly sharedInstance = new SignalClassifier();
 
   static classifyMomentumSignal(
     momentumShort: number,

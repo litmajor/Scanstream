@@ -14,6 +14,14 @@ type AdaptiveStatus = {
   mode: 'normal' | 'conservative' | 'isolation';
 };
 
+type ModelMetricSummary = {
+  modelName?: string;
+  isStale?: boolean;
+  driftScore?: number;
+  accuracy?: number;
+  dataPoints?: number;
+};
+
 class AdaptiveController {
   private intervalMs: number;
   private timer: NodeJS.Timeout | null = null;
@@ -41,13 +49,13 @@ class AdaptiveController {
 
     // 1) Check model metrics for staleness
     const staleModels: string[] = [];
+    let metrics: ModelMetricSummary[] = [];
     try {
-      let metrics: any[] = [];
       if (typeof (db as any).getLatestModelMetrics === 'function') {
         try { metrics = await (db as any).getLatestModelMetrics(undefined, 20); } catch (_) { metrics = []; }
       }
       for (const m of metrics || []) {
-        if ((m as any).isStale) staleModels.push((m as any).modelName || 'unknown');
+        if (m.isStale) staleModels.push(m.modelName || 'unknown');
       }
     } catch (e) { console.warn('[AdaptiveController] model metrics error', e); }
 
@@ -100,7 +108,13 @@ class AdaptiveController {
         // record decision event: models stale
         await db.createDecisionEvent?.({ correlationId: null, phase: 'ADAPTIVE', domain: 'Model', actionPayload: { staleModels }, metrics: { count: staleModels.length }, timestamp: new Date() }).catch(() => {});
         // notify audit
-        await auditLogger.logModelDrift('adaptive-controller', { staleModels }).catch(() => {});
+        const staleModel = metrics.find(m => m.isStale);
+        await auditLogger.logModelDrift('adaptive-controller', {
+          driftScore: staleModel?.driftScore ?? 1,
+          accuracy: staleModel?.accuracy ?? 0,
+          dataPoints: staleModel?.dataPoints ?? 0,
+          isStale: true,
+        }).catch(() => {});
 
         // Create a retrain ticket (human-in-the-loop) and optionally start shadow retrain
         try {

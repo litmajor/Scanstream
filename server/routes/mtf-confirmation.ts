@@ -3,6 +3,7 @@ import express, { type Request, type Response } from 'express';
 import { EnhancedMultiTimeframeAnalyzer } from '../multi-timeframe';
 import { SignalEngine } from '../trading-engine';
 import { MultiTimeframeConfirmation } from '../services/multi-timeframe-confirmation';
+import { respondToInvalidRouteParam, routeParam } from '../utils/route-params';
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ const router = express.Router();
  */
 router.get('/:symbol', async (req: Request, res: Response) => {
   try {
-    const { symbol } = req.params;
+    const symbol = routeParam(req.params.symbol, 'symbol', 64);
     const baseConfidence = parseFloat(req.query.confidence as string) || 0.75;
 
     // Initialize analyzers
@@ -65,6 +66,7 @@ router.get('/:symbol', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
+    if (respondToInvalidRouteParam(error, res)) return;
     console.error('[MTF Confirmation] Error:', error);
     res.status(500).json({
       error: error.message,

@@ -5,7 +5,7 @@
  * Allows users to measure impact of regime-aware and flow-based holding strategies
  */
 
-import React, { useState, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { TrendingUp, Clock, Users, Zap, CheckCircle2, AlertCircle, BarChart3, PieChart } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 const AdaptiveHoldingCharts = lazy(() => import('@/components/AdaptiveHoldingCharts'));

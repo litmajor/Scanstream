@@ -64,7 +64,22 @@ const AutomatedTradingDashboard: React.FC<{
   const activeTradesQ = useActiveTrades();
   const statsQ = useTradeStats();
   const activeTrades = activeTradesQ.data?.trades || [];
-  const stats = statsQ.data?.stats || null;
+  const rawStats = statsQ.data?.stats;
+  const stats: TradeStatistics | null = rawStats ? {
+    totalTrades: rawStats.totalTrades ?? 0,
+    winningTrades: rawStats.winningTrades ?? 0,
+    losingTrades: rawStats.losingTrades ?? 0,
+    winRate: rawStats.winRate ?? 0,
+    averageProfitUSD: rawStats.averageProfitUSD ?? 0,
+    averageLossUSD: rawStats.averageLossUSD ?? 0,
+    profitFactor: rawStats.profitFactor ?? 0,
+    totalProfitLoss: rawStats.totalProfitLoss ?? 0,
+    largestWin: rawStats.largestWin ?? 0,
+    largestLoss: rawStats.largestLoss ?? 0,
+    maxConsecutiveWins: 0,
+    maxConsecutiveLosses: 0,
+    averageDurationMinutes: 0,
+  } : null;
 
   // Calculate risk metrics
   const riskMetrics: RiskMetrics = {
@@ -187,7 +202,7 @@ const AutomatedTradingDashboard: React.FC<{
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Win Rate</p>
           <p className="text-3xl font-bold text-indigo-600">
-            {stats ? `${(stats.winRate * 100).toFixed(0)}%` : 'N/A'}
+            {stats?.winRate !== undefined ? `${(stats.winRate * 100).toFixed(0)}%` : 'N/A'}
           </p>
           <p className="text-xs text-gray-500 mt-1">
             {stats ? `${stats.winningTrades}W / ${stats.losingTrades}L` : 'No trades'}
@@ -258,14 +273,14 @@ const AutomatedTradingDashboard: React.FC<{
                       <td className="px-4 py-3 text-right">
                         <span
                           className={`px-2 py-1 rounded text-xs font-semibold ${
-                            trade.confidence > 0.8
+                            (trade.confidence ?? 0) > 0.8
                               ? 'bg-blue-100 text-blue-700'
-                              : trade.confidence > 0.6
+                              : (trade.confidence ?? 0) > 0.6
                               ? 'bg-yellow-100 text-yellow-700'
                               : 'bg-orange-100 text-orange-700'
                           }`}
                         >
-                          {(trade.confidence * 100).toFixed(0)}%
+                          {((trade.confidence ?? 0) * 100).toFixed(0)}%
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">

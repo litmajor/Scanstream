@@ -51,8 +51,14 @@ export function FeatureImportanceDashboard() {
     }
   });
 
-  const features = importanceQ.data?.data || [];
+  const features = (importanceQ.data?.data || []).map((feature) => ({
+    ...feature,
+    correlationWithSuccess: feature.correlationWithSuccess ?? 0,
+    usageFrequency: feature.usageFrequency ?? 0,
+    avgContribution: feature.avgContribution ?? 0,
+  }));
   const featureSets = featureSetsQ.data?.data || [];
+  const loadingSets = featureSetsQ.isLoading;
 
   const topFeatures = features.slice(0, 15);
   const lowFeatures = features.slice(-10).reverse();
@@ -264,7 +270,7 @@ export function FeatureImportanceDashboard() {
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                  {featureSets.map((set: any) => (
+                  {featureSets.map((set) => (
                     <Card key={set.id} data-testid={`ab-test-set-${set.id}`}>
                       <CardContent className="pt-4">
                         <div className="flex justify-between items-start mb-2">
